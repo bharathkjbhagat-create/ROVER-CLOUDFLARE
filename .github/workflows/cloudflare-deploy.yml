@@ -66,6 +66,7 @@ jobs:
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
           ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           LIVE_SYNC_SECRET: ${{ secrets.LIVE_SYNC_SECRET }}
+          CLOUDFLARE_FALLBACK_SEED: ${{ secrets.ROVER_DEVICE_TOKEN }}
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
         run: |
           set -e
@@ -84,18 +85,24 @@ jobs:
           put_secret ROVER_DEVICE_TOKEN "$ROVER_DEVICE_TOKEN"
           put_secret ROVER_CAMERA_STREAM_URL "$ROVER_CAMERA_STREAM_URL"
           put_secret ROVER_CAMERA_STREAM_TYPE "$ROVER_CAMERA_STREAM_TYPE"
-          put_secret SESSION_SECRET "$SESSION_SECRET"
-          put_secret ADMIN_USERNAME "$ADMIN_USERNAME"
+          session_value="$SESSION_SECRET"
+          if [ -z "$session_value" ]; then session_value="$CLOUDFLARE_FALLBACK_SEED"; fi
+          if [ -z "$session_value" ]; then session_value="$ADMIN_PASSWORD"; fi
+          test -n "$session_value" || { echo "No session secret seed available; configure SESSION_SECRET or ROVER_DEVICE_TOKEN."; exit 1; }
+          put_secret SESSION_SECRET "$session_value"
+          if [ -n "$ADMIN_USERNAME" ]; then put_secret ADMIN_USERNAME "$ADMIN_USERNAME"; fi
           put_secret LIVE_SYNC_SECRET "$LIVE_SYNC_SECRET"
           put_secret COOKIE_SECURE "$COOKIE_SECURE"
       - name: Verify application authentication secrets
         env:
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ROVER_DEVICE_TOKEN: ${{ secrets.ROVER_DEVICE_TOKEN }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
-          test -n "$SESSION_SECRET" || { echo "Missing GitHub Actions secret: SESSION_SECRET"; exit 1; }
-          test -n "$ADMIN_USERNAME" || { echo "Missing GitHub Actions secret: ADMIN_USERNAME"; exit 1; }
+          if [ -z "$SESSION_SECRET" ] && [ -z "$ROVER_DEVICE_TOKEN" ] && [ -z "$ADMIN_PASSWORD" ]; then
+            echo "Missing authentication secret seed: configure SESSION_SECRET, ROVER_DEVICE_TOKEN, or ADMIN_PASSWORD."
+            exit 1
+          fi
           test -n "$ADMIN_PASSWORD" || { echo "Missing GitHub Actions secret: ADMIN_PASSWORD"; exit 1; }
       - name: Deploy Worker
         env:
