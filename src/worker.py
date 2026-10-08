@@ -461,10 +461,36 @@ class Default(WorkerEntrypoint):
                 )
 
             user = self._local_authenticate(self.env, username, password)
-            if not user:
-                canonical = "MAHANTESH" if self._normalize_login(username) == "MAHADESH" else username
-                user = await self._legacy_authenticate(canonical, password)
+            if user:
+                return self._login_response(user)
 
+            # Never send arbitrary login IDs to the legacy migration service.
+            # Unknown IDs must be rejected locally with a normal 401.
+            key = self._normalize_login(username)
+            admin_name = self._env_value(
+                self.env, "ADMIN_USERNAME", ADMIN_USERNAME
+            )
+            known_keys = {
+                self._normalize_login(admin_name),
+                "ADMIN",
+                "ADMINISTRATOR",
+                "DEFENXADMIN",
+                "DEFENXADMINISTRATOR",
+                "ROVERADMIN",
+                "ROVERADMINISTRATOR",
+                "ADMINUSER",
+                "ADMINUSERID",
+                "MAHANTESH",
+                "MAHADESH",
+                "DHANUSH",
+                "ANIRUDH",
+                "MAMLESHWAR",
+            }
+            if key not in known_keys:
+                return self._login_response(None)
+
+            canonical = "MAHANTESH" if key == "MAHADESH" else username
+            user = await self._legacy_authenticate(canonical, password)
             return self._login_response(user)
         except Exception as exc:
             # Authentication must never turn a bad/unsupported request or a
