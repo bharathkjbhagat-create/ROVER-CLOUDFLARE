@@ -1,3 +1,4 @@
+# clean Cloudflare-only repository
 name: Deploy DEFENX to Cloudflare
 
 on:
