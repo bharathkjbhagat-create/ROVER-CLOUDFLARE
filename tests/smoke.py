@@ -21,6 +21,18 @@ assert resp.status_code == 200 and resp.get_json().get("ok") is True
 resp = client.post("/api/login", json={"username":"ROVERADMIN","password":"priority6-test-password"})
 assert resp.status_code == 200, resp.get_data(as_text=True)
 
+# Regression coverage for the historical deployment rejection: unknown and
+# incomplete credentials must remain ordinary client errors, never HTTP 500.
+resp = client.post("/api/login", json={"username":"__INVALID_TEST_USER__","password":"__INVALID_TEST_PASSWORD__"})
+assert resp.status_code == 401, resp.get_data(as_text=True)
+assert resp.get_json().get("ok") is False
+
+resp = client.post("/api/login", json={"username":"","password":""})
+assert resp.status_code == 400, resp.get_data(as_text=True)
+
+worker_py = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+assert "return Response.json(" in worker_py
+
 resp = client.get("/api/bootstrap")
 assert resp.status_code == 200 and resp.get_json().get("telemetry") is not None
 
