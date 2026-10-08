@@ -1019,6 +1019,15 @@ def login():
     canonical_username = friend_aliases.get(login_key, username)
     password = str(data.get("password", ""))
 
+    # Keep validation consistent with the Worker-native login path: malformed
+    # or incomplete credentials are client errors, not authentication failures.
+    if not username or not password:
+        return jsonify({
+            "ok": False,
+            "error": "Enter login ID and password.",
+            "field": "username" if not username else "password",
+        }), 400
+
     # Keep the admin sign-in compatible with the previous dashboard. ADMIN,
     # ADMINISTRATOR, DEFENX ADMIN and ROVER ADMIN all map to the configured admin.
     admin_login_ids = {
