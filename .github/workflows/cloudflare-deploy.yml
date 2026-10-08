@@ -63,6 +63,8 @@ jobs:
           ROVER_DEVICE_TOKEN: ${{ secrets.ROVER_DEVICE_TOKEN }}
           ROVER_CAMERA_STREAM_URL: ${{ secrets.ROVER_CAMERA_STREAM_URL }}
           ROVER_CAMERA_STREAM_TYPE: ${{ secrets.ROVER_CAMERA_STREAM_TYPE }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
           LIVE_SYNC_SECRET: ${{ secrets.LIVE_SYNC_SECRET }}
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
         run: |
@@ -82,8 +84,19 @@ jobs:
           put_secret ROVER_DEVICE_TOKEN "$ROVER_DEVICE_TOKEN"
           put_secret ROVER_CAMERA_STREAM_URL "$ROVER_CAMERA_STREAM_URL"
           put_secret ROVER_CAMERA_STREAM_TYPE "$ROVER_CAMERA_STREAM_TYPE"
+          put_secret SESSION_SECRET "$SESSION_SECRET"
+          put_secret ADMIN_USERNAME "$ADMIN_USERNAME"
           put_secret LIVE_SYNC_SECRET "$LIVE_SYNC_SECRET"
           put_secret COOKIE_SECURE "$COOKIE_SECURE"
+      - name: Verify application authentication secrets
+        env:
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          test -n "$SESSION_SECRET" || { echo "Missing GitHub Actions secret: SESSION_SECRET"; exit 1; }
+          test -n "$ADMIN_USERNAME" || { echo "Missing GitHub Actions secret: ADMIN_USERNAME"; exit 1; }
+          test -n "$ADMIN_PASSWORD" || { echo "Missing GitHub Actions secret: ADMIN_PASSWORD"; exit 1; }
       - name: Deploy Worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -118,3 +131,22 @@ jobs:
           printf '%s' "$health" | grep -q '"session_configured":true'
           printf '%s' "$health" | grep -q '"auth_path_configured":true'
           printf '%s' "$health" | grep -q '"realtime_bound":true'
+
+      - name: Verify deployed login endpoint
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          set -e
+          base="https://defenx.bindukjagadish.workers.dev"
+          jar="$(mktemp)"
+          payload="$(python -c 'import json,os; print(json.dumps({"username":os.environ["ADMIN_USERNAME"],"password":os.environ["ADMIN_PASSWORD"]}))')"
+          code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-login-response -w '%{http_code}' -c "$jar" -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$payload" "$base/api/login")"
+          echo "/api/login -> HTTP $code"
+          cat /tmp/defenx-login-response
+          test "$code" = "200"
+          python -c 'import json; d=json.load(open("/tmp/defenx-login-response",encoding="utf-8")); assert d.get("ok") is True, d; assert isinstance(d.get("user"), dict), d'
+          code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-me-response -w '%{http_code}' -b "$jar" "$base/api/me")"
+          echo "/api/me -> HTTP $code"
+          cat /tmp/defenx-me-response
+          test "$code" = "200"
