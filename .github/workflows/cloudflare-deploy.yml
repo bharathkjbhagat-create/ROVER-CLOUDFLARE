@@ -41,6 +41,9 @@ jobs:
           test -f public/sw.js
           test -f public/rover-device.webp
           test -f public/rover-left.webp
+          test -f public/rover-device.svg
+          test -f public/rover-device-photo.js
+          test -f public/rover-left-photo.js
           test -f public/favicon.svg
           test -f public/robots.txt
           test -f public/sitemap.xml
