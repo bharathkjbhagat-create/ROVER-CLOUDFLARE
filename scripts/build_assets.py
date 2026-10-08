@@ -22,7 +22,7 @@ ASSETS = {
 source = APP_JS.read_text(encoding="utf-8")
 
 for variable, output in ASSETS.items():
-    pattern = rf'window\\.{re.escape(variable)}="data:image/webp;base64,([^"]+)"'
+    pattern = rf'window\.{re.escape(variable)}="data:image/webp;base64,([^"]+)"'
     match = re.search(pattern, source)
     if not match:
         raise SystemExit(f"Missing embedded WebP data URI: window.{variable}")
