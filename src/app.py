@@ -988,57 +988,6 @@ def _signed_worker_legacy_user():
         print(f"DEFENX signed legacy authentication rejected: {type(exc).__name__}")
         return None
 
-def legacy_authenticate(raw_username, password):
-    """Validate an existing production account during the Cloudflare migration.
-    Uses the Python Worker's JavaScript fetch via Pyodide FFI, which is the
-    supported way for Flask/WSGI code to call the Fetch API.
-    """
-    if not LEGACY_AUTH_ENABLED or not LEGACY_AUTH_URL or CF_ENV is None or CF_FETCH is None or run_sync is None:
-        return None
-    try:
-        payload = json.dumps({
-            "username": str(raw_username or "").strip(),
-            "password": str(password or ""),
-        })
-        request_options = {
-            "method": "POST",
-            "headers": {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-            },
-            "body": payload,
-        }
-        try:
-            request_options["signal"] = js.AbortSignal.timeout(5000)
-        except Exception:
-            pass
-        auth_request = js.Request.new(LEGACY_AUTH_URL, request_options)
-        auth_response = run_sync(CF_FETCH(auth_request))
-        status = int(auth_response.status)
-        raw = run_sync(auth_response.text())
-        data = json.loads(str(raw or "{}"))
-        if status < 200 or status >= 300 or not data.get("ok") or not isinstance(data.get("user"), dict):
-            return None
-        user = dict(data["user"])
-        username = str(user.get("username") or "").strip().upper()
-        role = str(user.get("role") or "user").strip().lower()
-        if not username or role not in {"admin", "user"}:
-            return None
-        return {
-            "id": str(user.get("id") or f"legacy-{username.lower()}"),
-            "username": username,
-            "display_name": str(user.get("display_name") or username)[:120],
-            "role": role,
-            "enabled": bool(user.get("enabled", True)),
-            "can_control": bool(user.get("can_control", True)),
-            "can_manage_users": bool(user.get("can_manage_users", False)),
-            "created_at": user.get("created_at"),
-            "last_login_at": datetime.now(timezone.utc).isoformat(),
-        }
-    except Exception as exc:
-        print(f"DEFENX legacy authentication unavailable: {type(exc).__name__}")
-        return None
-
 @app.post("/api/login")
 def login():
     if not SESSION_SECRET_CONFIGURED:
