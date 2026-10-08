@@ -415,18 +415,20 @@ class Default(WorkerEntrypoint):
         return serializer.dumps(session_data)
 
     def _login_response(self, user):
+        # Use the Python Workers JSON helper so authentication failures cannot
+        # surface as an uncaught Worker Response-construction exception.
         if not user:
-            return Response(
-                json.dumps({"ok": False, "error": "Invalid login ID or password.", "field": "username"}),
+            return Response.json(
+                {"ok": False, "error": "Invalid login ID or password.", "field": "username"},
                 status=401,
-                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+                headers={"Cache-Control": "no-store"},
             )
         cookie = self._session_cookie(user)
         if not cookie:
-            return Response(
-                json.dumps({"ok": False, "error": "Authentication service unavailable."}),
+            return Response.json(
+                {"ok": False, "error": "Authentication service unavailable."},
                 status=503,
-                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+                headers={"Cache-Control": "no-store"},
             )
         secure = self._env_value(self.env, "COOKIE_SECURE", "1") != "0"
         secure_flag = "; Secure" if secure else ""
@@ -438,8 +440,8 @@ class Default(WorkerEntrypoint):
                 f"HttpOnly; SameSite=Lax{secure_flag}"
             ),
         }
-        return Response(
-            json.dumps({"ok": True, "user": user, "db_connected": False}),
+        return Response.json(
+            {"ok": True, "user": user, "db_connected": False},
             status=200,
             headers=headers,
         )
