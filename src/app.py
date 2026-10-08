@@ -16,6 +16,7 @@ def _safe_equal(a, b):
         return False
 import math
 import os
+import base64
 import time
 import uuid
 import json
@@ -905,6 +906,7 @@ def health():
         "runtime": "cloudflare-worker",
         "session_configured": bool(SESSION_SECRET),
         "admin_configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD),
+        "legacy_bridge_configured": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL and CF_ENV is not None),
         "legacy_auth_enabled": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL),
         "auth_path_configured": bool(
             (ADMIN_USERNAME and ADMIN_PASSWORD)
@@ -943,6 +945,48 @@ def bootstrap():
         persisted_loss=read_persistent_last_known_loss(str(telemetry.get("device_id") or "ROVER-01"))
         if persisted_loss: telemetry["last_known_loss"]=persisted_loss
     return jsonify({"ok":True,"user":u,"telemetry":telemetry,"db_connected":db_available()})
+
+def _signed_worker_legacy_user():
+    """Read a legacy-authenticated user injected by the async Worker layer.
+
+    The async Worker performs the external Fetch call. It then signs this
+    compact user payload with the same session secret before forwarding the
+    request into Flask, so browser-supplied headers cannot impersonate a user.
+    """
+    payload = request.headers.get("X-DEFENX-LEGACY-USER", "")
+    signature = request.headers.get("X-DEFENX-LEGACY-SIG", "")
+    if not payload or not signature or not SESSION_SECRET:
+        return None
+    try:
+        expected = hmac.new(
+            str(SESSION_SECRET).encode("utf-8"),
+            payload.encode("ascii"),
+            hashlib.sha256,
+        ).hexdigest()
+        if not hmac.compare_digest(expected, signature):
+            return None
+        padded = payload + "=" * (-len(payload) % 4)
+        user = json.loads(base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8"))
+        if not isinstance(user, dict):
+            return None
+        username = str(user.get("username") or "").strip().upper()
+        role = str(user.get("role") or "user").strip().lower()
+        if not username or role not in {"admin", "user"}:
+            return None
+        return {
+            "id": str(user.get("id") or f"legacy-{username.lower()}"),
+            "username": username,
+            "display_name": str(user.get("display_name") or username)[:120],
+            "role": role,
+            "enabled": bool(user.get("enabled", True)),
+            "can_control": bool(user.get("can_control", True)),
+            "can_manage_users": bool(user.get("can_manage_users", False)),
+            "created_at": user.get("created_at"),
+            "last_login_at": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as exc:
+        print(f"DEFENX signed legacy authentication rejected: {type(exc).__name__}")
+        return None
 
 def legacy_authenticate(raw_username, password):
     """Validate an existing production account during the Cloudflare migration.
@@ -1043,7 +1087,7 @@ def login():
         }
         if x
     }
-    fast_user = None
+    fast_user = _signed_worker_legacy_user()
     # Fast authentication path: configured Admin and Friend accounts are already
     # available in Worker memory. Verify them locally before touching PostgreSQL,
     # so a slow database can never hold the sign-in screen hostage.
