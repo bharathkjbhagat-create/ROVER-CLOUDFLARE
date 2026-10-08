@@ -446,24 +446,32 @@ class Default(WorkerEntrypoint):
 
     async def _handle_login(self, request):
         try:
-            data = json.loads(str(await request.text() or "{}"))
-        except Exception:
-            data = {}
-        username = str(data.get("username") or "").strip()
-        password = str(data.get("password") or "")
-        if not username or not password:
-            return Response(
-                json.dumps({"ok": False, "error": "Enter login ID and password."}),
-                status=400,
-                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
-            )
+            try:
+                data = json.loads(str(await request.text() or "{}"))
+            except Exception:
+                data = {}
 
-        user = self._local_authenticate(self.env, username, password)
-        if not user:
-            canonical = "MAHANTESH" if self._normalize_login(username) == "MAHADESH" else username
-            user = await self._legacy_authenticate(canonical, password)
+            username = str(data.get("username") or "").strip()
+            password = str(data.get("password") or "")
+            if not username or not password:
+                return Response(
+                    json.dumps({"ok": False, "error": "Enter login ID and password."}),
+                    status=400,
+                    headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+                )
 
-        return self._login_response(user)
+            user = self._local_authenticate(self.env, username, password)
+            if not user:
+                canonical = "MAHANTESH" if self._normalize_login(username) == "MAHADESH" else username
+                user = await self._legacy_authenticate(canonical, password)
+
+            return self._login_response(user)
+        except Exception as exc:
+            # Authentication must never turn a bad/unsupported request or a
+            # migration-provider failure into a Worker 500. Invalid credentials
+            # remain a normal 401 response so clients can recover cleanly.
+            print(f"DEFENX login handler recovered from {type(exc).__name__}")
+            return self._login_response(None)
 
     async def fetch(self, request):
         # Bind the real runtime secret before any Flask session is read/written.
