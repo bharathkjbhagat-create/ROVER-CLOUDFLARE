@@ -414,46 +414,36 @@ class Default(WorkerEntrypoint):
         }
         return serializer.dumps(session_data)
 
-    @staticmethod
-    def _json_response(payload, status=200, headers=None):
-        # Keep auth responses compatible with all supported Python Workers
-        # runtime builds; do not depend on an optional Response.json helper.
-        merged = {"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"}
-        if headers:
-            merged.update(headers)
-        return Response(
-            json.dumps(payload, separators=(",", ":"), ensure_ascii=False),
-            status=status,
-            headers=merged,
-        )
-
     def _login_response(self, user):
+        # Use the Python Workers JSON helper so authentication failures cannot
+        # surface as an uncaught Worker Response-construction exception.
         if not user:
-            return self._json_response(
+            return Response.json(
                 {"ok": False, "error": "Invalid login ID or password.", "field": "username"},
                 status=401,
+                headers={"Cache-Control": "no-store"},
             )
-        try:
-            cookie = self._session_cookie(user)
-        except Exception as exc:
-            print(f"DEFENX session cookie generation failed: {type(exc).__name__}")
-            cookie = None
+        cookie = self._session_cookie(user)
         if not cookie:
-            return self._json_response(
+            return Response.json(
                 {"ok": False, "error": "Authentication service unavailable."},
                 status=503,
+                headers={"Cache-Control": "no-store"},
             )
         secure = self._env_value(self.env, "COOKIE_SECURE", "1") != "0"
         secure_flag = "; Secure" if secure else ""
-        return self._json_response(
+        headers = {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "Set-Cookie": (
+                f"rover_session={cookie}; Max-Age=43200; Path=/; "
+                f"HttpOnly; SameSite=Lax{secure_flag}"
+            ),
+        }
+        return Response.json(
             {"ok": True, "user": user, "db_connected": False},
             status=200,
-            headers={
-                "Set-Cookie": (
-                    f"rover_session={cookie}; Max-Age=43200; Path=/; "
-                    f"HttpOnly; SameSite=Lax{secure_flag}"
-                )
-            },
+            headers=headers,
         )
 
     async def _handle_login(self, request):
