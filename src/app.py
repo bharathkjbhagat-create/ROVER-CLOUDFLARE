@@ -1146,44 +1146,9 @@ def login():
         )
         return response
 
-    # Migration compatibility: validate an existing account against the old
-    # production login before attempting a database connection. This prevents a
-    # missing Cloudflare user seed from being reported as "Invalid login ID".
-    legacy_user = legacy_authenticate(canonical_username, password)
-    if legacy_user:
-        clear_login_failures(ip)
-        session.clear()
-        session.permanent = False
-        session["fallback_user"] = legacy_user
-        session["user_cache"] = legacy_user
-        session["dashboard_entry"] = True
-        # Migration authentication is successful already; audit/live-sync must remain best-effort.
-        try:
-            recent_action("LOGIN", "Successful legacy-migration login", legacy_user)
-        except Exception as exc:
-            print(f"DEFENX legacy login audit skipped: {type(exc).__name__}")
-        if legacy_user.get("role") == "user":
-            try:
-                write_shared_login_event(legacy_user, "Successful legacy-migration login")
-            except Exception as exc:
-                print(f"DEFENX legacy login event skipped: {type(exc).__name__}")
-        try:
-            db_status = bool(db_available())
-        except Exception:
-            db_status = False
-        response = jsonify({
-            "ok": True,
-            "user": legacy_user,
-            "db_connected": db_status,
-            "auth_source": "LEGACY_MIGRATION",
-        })
-        response.set_cookie(
-            "rover_auth", "1", max_age=60 * 60 * 12,
-            secure=_config("COOKIE_SECURE", "1") != "0",
-            httponly=True, samesite="Lax", path="/"
-        )
-        return response
-
+    # Migration authentication is handled by the asynchronous Cloudflare
+    # Worker entrypoint before Flask/WSGI. Never call the legacy Fetch bridge
+    # from this synchronous handler: it can trigger Worker error 1101 / HTTP 500.
     # Unknown credentials may require the database lookup.
     try:
         ensure_db()
