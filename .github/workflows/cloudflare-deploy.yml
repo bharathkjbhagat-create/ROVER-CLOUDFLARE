@@ -21,9 +21,12 @@ jobs:
           node-version: "22"
       - uses: actions/setup-python@v6
         with:
-          python-version: "3.12"
+          python-version: "3.13"
       - name: Install uv
         run: python -m pip install --upgrade uv
+      - name: Build embedded WebP assets
+        run: python scripts/build_assets.py
+
       - name: Validate Python Worker source
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate frontend JavaScript
@@ -68,6 +71,17 @@ jobs:
           ROVER_CAMERA_STREAM_TYPE: ${{ secrets.ROVER_CAMERA_STREAM_TYPE }}
           LIVE_SYNC_SECRET: ${{ secrets.LIVE_SYNC_SECRET }}
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          FRIEND_MAHANTESH_PASSWORD_HASH: ${{ secrets.FRIEND_MAHANTESH_PASSWORD_HASH }}
+          FRIEND_DHANUSH_PASSWORD_HASH: ${{ secrets.FRIEND_DHANUSH_PASSWORD_HASH }}
+          FRIEND_ANIRUDH_PASSWORD_HASH: ${{ secrets.FRIEND_ANIRUDH_PASSWORD_HASH }}
+          FRIEND4_PASSWORD_HASH: ${{ secrets.FRIEND4_PASSWORD_HASH }}
+          LEGACY_AUTH_ENABLED: ${{ secrets.LEGACY_AUTH_ENABLED }}
+          LEGACY_AUTH_URL: ${{ secrets.LEGACY_AUTH_URL }}
+          DEVICE_OFFLINE_AFTER_SECONDS: ${{ secrets.DEVICE_OFFLINE_AFTER_SECONDS }}
         run: |
           set -e
           put_secret() {
@@ -133,7 +147,26 @@ jobs:
           cat /tmp/defenx-login-response
           test "$code" != "500"
           test "$code" = "401"
-          python -c 'import json; d=json.load(open("/tmp/defenx-login-response",encoding="utf-8")); assert d.get("ok") is False, d'
+
+
+      - name: Verify deployed admin login and session
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$ADMIN_PASSWORD" || { echo "Missing GitHub Actions secret: ADMIN_PASSWORD"; exit 1; }
+          username="${ADMIN_USERNAME:-ROVERADMIN}"
+          payload="$(python -c 'import json,os; print(json.dumps({"username":os.environ.get("ADMIN_USERNAME") or "ROVERADMIN","password":os.environ["ADMIN_PASSWORD"]}))')"
+          code="$(curl -A 'Mozilla/5.0 (DEFENX valid-login smoke test)' -sS -o /tmp/defenx-valid-login.json -c /tmp/defenx-cookies.txt -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$payload" "$base/api/login")"
+          echo "/api/login valid credentials -> HTTP $code"
+          test "$code" = "200"
+          python -c 'import json; d=json.load(open("/tmp/defenx-valid-login.json",encoding="utf-8")); assert d.get("ok") is True, d'
+          me_code="$(curl -A 'Mozilla/5.0 (DEFENX session smoke test)' -sS -o /tmp/defenx-valid-me.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/me")"
+          echo "/api/me with session -> HTTP $me_code"
+          test "$me_code" = "200"
+          python -c 'import json; d=json.load(open("/tmp/defenx-valid-me.json",encoding="utf-8")); assert d.get("ok") is True, d'
+    python -c 'import json; d=json.load(open("/tmp/defenx-login-response",encoding="utf-8")); assert d.get("ok") is False, d'
           code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-me-response -w '%{http_code}' "$base/api/me")"
           echo "/api/me without session -> HTTP $code"
           cat /tmp/defenx-me-response
