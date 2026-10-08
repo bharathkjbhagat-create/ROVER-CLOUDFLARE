@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /login.html
+Allow: /secure-login
+Allow: /manifest.webmanifest
+Allow: /style.css
+Allow: /app.js
+Allow: /sitemap.xml
+Disallow: /
+Disallow: /api/
+
+Sitemap: https://defenx.bindukjagadish.workers.dev/sitemap.xml

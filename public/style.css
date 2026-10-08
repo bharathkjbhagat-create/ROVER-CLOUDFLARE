@@ -1,0 +1,1372 @@
+html{-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{touch-action:manipulation}
+input,select,textarea{font-size:16px}
+body{padding-bottom:env(safe-area-inset-bottom)}
+
+:root{--bg:#071018;--card:#0d1924;--line:#1e3444;--text:#e8f2f8;--muted:#7f9aaa;--accent:#22d3a6;--danger:#ff5b65}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#10283a 0,#071018 40%);color:var(--text);font:14px Inter,Segoe UI,Arial,sans-serif}
+button,select,input{font:inherit}button{background:#122536;border:1px solid #294354;color:var(--text);border-radius:8px;padding:8px 10px;cursor:pointer;font-weight:700}button:hover:not(:disabled){border-color:var(--accent)}button:disabled{opacity:.35;cursor:not-allowed}
+.topbar{height:58px;background:#08131d;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0;z-index:1000}.brand{font-weight:900;letter-spacing:.8px}.brand small{display:block;color:var(--muted);font-size:9px;letter-spacing:1.2px;margin-top:2px}.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);margin-right:8px}.topstats{display:flex;gap:8px;align-items:center;color:var(--muted);font-size:10px}.topstats span:first-child{color:var(--accent)}.topstats button{font-size:9px;padding:6px 8px}
+.grid{display:grid;grid-template-columns:minmax(0,2.1fr) minmax(300px,.9fr);gap:12px;padding:12px;max-width:1600px;margin:auto}.card{background:linear-gradient(180deg,#0d1a26,#0a151f);border:1px solid var(--line);border-radius:12px;overflow:hidden;box-shadow:0 8px 25px #0005}.cardhead{min-height:42px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--line);font-size:12px}.cardhead span{font-size:10px;color:var(--muted);font-weight:700}.mapcard{min-height:510px}.actions{display:flex;gap:6px}.actions button{font-size:9px;padding:6px 8px}.mapcard #map{height:445px;position:relative}.mapfallback{position:absolute;inset:0;display:grid;place-items:center;text-align:center;padding:30px;background:repeating-linear-gradient(0deg,#0c1923 0,#0c1923 29px,#10212d 30px),repeating-linear-gradient(90deg,#0c1923 0,#0c1923 29px,#10212d 30px);color:var(--muted);font-size:12px}.maplegend{display:flex;gap:18px;padding:6px 10px;color:var(--muted);font-size:10px}
+.side{display:grid;gap:12px;align-content:start}.metrics{display:grid;grid-template-columns:1fr 1fr}.metrics>div{padding:11px;border-bottom:1px solid var(--line)}label{display:block;color:var(--muted);font-size:9px;font-weight:800;margin-bottom:5px}.metrics strong{font-size:21px;display:block}.metrics small,.tiny,.muted{color:var(--muted);font-size:10px}.bar{height:4px;background:#172a37;border-radius:9px;overflow:hidden}.bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .5s}
+.coords{display:grid;grid-template-columns:1fr 1fr;padding:12px;gap:8px}.coords span{background:#09131d;border:1px solid var(--line);padding:9px;border-radius:8px;color:var(--muted);font-size:9px}.coords b{display:block;color:var(--text);font-size:11px;margin-top:3px}.tiny{padding:0 12px 12px}.alerts{display:grid;grid-template-columns:1fr 1fr}.alerts>div{padding:10px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:8px}.alerts b{margin-left:auto}.ico{width:22px;height:22px;display:grid;place-items:center;background:#142b3b;border-radius:6px;color:var(--accent);font-weight:900}.confidence{padding:9px 12px;color:var(--muted);font-size:10px}.modes{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}.modes button{font-size:9px}.notice{margin:0 10px 10px;padding:8px;border:1px solid #5b4520;background:#211b0d;color:#e5bd68;border-radius:8px;font-size:9px}
+.drive{min-height:280px}.drivegrid{display:grid;grid-template-columns:repeat(3,70px);gap:7px;justify-content:center;padding:18px 0 10px}.drivegrid button{height:55px;font-size:21px}.drivegrid .stop{font-size:11px;background:#3a1620;border-color:#7c2634;color:#ff9aa0}.camcontrols{display:flex;justify-content:center;gap:7px;padding-bottom:14px}.camcontrols button{font-size:9px}.video{min-height:280px}.videobox{height:236px;margin:10px;border-radius:9px;background:linear-gradient(135deg,#0d2630,#071117 60%,#123524);position:relative;overflow:hidden;display:grid;place-items:center}.camera-placeholder{text-align:center;color:#77a0ad}.camera-placeholder small{display:block;font-size:9px;color:#587481;margin-top:5px}.crosshair{font-size:50px;color:#2cd3aa;opacity:.7}.videooverlay{position:absolute;left:10px;top:10px;color:#b7d7e2;font:10px monospace;background:#0007;padding:6px;border-radius:5px}.scanline{position:absolute;left:0;right:0;top:30%;height:1px;background:#3ce6bc66;box-shadow:0 0 12px #3ce6bc;animation:scan 3s linear infinite}@keyframes scan{0%{top:15%}100%{top:85%}}.analytics canvas{width:100%;padding:10px}.logs{min-height:220px}.logs #log{height:170px;overflow:auto;padding:7px}.logrow{display:grid;grid-template-columns:70px 1fr;gap:8px;padding:6px;border-bottom:1px solid #122330;font-size:10px}.logrow time{color:var(--muted)}
+.modal{position:fixed;inset:0;background:#02070caa;backdrop-filter:blur(6px);display:grid;place-items:center;padding:18px;z-index:5000}.hidden{display:none!important}.modalbox{width:min(520px,96vw);max-height:90vh;overflow:auto;background:#0b1722;border:1px solid var(--line);border-radius:16px;padding:18px}.modalbox.wide{width:min(1100px,96vw)}.modalhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}.modalbox input,.modalbox select{width:100%;padding:10px;background:#071018;border:1px solid var(--line);color:var(--text);border-radius:8px}.modalbox>button{margin-top:12px}.adminTabs{display:flex;gap:8px;border-bottom:1px solid var(--line);padding-bottom:10px}.adminTabs button{font-size:10px}.panelTitle{font-size:10px;color:var(--muted);font-weight:900;letter-spacing:.8px;margin:12px 0 8px}.formgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.checks{display:flex;gap:16px;padding:10px 0;font-size:10px;color:var(--muted)}.checks label{display:flex;align-items:center;gap:5px;margin:0}.checks input{width:auto}.formmsg{min-height:16px;color:var(--accent);font-size:10px;margin:8px 0}.tablewrap{overflow:auto;border:1px solid var(--line);border-radius:9px}.tablewrap table{width:100%;border-collapse:collapse;min-width:780px}.tablewrap th,.tablewrap td{padding:8px;border-bottom:1px solid #172a37;text-align:left;font-size:10px;vertical-align:top}.tablewrap th{color:var(--muted)}.tablewrap td small{display:block;color:var(--muted);margin-top:2px}.tablewrap .mini{font-size:8px;padding:4px 6px;margin:2px}.empty{padding:16px;color:var(--muted)}
+@media(max-width:1000px){.grid{grid-template-columns:1fr}.mapcard #map{height:390px}.side{grid-template-columns:1fr 1fr}.formgrid{grid-template-columns:1fr 1fr}}@media(max-width:650px){.side{grid-template-columns:1fr}.actions{flex-wrap:wrap}.formgrid{grid-template-columns:1fr}.checks{flex-direction:column}}
+
+.alertbar{margin:10px 0;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:#08131d;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:10px;color:var(--muted)}
+.alertbar span{flex:1 1 220px}.alertbar button{font-size:9px;padding:6px 8px}
+#alertBtn{position:relative}.loginToast{position:fixed;right:18px;top:76px;z-index:7000;width:min(360px,calc(100vw - 36px));padding:12px 14px;border:1px solid var(--accent);border-radius:11px;background:#0b1c24;box-shadow:0 16px 45px #0009;display:grid;gap:4px;font-size:11px;animation:toastIn .25s ease}.loginToast b{color:var(--accent);font-size:10px}.loginToast span{color:var(--text)}.loginToast.hide{opacity:0;transform:translateY(-8px);transition:.35s ease}@keyframes toastIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+footer{padding:4px 14px 16px;text-align:center;color:var(--muted);font-size:9px}
+@media(max-width:650px){
+  .topbar{height:auto;min-height:58px;padding:8px 10px;align-items:flex-start;gap:8px;flex-wrap:wrap}.brand{flex:1 1 180px}.topstats{width:100%;justify-content:flex-end;flex-wrap:wrap}.topstats span{font-size:9px}.topstats button{min-height:36px;padding:7px 9px}
+  .grid{padding:8px;gap:8px}.cardhead{gap:8px;flex-wrap:wrap}.mapcard{min-height:0}.mapcard #map{height:60vw;min-height:300px;max-height:430px}.maplegend{gap:10px;overflow:auto;white-space:nowrap}
+  .metrics strong{font-size:18px}.coords{grid-template-columns:1fr}.drive{min-height:0}.drivegrid{grid-template-columns:repeat(3,minmax(55px,72px));padding:12px 0 8px}.drivegrid button{height:54px}
+  .camcontrols{display:grid;grid-template-columns:1fr 1fr;padding:0 12px 12px}.videobox{height:54vw;min-height:210px}.analytics canvas{height:150px}.modal{padding:8px}.modalbox,.modalbox.wide{width:100%;max-height:92vh;padding:13px}.tablewrap{max-width:100%;overflow-x:auto}.tablewrap table{min-width:760px}
+}
+@media(max-width:390px){.topstats{gap:5px}.topstats span:nth-child(2),.topstats span:nth-child(3){display:none}.drivegrid{grid-template-columns:repeat(3,62px)}.drivegrid button{height:50px}}
+@supports(padding:max(0px)){
+  body{padding-bottom:max(0px,env(safe-area-inset-bottom))}
+}
+
+/* Fast/mobile header refinement */
+.topbar-left{display:flex;align-items:center;gap:10px;min-width:0}
+.profileTop{min-height:36px;padding:7px 10px;font-size:9px;white-space:nowrap}
+.topbar{contain:layout paint}
+.card{box-shadow:0 5px 16px #0004}
+@media(max-width:650px){
+  .topbar-left{width:auto;flex:1 1 auto}
+  .profileTop{min-height:36px}
+  .topstats{width:auto;flex:0 1 auto}
+  .topstats span:first-child{display:none}
+  .topstats button{min-width:36px}
+  body{-webkit-tap-highlight-color:transparent}
+  button{touch-action:manipulation}
+}
+@media(prefers-reduced-motion:reduce){
+  *{scroll-behavior:auto!important;animation:none!important;transition:none!important}
+}
+.deviceNotes{width:100%;min-height:85px;margin-top:8px;padding:10px;background:#071018;border:1px solid var(--line);color:var(--text);border-radius:8px;resize:vertical}.deviceForm{grid-template-columns:1fr 1fr 1fr}.deviceForm select{width:100%;padding:10px;background:#071018;border:1px solid var(--line);color:var(--text);border-radius:8px}@media(max-width:650px){.deviceForm{grid-template-columns:1fr}.topstats #deviceBtn{display:inline-flex}}
+#mapFrame{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.mapcard #map{height:445px;min-height:445px}
+@media(max-width:1000px){.mapcard #map{height:390px;min-height:390px}}
+@media(max-width:650px){.mapcard #map{height:60vw;min-height:300px;max-height:430px}}
+
+/* ROVER-01 reliability and UI fixes */
+body.light{--bg:#eef3f6;--card:#ffffff;--line:#cfdae1;--text:#172630;--muted:#5e7480;background:linear-gradient(180deg,#f5f8fa,#e9f0f4);color:var(--text)}
+body.light .topbar,body.light .card,body.light .modalbox{background:#fff;color:var(--text);box-shadow:0 5px 16px rgba(20,40,55,.08)}
+body.light button{background:#edf4f7;color:#172630;border-color:#c6d4dc}
+body.light input,body.light .modalbox input,body.light .modalbox select,body.light .deviceNotes{background:#f7fafb;color:#172630;border-color:#c6d4dc}
+body.light .mapfallback{background:repeating-linear-gradient(0deg,#e7eef2 0,#e7eef2 29px,#dfe8ed 30px),repeating-linear-gradient(90deg,#e7eef2 0,#e7eef2 29px,#dfe8ed 30px);color:#5e7480}
+.mapcard{min-height:610px}
+.mapcard #map{height:550px;min-height:550px}
+@media(max-width:1000px){.mapcard{min-height:0}.mapcard #map{height:450px;min-height:450px}}
+@media(max-width:650px){.mapcard #map{height:60vw;min-height:300px;max-height:430px}}
+
+/* 2026 ROVER command-centre upgrade */
+.devicecard{position:relative}.devicephoto{margin:10px;border-radius:12px;overflow:hidden;border:1px solid #294354;background:#071018;position:relative;box-shadow:inset 0 0 30px #0008}.devicephoto img{display:block;width:100%;height:210px;object-fit:cover}.devicephotoTag{position:absolute;left:10px;bottom:10px;padding:6px 9px;border:1px solid #2cd3aa88;border-radius:999px;background:#041019cc;color:#92ffe8;font-size:9px;font-weight:900;letter-spacing:.5px}.devicechips{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 10px}.devicechips span{padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#091520;color:var(--muted);font-size:8px;font-weight:800}.devicechips b{float:right;color:var(--accent)}.safetycard .cardhead span{color:var(--accent)}.missiongrid{display:grid;grid-template-columns:1fr 1fr}.missiongrid>div{padding:10px;border-bottom:1px solid var(--line)}.missiongrid strong{font-size:14px;color:var(--text)}.emergency{width:calc(100% - 20px);margin:10px;border-color:#7c2634;background:linear-gradient(180deg,#451b24,#2b1119);color:#ffabb1;min-height:43px;font-size:11px;letter-spacing:.3px;box-shadow:0 0 0 1px #ff5b6520 inset}.emergency:hover:not(:disabled){border-color:#ff5b65;box-shadow:0 0 18px #ff5b6533}.safetycard{border-color:#375361}.devicecard .cardhead span{color:var(--accent)}
+body.light .devicephoto{background:#edf4f7}.devicephotoTag{backdrop-filter:blur(4px)}
+@media(max-width:650px){.devicephoto img{height:230px}.devicechips{grid-template-columns:1fr 1fr}.missiongrid strong{font-size:13px}}
+
+/* Advanced ROVER visual identity */
+body{background:#04090f;overflow-x:hidden;background-image:radial-gradient(circle at 15% 10%,#0e3440aa 0,transparent 30%),radial-gradient(circle at 85% 15%,#0a2740aa 0,transparent 28%),linear-gradient(#071018,#03070c 70%)}
+body:before,body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1}body:before{background:linear-gradient(90deg,transparent 0,rgba(34,211,166,.035) 50%,transparent 100%);animation:ambient 10s ease-in-out infinite alternate}@keyframes ambient{from{transform:translateX(-5%)}to{transform:translateX(5%)}}
+.roverHero{grid-column:1/-1;position:relative;min-height:132px;border:1px solid #1c4654;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#07131d 0%,#0a202b 48%,#07131b 100%);box-shadow:0 0 40px #061117 inset,0 10px 30px #0007}.heroGrid{position:absolute;inset:0;opacity:.35;background-image:linear-gradient(#3b687522 1px,transparent 1px),linear-gradient(90deg,#3b687522 1px,transparent 1px);background-size:28px 28px;transform:perspective(240px) rotateX(58deg) scale(1.3) translateY(35px)}.heroText{position:absolute;left:26px;top:22px;z-index:2}.heroKicker{font-size:9px;font-weight:900;letter-spacing:3px;color:#6e97a5}.heroText h1{margin:6px 0 0;font-size:44px;line-height:1;font-weight:1000;letter-spacing:8px;color:#ecfbff;text-shadow:0 0 22px #22d3a644}.heroText h1 span{color:var(--accent)}.heroText p{margin:8px 0 0;color:#7f9aaa;font-size:10px;font-weight:900;letter-spacing:2px}.heroRings{position:absolute;right:44px;top:18px;width:115px;height:115px;border:1px solid #27d8b255;border-radius:50%;box-shadow:0 0 22px #22d3a622 inset,0 0 22px #22d3a622}.heroRings:before,.heroRings:after{content:"";position:absolute;inset:17px;border:1px solid #27d8b244;border-radius:50%}.heroRings:after{inset:36px;border-color:#27d8b266}.heroRings i{position:absolute;left:50%;top:50%;width:5px;height:5px;background:var(--accent);border-radius:50%;box-shadow:0 0 14px var(--accent);transform-origin:0 0}.heroRings i:nth-child(1){animation:sweep 3.4s linear infinite}.heroRings i:nth-child(2){animation:sweep 3.4s linear infinite 1.1s}.heroRings i:nth-child(3){animation:sweep 3.4s linear infinite 2.2s}@keyframes sweep{from{transform:rotate(0deg) translateX(0)}to{transform:rotate(360deg) translateX(0)}}.heroPulse{position:absolute;right:92px;top:69px;width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 18px #fff,0 0 35px var(--accent);animation:pulseDot 1.5s ease-in-out infinite}@keyframes pulseDot{50%{transform:scale(1.8);opacity:.45}}
+.card{backdrop-filter:blur(10px);border-color:#1b3342aa}.mapcard,.devicecard,.video{box-shadow:0 0 0 1px #22d3a60a inset,0 10px 26px #0006}.cardhead{background:linear-gradient(90deg,#0b1924cc,transparent)}.brand{font-weight:1000;text-shadow:0 0 12px #22d3a622}.topbar{background:#050c13ee;backdrop-filter:blur(12px)}
+@media(max-width:650px){.roverHero{min-height:118px}.heroText{left:15px;top:18px}.heroText h1{font-size:31px;letter-spacing:4px}.heroText p{font-size:8px;letter-spacing:1.2px}.heroRings{right:12px;top:14px;width:90px;height:90px}.heroRings:before{inset:14px}.heroRings:after{inset:29px}.heroPulse{right:54px;top:56px}}
+body.light .roverHero{background:linear-gradient(135deg,#d8eef0,#f7fbfc 55%,#dceef3);border-color:#b8d4dc}.heroText h1{color:#ecfbff}body.light .heroText h1{color:#19323c;text-shadow:none}
+
+/* ROVER-01 ULTIMATE HUD LAYER — 2026-10-05 */
+.roverHero{min-height:168px!important;background:
+ radial-gradient(circle at 78% 50%,rgba(34,211,166,.14),transparent 22%),
+ radial-gradient(circle at 15% 20%,rgba(48,140,255,.14),transparent 28%),
+ linear-gradient(125deg,#02070c 0%,#061722 45%,#031016 100%)!important;
+ border-color:#285465!important;box-shadow:inset 0 0 60px rgba(0,0,0,.55),0 14px 42px rgba(0,0,0,.45),0 0 45px rgba(34,211,166,.05)!important}
+.roverHero:before{content:"";position:absolute;inset:0;background:
+ linear-gradient(115deg,transparent 0 34%,rgba(34,211,166,.08) 34.3%,transparent 34.7% 100%),
+ repeating-linear-gradient(90deg,transparent 0 44px,rgba(142,196,214,.035) 45px,transparent 46px),
+ repeating-linear-gradient(0deg,transparent 0 44px,rgba(142,196,214,.025) 45px,transparent 46px);
+ pointer-events:none}
+.heroText{left:30px!important;top:24px!important}
+.heroKicker{color:#88aeb9!important;font-size:10px!important;letter-spacing:3.5px!important;text-shadow:0 0 12px rgba(34,211,166,.15)}
+.heroText h1{font-size:58px!important;letter-spacing:10px!important;text-shadow:0 0 8px rgba(255,255,255,.1),0 0 26px rgba(34,211,166,.22),0 0 55px rgba(34,211,166,.08)!important}
+.heroText h1 span{filter:drop-shadow(0 0 10px rgba(34,211,166,.55))}
+.heroText p{font-size:11px!important;letter-spacing:3px!important;color:#91aab5!important}
+.heroMeta{display:flex;gap:7px;margin-top:13px;flex-wrap:wrap}
+.heroMeta b{font-size:8px;letter-spacing:1.2px;padding:6px 8px;border:1px solid rgba(81,150,167,.35);border-radius:999px;background:rgba(4,15,23,.65);color:#a9c1ca;box-shadow:inset 0 0 12px rgba(255,255,255,.02)}
+.heroMeta b:before{content:"●";color:var(--accent);margin-right:5px;animation:heroBlink 1.6s infinite}
+@keyframes heroBlink{50%{opacity:.35}}
+.heroRings{right:155px!important;top:26px!important;width:120px!important;height:120px!important}
+.heroReadout{position:absolute;right:28px;top:26px;min-width:118px;padding:11px 13px;border:1px solid rgba(65,145,160,.38);border-radius:10px;background:rgba(2,10,16,.67);backdrop-filter:blur(8px);box-shadow:inset 0 0 18px rgba(34,211,166,.04)}
+.heroReadout span,.heroReadout em{display:block;color:#6e8e99;font-size:8px;letter-spacing:1.6px;font-style:normal}
+.heroReadout b{display:block;color:#67f3cf;font-size:14px;letter-spacing:1.5px;margin:3px 0 5px;text-shadow:0 0 12px rgba(34,211,166,.32)}
+.heroCorner{position:absolute;width:18px;height:18px;opacity:.65}
+.heroCornerA{left:12px;bottom:12px;border-left:1px solid var(--accent);border-bottom:1px solid var(--accent)}
+.heroCornerB{right:12px;bottom:12px;border-right:1px solid var(--accent);border-bottom:1px solid var(--accent)}
+.grid{position:relative}
+.grid:before{content:"ROVER / LIVE COMMAND MATRIX";position:absolute;right:18px;top:-3px;color:rgba(125,161,174,.38);font:700 8px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:2px;pointer-events:none}
+.card{border-radius:14px!important;border-color:rgba(55,91,108,.72)!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.012),0 12px 32px rgba(0,0,0,.32)!important}
+.card:hover{border-color:rgba(34,211,166,.34)!important;box-shadow:inset 0 0 0 1px rgba(34,211,166,.04),0 16px 38px rgba(0,0,0,.36),0 0 22px rgba(34,211,166,.035)!important;transform:translateY(-1px);transition:.2s ease}
+.mapcard #map{height:500px!important}
+.mapcard{min-height:568px!important}
+.topbar{height:62px!important;border-bottom-color:rgba(44,109,124,.45)!important}
+.brand{font-size:15px!important;letter-spacing:1.2px!important}
+.topstats{font-family:ui-monospace,SFMono-Regular,Consolas,monospace!important}
+.topstats span:first-child{text-shadow:0 0 9px rgba(34,211,166,.42)}
+button{box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 4px 10px rgba(0,0,0,.16)}
+footer{letter-spacing:1px!important;color:#668391!important}
+@media(max-width:850px){
+ .roverHero{min-height:185px!important}.heroText{left:16px!important;top:18px!important}.heroText h1{font-size:39px!important;letter-spacing:5px!important}.heroMeta{gap:5px;margin-top:10px}.heroMeta b{font-size:7px}.heroRings{right:24px!important;top:94px!important;width:72px!important;height:72px!important}.heroReadout{right:16px;top:18px;min-width:104px;padding:8px 10px}.heroReadout b{font-size:12px}.mapcard #map{height:445px!important}.mapcard{min-height:510px!important}
+}
+body.light .roverHero{background:linear-gradient(125deg,#dceff3,#f7fbfc 55%,#d7ebf1)!important}
+body.light .heroMeta b,.light .heroMeta b{background:rgba(255,255,255,.64);color:#36545f;border-color:#bfd7df}
+
+
+
+/* =====================================================================
+   ROVER COMMAND CENTRE — REFERENCE UI IMPLEMENTATION
+   Dense navy/black HUD, cyan-blue controls, emerald live states.
+   ===================================================================== */
+:root{
+  --rc-bg:#02070d;
+  --rc-bg2:#07131e;
+  --rc-panel:#071722;
+  --rc-panel2:#0a1b28;
+  --rc-line:#1b3b4e;
+  --rc-line2:#28556b;
+  --rc-text:#edf8ff;
+  --rc-muted:#88a6b5;
+  --rc-blue:#168fff;
+  --rc-blue2:#2aa9ff;
+  --rc-green:#16d6a0;
+  --rc-green2:#59f5c9;
+  --rc-red:#ff314a;
+  --rc-shadow:0 16px 36px rgba(0,0,0,.42);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;background:var(--rc-bg)}
+body{
+  margin:0!important;min-height:100vh!important;background:
+    radial-gradient(circle at 15% 10%,rgba(25,116,153,.14),transparent 26%),
+    radial-gradient(circle at 90% 12%,rgba(17,104,142,.11),transparent 24%),
+    linear-gradient(180deg,#03090f 0%,#010509 100%)!important;
+  color:var(--rc-text)!important;
+  font-family:Inter,"Segoe UI",Roboto,Arial,sans-serif!important;
+  font-size:13px!important;letter-spacing:.01em;
+}
+body:after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.28;
+  background-image:linear-gradient(rgba(53,109,129,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(53,109,129,.035) 1px,transparent 1px);
+  background-size:32px 32px;
+}
+.topbar{
+  position:sticky!important;top:0;z-index:1000!important;height:80px!important;
+  display:grid!important;grid-template-columns:280px 1fr auto!important;align-items:stretch!important;
+  padding:0 14px 0 18px!important;gap:14px!important;
+  background:rgba(3,10,17,.96)!important;border-bottom:1px solid #1a4053!important;
+  box-shadow:0 10px 34px rgba(0,0,0,.38)!important;backdrop-filter:blur(16px)!important;
+}
+.brandCluster{display:flex;align-items:center;gap:11px;min-width:0}
+
+.brandWords{min-width:0}.brandName{font-size:28px;font-weight:1000;line-height:1;letter-spacing:2.5px;color:#f7fcff}.brandSub{font-size:10px;color:#62caff;font-weight:800;letter-spacing:1.2px;margin-top:4px}
+.topStatus{display:flex;align-items:center;justify-content:center;min-width:0;gap:0}
+.statusBlock{min-height:46px;padding:7px 20px;display:flex;gap:10px;align-items:center;border-right:1px solid #174058}
+.statusBlock:first-child{border-left:1px solid #174058}.statusBlock b{display:block;font-size:12px;line-height:1.15;color:#dff4ff;white-space:nowrap}.statusBlock small{display:block;color:#63cfe6;font-size:9px;margin-top:3px;white-space:nowrap}
+.statusIcon{color:#2aa9ff;font-size:25px;line-height:1;text-shadow:0 0 14px rgba(42,169,255,.28)}
+.statusDot{width:15px;height:15px;border-radius:50%;background:#18ef95;box-shadow:0 0 0 4px rgba(24,239,149,.12),0 0 18px rgba(24,239,149,.66);flex:none}
+.topActions{display:flex;align-items:center;gap:8px}.topActions button{height:44px;border:1px solid #1e4e66;background:linear-gradient(180deg,#0b2231,#081722);color:#e7f6ff;border-radius:10px;font-weight:800}
+.profileTop{min-width:178px;padding:5px 10px;display:flex!important;align-items:center;gap:9px;text-align:left}.avatarMini{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;background:#123e61;border:1px solid #217bc0;color:#f3fbff;font-size:18px}.profileWords{display:flex;flex-direction:column;gap:1px;flex:1}.profileWords b{font-size:12px}.profileWords small{font-size:8px;color:var(--rc-muted);text-transform:capitalize}.chev{font-size:15px;color:#8ab4c5}.themeTop{padding:0 12px;min-width:70px}.iconTop{width:42px;position:relative;font-size:18px}.utilityTop{padding:0 9px;font-size:9px}.topLogout{width:44px;color:#ff8e97!important;border-color:#652334!important;background:linear-gradient(180deg,#35111d,#1b0d13)!important}
+#alertCount{position:absolute;right:4px;top:2px;min-width:15px;height:15px;padding:0 3px;border-radius:8px;background:#ff314a;color:#fff;font-size:9px;line-height:15px}
+.appShell{display:grid;grid-template-columns:204px 1fr;min-height:calc(100vh - 80px)}
+.sidebar{
+  position:sticky;top:80px;height:calc(100vh - 80px);overflow:auto;
+  background:linear-gradient(180deg,#04101b,#020811);border-right:1px solid #173b4d;padding:13px 10px 12px;
+  display:flex;flex-direction:column;gap:13px;
+}
+.sideTitle{color:#6f8f9f;font-size:9px;font-weight:900;letter-spacing:2px;padding:0 12px 3px}
+.sideNav{display:grid;gap:5px}.navItem{width:100%;height:47px;border:1px solid transparent;background:transparent;color:#bbd8e5;border-radius:9px;text-align:left;padding:0 12px;display:flex;align-items:center;gap:13px;font-weight:700;font-size:12px;box-shadow:none}
+.navItem span{width:21px;display:grid;place-items:center;color:#9dc2d2;font-size:21px}.navItem:hover{background:#0a1e2c;border-color:#173f52;color:#fff}.navItem.active{background:linear-gradient(90deg,#137bea,#075fe9);border-color:#2da3ff;color:#fff;box-shadow:0 8px 22px rgba(18,111,242,.3)}.navItem.active span{color:#fff}
+.sideLogout{margin-top:auto;width:100%;height:48px;border:1px solid #8a2c40;background:linear-gradient(180deg,#3b1320,#240d15);color:#ff7585;border-radius:9px;font-weight:800;text-align:left;padding:0 12px;font-size:12px}
+.sideLogout:hover{filter:brightness(1.16)}
+.sidePromo{margin-top:2px;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding:8px 8px 13px;border:1px solid #164763;border-radius:10px;background:radial-gradient(circle at 50% 20%,#12384b,#06121b 62%);overflow:hidden;position:relative}.sidePromo img{width:170px;height:118px;object-fit:contain;filter:drop-shadow(0 8px 18px rgba(0,0,0,.65));margin-top:-5px}.sidePromo b{font-size:15px;letter-spacing:3px}.sidePromo span{text-align:center;color:#68c9e6;font-size:9px;line-height:1.45;margin-top:6px}.sidePromoGlow{position:absolute;inset:auto -15% 58px;height:80px;background:radial-gradient(circle,rgba(28,184,255,.18),transparent 62%);pointer-events:none}
+.dashboard{min-width:0;padding:13px 14px 22px;overflow:hidden}
+.missionBar{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;padding:2px 2px 0}.eyebrow{font-size:8px;color:#668798;font-weight:900;letter-spacing:2px}.missionBar h1{margin:4px 0 0;font-size:25px;letter-spacing:.2px}.missionLive{display:flex;align-items:center;gap:9px;color:#cfe8f2}.missionLive b{font-size:10px;letter-spacing:1.2px;color:#8fffe0}.missionLive small{color:#73929f;font-family:ui-monospace,monospace}.livePulse{width:9px;height:9px;background:#1ae9a0;border-radius:50%;box-shadow:0 0 14px rgba(26,233,160,.8);animation:rcPulse 1.35s infinite}@keyframes rcPulse{50%{transform:scale(1.35);opacity:.45}}
+.dashboardGrid{display:grid;grid-template-columns:minmax(0,1.75fr) minmax(350px,.92fr);gap:12px;align-items:start}.rightStack{display:grid;gap:12px}
+.card{background:linear-gradient(160deg,rgba(10,26,39,.97),rgba(4,13,21,.98))!important;border:1px solid #1c4053!important;border-radius:10px!important;box-shadow:var(--rc-shadow)!important;overflow:hidden!important}
+.cardHeader{height:42px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #193a4d;background:linear-gradient(90deg,rgba(12,33,47,.95),rgba(7,18,27,.45))}.cardHeader b{font-size:11px;letter-spacing:.7px}.cardHeader>span{font-size:9px;color:#7e9cac}
+.mapHeader{height:44px}.mapHeader>div:first-child{display:flex;align-items:center;gap:10px}.mapHeader>div:first-child span{padding:5px 7px;border:1px solid #24536a;border-radius:6px;color:#79afc4;font-size:8px}
+.mapTabs{display:flex;align-items:center;gap:2px}.mapTab{border:0;background:transparent!important;color:#90aebb!important;padding:7px 11px;border-radius:7px;font-size:10px;font-weight:800;box-shadow:none!important}.mapTab.active{background:#0b5fe8!important;color:#fff!important;box-shadow:0 0 20px rgba(18,111,242,.22)!important}
+.mapArea{height:500px;position:relative;background:#061016}.mapArea #map{position:absolute;inset:0;height:100%!important;min-height:0!important}.mapArea #mapFrame{position:absolute;inset:0;width:100%;height:100%;border:0;opacity:0;pointer-events:none}.mapArea .leaflet-container{background:#09131a}.mapArea .leaflet-control-zoom{margin-top:10px!important;margin-left:10px!important}.mapArea .leaflet-control-zoom a{background:#071522!important;color:#d6f5ff!important;border-color:#275064!important}.mapArea .leaflet-control-attribution{background:rgba(3,10,16,.55)!important;color:#7f9caa!important}
+.mapCompass{position:absolute;right:16px;top:13px;width:78px;height:78px;border:1px solid rgba(55,110,135,.78);border-radius:50%;background:rgba(4,14,21,.72);display:grid;place-items:center;box-shadow:inset 0 0 24px rgba(12,159,214,.08);z-index:20}.mapCompass:before{content:"";position:absolute;inset:8px;border:1px solid #2f566b;border-radius:50%}.mapCompass span{position:absolute;top:6px;font-size:8px;color:#b8d6df;font-weight:900}.mapCompass i{font-style:normal;font-size:20px;color:#ff5766;text-shadow:0 0 9px rgba(255,87,102,.6)}.mapCompass small{position:absolute;inset:auto;bottom:7px;font-size:7px;color:#88a6b4;text-align:center;line-height:1.1;white-space:pre}
+.mapTargetHud{position:absolute;right:16px;top:16px;left:auto;z-index:30;padding:8px 11px;background:rgba(67,8,19,.88);border:1px solid #ff3950;border-radius:7px;display:grid;grid-template-rows:auto auto auto;gap:4px;min-width:104px;box-shadow:0 0 18px rgba(255,38,61,.2);line-height:1.15;pointer-events:none}.mapTargetHud:after{content:"";position:absolute;left:-9px;bottom:-10px;width:17px;height:17px;border-left:1px solid #ff3950;border-bottom:1px solid #ff3950;transform:skew(-35deg)}.mapTargetHud b{font-size:8px;line-height:1;color:#ff7782}.mapTargetHud strong{font-size:10px;line-height:1.15;color:#fff}.mapTargetHud span{font-size:15px;line-height:1.1;color:#ffb7bd;font-weight:900;white-space:nowrap}
+.mapPathLabel{position:absolute;left:25%;bottom:92px;z-index:20;padding:3px 6px;border:1px solid rgba(18,160,255,.35);background:rgba(4,36,61,.72);color:#68c9ff;border-radius:4px;font-size:7px;letter-spacing:1px}
+.mapCoordsHud{position:absolute;left:12px;bottom:12px;z-index:20;padding:10px 12px;border-radius:9px;background:rgba(4,13,20,.88);border:1px solid #29546a;box-shadow:0 8px 20px rgba(0,0,0,.28)}.mapCoordsHud span{display:block;color:#6f93a3;font-size:8px;font-weight:800;letter-spacing:1px}.mapCoordsHud b{display:block;color:#f1fbff;font-size:11px;margin-top:4px;font-family:ui-monospace,monospace}
+.mapToolRail{position:absolute;left:10px;top:58px;z-index:20;display:grid;gap:3px}.mapToolRail button{width:35px;height:35px;padding:0;border:1px solid #2a5268;background:rgba(6,18,28,.9);color:#dff6ff;font-size:20px;border-radius:6px}.mapToolRail button:hover{border-color:#2ca5ff;color:#5bc6ff}
+.mapReadout{display:grid;grid-template-columns:repeat(4,1fr);height:66px;border-top:1px solid #1a3d50;background:rgba(5,15,23,.95)}.mapReadout>div{display:flex;flex-direction:column;justify-content:center;padding:0 15px;border-right:1px solid #1a3d50}.mapReadout>div:last-child{border-right:0}.mapReadout span{color:#7693a0;font-size:9px}.mapReadout b{margin-top:4px;color:#eaf8ff;font-size:14px}.mapReadout>div:nth-child(4) b{color:var(--rc-green2)}
+.streetViewFeed{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2;background:#07141e}.cameraViewport .cameraSky,.cameraViewport .cameraRoad,.cameraViewport .cameraField{z-index:0}.cameraViewport{height:204px;margin:10px;border:1px solid #1b475c;border-radius:8px;position:relative;overflow:hidden;background:#102a35}.cameraSky{position:absolute;inset:0 0 40% 0;background:linear-gradient(180deg,#47758a,#9fc3cc 60%,#6d8f83)}.cameraField{position:absolute;left:0;right:0;bottom:0;height:47%;background:linear-gradient(175deg,#476a4a,#6a803f 47%,#2c4a33)}.cameraRoad{position:absolute;left:28%;right:21%;bottom:-10%;height:78%;transform:perspective(260px) rotateX(54deg);background:linear-gradient(90deg,#3e4b46,#8e9184 45%,#505956);border-left:1px solid #c1bc96;border-right:1px solid #c1bc96;box-shadow:0 -10px 35px rgba(0,0,0,.15)}.cameraViewport:before{content:"";position:absolute;inset:0;background:linear-gradient(transparent 65%,rgba(3,14,18,.2)),repeating-linear-gradient(0deg,transparent 0 33px,rgba(255,255,255,.06) 34px);z-index:3}.cameraOverlayTop,.cameraOverlayBottom{position:absolute;left:9px;right:9px;display:flex;justify-content:space-between;z-index:8;font:8px ui-monospace,monospace;color:#ddf5ff}.cameraOverlayTop{top:8px}.cameraOverlayBottom{bottom:8px}.cameraOverlayTop b,.cameraOverlayBottom b{color:#64d8ff}.cameraSceneLabel{position:absolute;left:9px;bottom:9px;z-index:8;color:#b7c8d0;font-size:7px;letter-spacing:1px;background:rgba(0,0,0,.35);padding:3px 5px;border-radius:3px}
+.camTargetBox{position:absolute;left:58%;top:40%;width:48px;height:84px;border:2px solid #ff515d;z-index:9;box-shadow:0 0 16px rgba(255,49,73,.2)}.camTargetBox span{position:absolute;left:-2px;top:-24px;background:#f04657;color:#fff;padding:4px 5px;border-radius:3px;font-size:8px;font-weight:900;white-space:nowrap}.camTargetBox b{position:absolute;left:0;bottom:-20px;color:#ffd2d6;font-size:8px}
+.cameraCrosshair{position:absolute;left:50%;top:51%;transform:translate(-50%,-50%);z-index:8;color:#c5efff;font-size:31px;opacity:.72}.liveBadge{display:inline-flex!important;align-items:center;gap:5px;color:#68f5d0!important;font-weight:900}.liveBadge i{width:8px;height:8px;background:#1bf09c;border-radius:50%;box-shadow:0 0 12px rgba(27,240,156,.65)}
+.cameraFooter{height:41px;border-top:1px solid #193a4d;display:flex;align-items:center;gap:6px;padding:0 10px}.cameraFooter button{width:32px;height:28px;padding:0;border:1px solid #25536a;background:#0b1e2a;color:#bfeaff;border-radius:6px}.cameraFooter button:hover{border-color:#2ba4ff}.cameraFooter span{margin-left:auto;color:#6e8d9a;font-size:8px}
+.deviceView{margin:8px;border-radius:8px;overflow:hidden;height:150px;background:#07141e;border:1px solid #23485a;position:relative}.deviceView img{width:100%;height:100%;object-fit:cover}.deviceTag{position:absolute;left:9px;bottom:8px;color:#b7fff0;background:rgba(3,20,25,.84);border:1px solid #2c8f7b;border-radius:999px;padding:5px 8px;font-size:8px;font-weight:900}.onlineLabel{color:#5df1c8!important}.deviceMetrics{display:grid;grid-template-columns:1.3fr .85fr .9fr;border-top:1px solid #173a4d}.deviceMetrics>div{min-height:54px;padding:8px 10px;border-right:1px solid #173a4d;position:relative}.deviceMetrics>div:last-child{border-right:0}.deviceMetrics span{display:block;color:#7f9baa;font-size:8px}.deviceMetrics b{display:block;margin-top:4px;font-size:12px}.deviceMetrics i{display:block;height:4px;background:#143040;border-radius:999px;margin-top:6px;overflow:hidden}.deviceMetrics i em{display:block;width:78%;height:100%;background:linear-gradient(90deg,#0d8fd8,#16d9a4)}
+.deviceChips{display:flex;gap:6px;padding:8px 9px}.deviceChips span{flex:1;display:flex;justify-content:space-between;padding:6px 7px;border:1px solid #1b4052;background:#071824;border-radius:6px;color:#6f8e9c;font-size:7px}.deviceChips b{color:#63f0cb;font-size:7px}
+.controlCard .cardHeader{height:42px}.commandChip{color:#8cfadf!important;background:#073a31;border:1px solid #136d59;border-radius:999px;padding:5px 8px!important;font-weight:900}.drivePad{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:12px 12px 8px}.drivePad button{height:58px;border:1px solid #256a8a;border-radius:8px;background:linear-gradient(180deg,#0e71d9,#0956ac);color:#fff;font-weight:900;font-size:25px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;box-shadow:0 8px 17px rgba(0,84,180,.25)}.drivePad button small{font-size:8px;letter-spacing:.4px;margin-top:5px}.drivePad .forward{background:linear-gradient(180deg,#10dc9a,#0bbf89);border-color:#27ecaa}.drivePad .reverse{background:linear-gradient(180deg,#e72b43,#bd1f35);border-color:#f04a5d}.drivePad .stop{background:linear-gradient(180deg,#172d42,#0b1b2a);border-color:#456a80;box-shadow:none}.drivePad .modeOpen{background:linear-gradient(180deg,#243850,#17283a);border-color:#45647c;box-shadow:none}.drivePad button:hover{filter:brightness(1.12)}.drivePad button:disabled{opacity:.35;filter:grayscale(.35);cursor:not-allowed}
+.modeRow{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:0 12px 9px}.modeRow button{height:38px;border:1px solid #28536a;background:#0a1c29;color:#bdd8e5;border-radius:7px;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.7px}.modeRow .active{border-color:#19cf99;background:#083d34;color:#76f6d3;box-shadow:0 0 14px rgba(23,214,161,.16)}.permissionNotice{margin:0 12px 11px;border:1px solid #1c4052;border-radius:6px;padding:7px 8px;color:#7896a3;font-size:8px;text-align:center}
+.lowerGrid{display:grid;grid-template-columns:1.05fr 1.05fr 1.2fr 1.7fr;gap:12px;margin-top:12px;align-items:stretch}.statusCard,.targetCard,.recentCard,.adminLogCard{min-height:250px}
+.greenPill,.targetPill{font-size:8px!important;color:#61f5cf!important;border:1px solid #1c8f73!important;background:#063d31!important;border-radius:999px!important;padding:5px 8px!important;font-weight:900}.targetPill{color:#ffb1b8!important;border-color:#8f2937!important;background:#45151e!important}
+.statusBlocks{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:10px}.statusBlocks>div{background:#081824;border:1px solid #173c50;border-radius:7px;padding:10px}.statusGlyph{display:block;color:#10dca7;font-size:18px;margin-bottom:5px}.statusBlocks small{display:block;color:#718e9b;font-size:8px}.statusBlocks b{font-size:12px;display:block;margin-top:3px}
+.storageBar{padding:0 10px 10px}.storageBar>span{display:flex;justify-content:space-between;color:#73909d;font-size:8px}.storageBar b{color:#bfe3ee}.storageBar>i{display:block;height:4px;background:#153142;border-radius:999px;overflow:hidden;margin-top:5px}.storageBar em{display:block;width:72%;height:100%;background:#17d6a0}
+.coordsTiny{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 10px}.coordsTiny>span{border:1px solid #173d51;padding:7px;border-radius:6px;color:#658391;font-size:7px;background:#071721}.coordsTiny b{display:block;color:#e9f7fc;font:9px ui-monospace,monospace;margin-top:3px}.coordsTiny small{grid-column:1/-1;color:#627e8b;font-size:7px}
+.targetBody{display:grid;grid-template-columns:58px 1fr;padding:11px;gap:10px}.targetIcon{width:50px;height:50px;border-radius:50%;display:grid;place-items:center;border:2px solid #ff4352;color:#ff6773;background:#3b121d;box-shadow:0 0 22px rgba(255,53,71,.18);font-size:26px}.targetData{display:grid;grid-template-columns:1fr 1fr;gap:7px}.targetData>div{border-bottom:1px solid #17384a;padding-bottom:5px}.targetData span{display:block;color:#708f9d;font-size:7px}.targetData b{display:block;color:#e6f7fc;font-size:10px;margin-top:3px}.targetData>div:nth-child(2) b,.targetData>div:nth-child(3) b{color:#ffb2b9}.targetTrackLine{height:3px;margin:0 11px 11px;border-radius:9px;background:linear-gradient(90deg,#ff4457 0 15%,transparent 15% 23%,#1c4052 23% 100%);opacity:.7}
+.recentList{height:198px;overflow:auto;padding:3px 10px}.recentItem{display:grid;grid-template-columns:25px 1fr auto;gap:8px;align-items:center;padding:8px 2px;border-bottom:1px solid #123044}.recentIcon{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;background:#0b3c31;color:#61efc7;font-size:11px}.recentItem b{display:block;color:#58d6b5;font-size:8px}.recentItem span{display:block;color:#bed4dd;font-size:8px;margin-top:2px}.recentItem time{color:#688493;font:7px ui-monospace,monospace}.viewAll{border:0!important;background:transparent!important;color:#39b6ff!important;font-size:8px!important;box-shadow:none!important}
+.adminLogTable{height:200px;overflow:auto;padding:0 7px 7px}.adminLogTable table{width:100%;border-collapse:collapse;min-width:610px}.adminLogTable th,.adminLogTable td{border-bottom:1px solid #123044;padding:7px 6px;text-align:left;font-size:8px}.adminLogTable th{color:#698796;font-weight:800;position:sticky;top:0;background:#091923}.adminLogTable td{color:#bed4dd}.adminLogTable td:nth-child(3){color:#48d5b2}.toggleOn{display:inline-block;width:23px;height:12px;border-radius:99px;background:#16d49c;vertical-align:-2px;position:relative;margin-left:5px}.toggleOn:after{content:"";position:absolute;right:2px;top:2px;width:8px;height:8px;border-radius:50%;background:#fff}
+.quickCard{margin-top:12px}.quickGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding:10px}.quickGrid button{min-height:66px;border:1px solid #244e64;background:linear-gradient(180deg,#0a2232,#081824);border-radius:8px;color:#c7e5ef;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}.quickGrid button span{font-size:22px;color:#2bc1ff;text-shadow:0 0 14px rgba(43,193,255,.2)}.quickGrid button b{font-size:8px}.quickGrid button:hover{border-color:#2aaeff;transform:translateY(-1px)}.quickGrid button.active{border-color:#1ed6a4;background:#07352c;color:#7cfbdc}
+.safetyStrip{margin-top:12px;display:grid;grid-template-columns:repeat(6,1fr);padding:8px}.safetyStrip>div{display:flex;align-items:center;gap:7px;padding:8px 10px;border-right:1px solid #14384b}.safetyStrip>div:last-child{border-right:0}.safetyIcon{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;color:#1fe5aa;border:1px solid #1b806a;background:#073429;font-size:11px}.safetyStrip b{font-size:8px}.safetyStrip small{margin-left:auto;color:#62eacb;font-size:7px}
+footer{height:34px!important;display:flex!important;align-items:center!important;justify-content:space-between!important;padding:0 16px!important;background:#02070d!important;border-top:1px solid #153447!important;color:#9eb4bf!important;font-size:8px!important}.footerRight{color:#67c8e7}
+.empty{padding:15px;color:#688997;font-size:9px}
+.legacyKeep{display:none!important}
+button:disabled{cursor:not-allowed}
+.leaflet-marker-icon.targetMarkerLabel{filter:drop-shadow(0 0 7px rgba(255,60,78,.9))}
+body.night-mode .dashboard,body.night-mode .sidebar{filter:brightness(.72) saturate(.95)}body.night-mode .liveBadge,body.night-mode .statusDot{filter:brightness(1.15)}
+body.light{
+  --rc-bg:#edf3f6;--rc-bg2:#f5fafc;--rc-panel:#fff;--rc-panel2:#f7fbfc;--rc-line:#c9d7df;--rc-line2:#a9c4cf;--rc-text:#16313e;--rc-muted:#58717d;
+  background:linear-gradient(180deg,#f6fafc,#e6eef2)!important;color:#18313d!important
+}
+body.light:after{opacity:.16}body.light .topbar,body.light .sidebar{background:rgba(248,252,253,.97)!important;color:#1a3541!important}body.light .card{background:linear-gradient(160deg,#fff,#f1f7f9)!important;box-shadow:0 12px 28px rgba(22,43,54,.1)!important}body.light .navItem{color:#496873}body.light .brandName,body.light .missionBar h1{color:#1d3641}body.light .statusBlock b,body.light .targetData b{color:#1d3641}
+@media(max-width:1200px){.topbar{grid-template-columns:230px 1fr auto!important}.statusBlock{padding:7px 12px}.dashboardGrid{grid-template-columns:minmax(0,1.5fr) minmax(315px,.9fr)}.lowerGrid{grid-template-columns:1fr 1fr}.adminLogCard{grid-column:1/-1}.quickGrid{grid-template-columns:repeat(3,1fr)}.safetyStrip{grid-template-columns:repeat(3,1fr)}.safetyStrip>div:nth-child(3n){border-right:0}}
+@media(max-width:900px){.topbar{height:auto!important;min-height:72px;grid-template-columns:1fr auto!important}.topStatus{grid-column:1/-1;order:3;justify-content:flex-start;overflow:auto}.statusBlock{border-top:1px solid #174058}.topActions{justify-content:flex-end}.appShell{grid-template-columns:72px 1fr}.sidebar{padding:9px 7px}.sideTitle,.sideLogout span,.sidePromo,.navItem{font-size:0}.navItem{justify-content:center;padding:0}.navItem span{font-size:21px}.sideLogout{text-align:center;padding:0}.dashboardGrid{grid-template-columns:1fr}.rightStack{grid-template-columns:1fr 1fr;align-items:start}.controlCard{grid-column:1/-1}.mapArea{height:460px}.mapReadout{grid-template-columns:repeat(4,1fr)}.lowerGrid{grid-template-columns:1fr 1fr}.adminLogCard{grid-column:1/-1}.quickGrid{grid-template-columns:repeat(3,1fr)}.safetyStrip{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:650px){
+  .topbar{padding:8px!important;grid-template-columns:1fr!important;gap:8px!important}.brandCluster{justify-self:start}.brandName{font-size:24px}.brandSub{font-size:8px}.topActions{width:100%;overflow:auto}.profileTop{min-width:160px}.topStatus{width:100%;gap:0}.statusBlock{min-width:150px;padding:7px 10px}.statusBlock:nth-child(n+3){min-width:105px}.appShell{grid-template-columns:1fr}.sidebar{position:sticky;top:0;height:auto;z-index:900;flex-direction:row;overflow:auto;border-right:0;border-bottom:1px solid #173b4d;padding:6px}.sideTitle,.sidePromo,.sideLogout{display:none}.sideNav{display:flex;gap:4px}.navItem{min-width:76px!important;width:auto;height:38px;font-size:7px!important;padding:0 8px;flex-direction:column;gap:0;justify-content:center}.navItem span{font-size:15px}.dashboard{padding:9px}.missionBar{align-items:flex-start}.missionLive{font-size:8px}.missionLive small{display:none}.dashboardGrid{gap:9px}.rightStack{grid-template-columns:1fr}.controlCard{grid-column:auto}.mapArea{height:62vw;min-height:330px}.mapReadout{height:auto;grid-template-columns:1fr 1fr}.mapReadout>div{min-height:52px}.cameraViewport{height:210px}.deviceView{height:190px}.lowerGrid{grid-template-columns:1fr}.adminLogCard{grid-column:auto}.quickGrid{grid-template-columns:1fr 1fr}.safetyStrip{grid-template-columns:1fr 1fr}.safetyStrip>div:nth-child(odd){border-right:1px solid #14384b}.safetyStrip>div:nth-child(even){border-right:0}.footerRight{display:none}.mapTargetHud{left:auto!important;right:8px!important;top:16px!important}
+}
+
+
+.roverMapMarker{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#0b6fe9;border:2px solid #8edbff;color:#fff;font-size:17px;box-shadow:0 0 0 5px rgba(25,151,255,.18),0 0 22px rgba(28,142,255,.75)}
+.targetMapMarker{width:30px;height:30px;border:2px solid #ff4254;border-radius:50%;display:grid;place-items:center;background:rgba(80,8,18,.45);color:#ff7380;font-size:18px;box-shadow:0 0 0 5px rgba(255,56,75,.11),0 0 22px rgba(255,46,66,.7);animation:targetPulse 1.5s ease-in-out infinite}.targetMarkerLabel>span{display:block;margin-top:-3px;color:#ff8089;font-size:7px;font-weight:900;text-shadow:0 0 5px #000}@keyframes targetPulse{50%{transform:scale(1.13);opacity:.76}}
+.leaflet-tooltip.roverTooltip{background:#071723!important;color:#9fdfff!important;border:1px solid #1d8bcc!important;box-shadow:0 0 12px rgba(22,143,255,.25)!important;font-size:8px!important;font-weight:900!important}.leaflet-tooltip.roverTooltip:before{display:none}
+.modeRow .active{color:#7cfbdc!important}.quickGrid button.active span{color:#61f5cb!important}
+
+
+.satellitePreview{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:0;filter:saturate(1.12) contrast(1.04);background:#07131b}
+.mapArea #map{z-index:1}
+.mapArea #map .leaflet-container{z-index:1}
+
+/* ROVER map expansion: eliminate the visual dead zone beneath the map. */
+@media (min-width: 1201px){
+  .dashboardGrid{align-items:stretch}
+  .mapCard{height:850px;min-height:850px}
+  .mapArea{height:730px;min-height:730px}
+  .mapReadout{height:66px;min-height:66px;display:grid}
+}
+@media (min-width: 901px) and (max-width:1200px){
+  .mapArea{height:650px}
+}
+@media (max-width:900px){
+  .mapArea{height:560px}
+}
+.deviceView{background:#07131c!important}
+.deviceView img,.sidePromo img{object-fit:contain!important;width:100%;height:100%;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
+
+
+/* FINAL UI STABILITY PASS — keep the reference theme, remove layout jitter/clipping */
+@media (min-width:1201px){
+  .mapCard{height:auto!important;min-height:850px!important;display:flex!important;flex-direction:column!important}
+  .mapCard .cardHeader{flex:0 0 44px!important}
+  .mapCard .mapArea{height:730px!important;min-height:730px!important;flex:0 0 730px!important}
+  .mapCard .mapReadout{height:66px!important;min-height:66px!important;flex:0 0 66px!important}
+}
+@media (min-width:901px) and (max-width:1200px){
+  .mapCard{height:auto!important;min-height:0!important}
+  .mapCard .mapArea{height:650px!important;min-height:650px!important}
+  .mapCard .mapReadout{height:66px!important;min-height:66px!important}
+}
+@media (max-width:900px){
+  .mapCard{height:auto!important;min-height:0!important}
+  .mapCard .mapArea{height:560px!important;min-height:560px!important}
+}
+@media (max-width:650px){
+  .mapCard .mapArea{height:62vw!important;min-height:300px!important;max-height:430px!important}
+  .mapCard .mapReadout{height:auto!important;min-height:104px!important;grid-template-columns:1fr 1fr!important}
+  .mapCard .mapReadout>div{min-height:52px!important}
+}
+.mapCard .mapArea,.mapCard .mapReadout{overflow:hidden}
+.mapCard .mapReadout b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+@media(max-width:650px){html{scroll-padding-top:128px}.card:hover{transform:none!important}}
+
+
+/* FINAL MAP/LAYOUT SAFETY OVERRIDES */
+.mapCard{min-width:0!important}
+.mapCard .mapArea{position:relative!important;overflow:hidden!important}
+.mapCard .mapReadout{position:relative!important;z-index:3!important;overflow:visible!important}
+@media (min-width:1201px){
+  .mapCard{height:auto!important;min-height:0!important;display:flex!important;flex-direction:column!important}
+  .mapCard .mapArea{height:clamp(560px,calc(100vh - 250px),730px)!important;min-height:560px!important;flex:0 0 auto!important}
+  .mapCard .mapReadout{height:66px!important;min-height:66px!important;flex:0 0 66px!important}
+}
+@media (min-width:901px) and (max-width:1200px){
+  .mapCard .mapArea{height:clamp(520px,62vw,650px)!important;min-height:520px!important}
+  .mapCard .mapReadout{height:66px!important;min-height:66px!important}
+}
+@media (max-width:650px){
+  .mapCard .mapArea{height:clamp(300px,62vw,430px)!important;min-height:300px!important;max-height:430px!important}
+  .mapCard .mapReadout{height:auto!important;min-height:104px!important;grid-template-columns:1fr 1fr!important}
+  .mapCard .mapReadout>div{min-height:52px!important}
+}
+
+/* MOBILE LAYOUT STABILITY — 2026-10-06 */
+html,body{max-width:100%;overflow-x:hidden}
+.grid,.card,.side,.topbar,.topbar-left,.topstats,.roverHero,.heroText,.heroMeta,.quickCard,.safetyStrip{min-width:0}
+img,canvas,video,iframe{max-width:100%}
+@media(max-width:650px){
+  body{font-size:13px}
+  .topbar{position:sticky;top:0;padding:8px 9px;min-height:56px;z-index:1000}
+  .topbar-left{gap:7px;max-width:62%}
+  .brand{font-size:12px;line-height:1.15}
+  .brand small{font-size:7px;letter-spacing:.8px;white-space:nowrap}
+  .profileTop{max-width:110px;overflow:hidden;text-overflow:ellipsis}
+  .topstats{gap:5px;justify-content:flex-end;max-width:38%}
+  .topstats button{min-width:34px;min-height:34px;padding:6px;font-size:8px}
+  .grid{display:block;padding:7px;margin:0;width:100%;max-width:none}
+  .grid>*{width:100%;max-width:100%;margin-bottom:8px}
+  .roverHero{min-height:148px!important;margin-bottom:8px;overflow:hidden}
+  .heroText{left:14px!important;top:18px!important;right:120px;max-width:calc(100% - 130px)}
+  .heroKicker{font-size:7px!important;letter-spacing:1.8px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .heroText h1{font-size:32px!important;letter-spacing:4px!important;line-height:1!important}
+  .heroText p{font-size:8px!important;letter-spacing:1.1px!important;line-height:1.35;max-width:100%}
+  .heroMeta{gap:4px;margin-top:8px}
+  .heroMeta b{font-size:6px;padding:4px 5px;letter-spacing:.6px}
+  .heroRings{right:9px!important;top:18px!important;width:92px!important;height:92px!important}
+  .heroReadout{left:14px;right:14px;top:auto;bottom:10px;min-width:0;padding:6px 8px;display:flex;align-items:center;gap:8px}
+  .heroReadout span,.heroReadout em{font-size:6px}
+  .heroReadout b{font-size:10px;margin:0}
+  .heroCorner{display:none}
+  .card{border-radius:11px!important}
+  .cardhead,.cardHeader{min-height:40px;padding:9px 10px;gap:6px}
+  .actions{width:100%;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
+  .actions button{flex:0 0 auto}
+  .mapcard{min-height:0!important}
+  .mapcard #map{height:72vw!important;min-height:285px!important;max-height:390px!important}
+  .maplegend{font-size:8px;padding:6px 8px;gap:8px}
+  .metrics{grid-template-columns:1fr 1fr}
+  .metrics>div{padding:9px}
+  .metrics strong{font-size:17px}
+  .coords{grid-template-columns:1fr 1fr;padding:9px;gap:6px}
+  .coords span{padding:8px;font-size:8px}
+  .alerts{grid-template-columns:1fr 1fr}
+  .alerts>div{padding:8px;gap:5px}
+  .modes{grid-template-columns:repeat(3,1fr);padding:8px;gap:5px}
+  .modes button{min-height:38px;padding:6px 4px}
+  .drivegrid{grid-template-columns:repeat(3,58px);gap:6px;padding:10px 0 8px}
+  .drivegrid button{width:58px;height:50px}
+  .camcontrols{grid-template-columns:1fr 1fr;gap:6px;padding:0 9px 10px}
+  .camcontrols button{min-height:36px}
+  .videobox{height:56vw!important;min-height:205px!important;max-height:300px!important;margin:8px}
+  .devicephoto img{height:190px}
+  .devicechips{gap:5px;padding:0 8px 8px}
+  .devicechips span{padding:7px;font-size:7px}
+  .missiongrid{grid-template-columns:1fr 1fr}
+  .missiongrid>div{padding:8px}
+  .quickGrid{grid-template-columns:repeat(2,1fr)!important;gap:6px!important;padding:8px!important}
+  .quickGrid button{min-height:52px}
+  .safetyStrip{display:grid!important;grid-template-columns:repeat(2,1fr)!important}
+  .safetyStrip>div{min-width:0;padding:9px!important}
+  .safetyStrip b{font-size:9px}
+  .safetyStrip small{font-size:7px}
+  .alertbar{margin:7px 0;padding:7px;gap:5px}
+  .alertbar span{flex:1 1 100%;font-size:8px}
+  .alertbar button{flex:1 1 auto;min-height:34px;font-size:7px}
+  .modal{padding:6px}
+  .modalbox,.modalbox.wide{width:100%;max-width:100%;max-height:94vh;padding:11px;border-radius:12px}
+  .adminTabs{overflow-x:auto;flex-wrap:nowrap}
+  .adminTabs button{flex:0 0 auto;min-height:36px}
+  .tablewrap{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch}
+  .tablewrap table{min-width:700px}
+  footer{padding:3px 8px 14px;font-size:7px}
+  .footerRight{display:none}
+}
+@media(max-width:390px){
+  .topbar-left{max-width:58%}.topstats{max-width:42%}
+  .brand small{display:none}
+  .roverHero{min-height:140px!important}
+  .heroText{right:105px;max-width:calc(100% - 115px)}
+  .heroText h1{font-size:28px!important;letter-spacing:3px!important}
+  .heroRings{width:78px!important;height:78px!important;right:7px!important}
+  .mapcard #map{min-height:270px!important}
+  .drivegrid{grid-template-columns:repeat(3,54px)}
+  .drivegrid button{width:54px;height:48px}
+}
+
+/* DYNAMIC ROVER COMPASS — 2026-10-06 */
+.mapCompass{transform:none!important}
+.mapCompass #compassNeedle{position:absolute;left:50%;top:50%;width:0;height:0;margin:0;transform-origin:50% 50%;transition:transform .35s ease;color:#ff5766;font-size:22px;line-height:1;text-shadow:0 0 9px rgba(255,87,102,.65);z-index:3}
+.roverMapMarker{transition:transform .35s ease;transform-origin:50% 50%}
+
+/* COMPASS CARDINAL LABEL FIX — 2026-10-06 */
+.mapCompass .compassN,.mapCompass .compassE,.mapCompass .compassS,.mapCompass .compassW{
+  position:absolute!important;
+  margin:0!important;
+  padding:0!important;
+  font-size:8px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  color:#b8d6df!important;
+  white-space:nowrap!important;
+  z-index:4;
+}
+.mapCompass .compassN{top:5px!important;bottom:auto!important;left:50%;right:auto!important;transform:translateX(-50%)}
+.mapCompass .compassE{right:6px!important;left:auto!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)}
+.mapCompass .compassS{bottom:5px!important;top:auto!important;left:50%;right:auto!important;transform:translateX(-50%)}
+.mapCompass .compassW{left:6px!important;right:auto!important;top:50%!important;bottom:auto!important;transform:translateY(-50%)}
+.mapCompass #compassNeedle{z-index:3}
+
+
+/* MOBILE HAMBURGER NAV + COMPASS SPACING — 2026-10-06 */
+.mobileMenuBtn,.mobileNavPanel{display:none}
+.mapCompass{width:78px!important;height:78px!important;overflow:hidden!important}
+.mapCompass .compassN{top:5px!important;bottom:auto!important}
+.mapCompass .compassS{bottom:5px!important;top:auto!important}
+@media(max-width:650px){
+  .sidebar{display:none!important}
+  .brandWords{position:relative;display:flex;flex-direction:column;align-items:flex-start}
+  .mobileMenuBtn{display:flex!important;width:28px!important;height:18px!important;padding:2px 4px!important;margin-top:2px!important;border:0!important;background:transparent!important;border-radius:4px!important;flex-direction:column!important;justify-content:space-between!important;gap:2px!important;box-shadow:none!important}
+  .mobileMenuBtn span{display:block!important;width:20px!important;height:2px!important;border-radius:2px!important;background:#7edfff!important;box-shadow:0 0 5px rgba(76,208,255,.35)!important}
+  .mobileMenuBtn:active{transform:scale(.94)}
+  .mobileNavPanel{display:none;position:fixed;left:8px;right:8px;top:70px;z-index:1200;padding:7px;background:rgba(7,16,24,.98);border:1px solid #24495d;border-radius:10px;box-shadow:0 12px 30px rgba(0,0,0,.5)}
+  .mobileNavPanel.open{display:block!important}
+  .mobileNavGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:5px}
+  .mobileNavGrid .navItem{display:flex!important;width:100%!important;min-width:0!important;height:38px!important;font-size:8px!important;padding:4px 6px!important;flex-direction:row!important;gap:6px!important;justify-content:flex-start!important;border-radius:7px!important}
+  .mobileNavGrid .navItem span{font-size:14px!important;width:20px;text-align:center}
+  .mobileNavGrid .navItem.active{border-color:#1dd6a5!important;color:#7cfbdc!important;background:#08352d!important}
+  .topbar{position:relative!important;z-index:1300!important}
+  .topStatus,.topActions{display:none!important}
+  .brandName{font-size:24px!important;line-height:1!important}
+  .brandSub{font-size:7px!important;line-height:1.15!important}
+  .mapCompass{width:76px!important;height:76px!important;right:8px!important;top:8px!important}
+  .mapCompass .compassN{top:5px!important}
+  .mapCompass .compassS{bottom:5px!important}
+}
+@media(max-width:390px){
+  .mobileNavGrid{grid-template-columns:1fr 1fr}
+  .mapCompass{width:72px!important;height:72px!important}
+  .mapCompass .compassN{top:4px!important}.mapCompass .compassS{bottom:4px!important}
+}
+
+
+/* FINAL MOBILE MENU + COMPASS HARDENING — 2026-10-06 */
+@media(max-width:650px){
+  .brandCluster{min-width:0;flex:1 1 auto;align-items:flex-start}
+  .brandWords{min-width:0}
+  .mobileMenuBtn{position:relative;z-index:1400}
+  .mobileNavPanel{top:62px!important;left:7px!important;right:7px!important}
+}
+@media(max-width:390px){
+  .mobileNavPanel{top:60px!important}
+}
+.mapCompass .compassN,.mapCompass .compassE,.mapCompass .compassS,.mapCompass .compassW{
+  pointer-events:none!important;
+  display:block!important;
+}
+
+
+/* LIVE CAMERA VISUAL UPGRADE — 2026-10-06 */
+.cameraCard{min-width:0!important}
+.cameraViewport{
+  position:relative!important;
+  height:285px!important;
+  margin:10px!important;
+  overflow:hidden!important;
+  border:1px solid #285062!important;
+  border-radius:12px!important;
+  background:
+    radial-gradient(circle at 50% 38%,rgba(70,160,190,.18),transparent 30%),
+    linear-gradient(180deg,#102c3a 0%,#0a1d27 48%,#071219 49%,#0b2026 100%)!important;
+  box-shadow:inset 0 0 45px rgba(0,0,0,.7),0 8px 24px rgba(0,0,0,.28)!important;
+}
+.cameraViewport:before{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:
+    linear-gradient(rgba(255,255,255,.025) 1px,transparent 1px),
+    linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px);
+  background-size:24px 24px;
+  mask-image:linear-gradient(to bottom,rgba(0,0,0,.7),transparent 85%);
+}
+.cameraViewport:after{
+  content:"";position:absolute;inset:0;pointer-events:none;z-index:8;
+  background:linear-gradient(180deg,rgba(255,255,255,.05),transparent 18%,transparent 82%,rgba(0,0,0,.25));
+}
+.cameraSky,.cameraRoad,.cameraField{position:absolute;inset:0;pointer-events:none}
+.cameraSky{z-index:0;background:radial-gradient(ellipse at 50% 32%,rgba(93,176,203,.18),transparent 42%)}
+.cameraField{z-index:2;top:50%;bottom:0;inset-inline:0;background:linear-gradient(180deg,rgba(15,56,57,.05),rgba(13,53,43,.5));clip-path:polygon(0 22%,100% 8%,100% 100%,0 100%)}
+.cameraRoad{z-index:3;inset:50% 18% 0;background:linear-gradient(90deg,transparent 0 39%,rgba(120,205,205,.13) 40% 60%,transparent 61%);clip-path:polygon(42% 0,58% 0,100% 100%,0 100%);opacity:.7}
+.camTargetBox{
+  position:absolute;z-index:7;left:58%;top:39%;width:72px;height:96px;
+  border:1px solid #ff5968;border-radius:4px;
+  box-shadow:0 0 0 1px rgba(255,89,104,.12),0 0 16px rgba(255,89,104,.18);
+}
+.camTargetBox:before,.camTargetBox:after{
+  content:"";position:absolute;width:10px;height:10px;border-color:#ff5968;border-style:solid;
+}
+.camTargetBox:before{left:-2px;top:-2px;border-width:2px 0 0 2px}
+.camTargetBox:after{right:-2px;bottom:-2px;border-width:0 2px 2px 0}
+.camTargetBox span{
+  position:absolute;left:0;top:-21px;padding:4px 6px;background:#ff5968;color:#16080b;
+  font-size:7px;font-weight:900;letter-spacing:.7px;border-radius:3px 3px 0 0;white-space:nowrap;
+}
+.camTargetBox b{
+  position:absolute;left:5px;bottom:-18px;color:#ff9ba5;font:700 7px/1 monospace;letter-spacing:.4px;
+}
+.cameraCrosshair{
+  position:absolute;z-index:6;left:50%;top:50%;transform:translate(-50%,-50%);
+  color:#8de9d6;font-size:28px;line-height:1;text-shadow:0 0 12px rgba(34,211,166,.55);opacity:.72;
+}
+.cameraOverlayTop,.cameraOverlayBottom{
+  position:absolute;z-index:9;left:10px;right:10px;display:flex;align-items:center;justify-content:space-between;
+  font:700 8px/1 monospace;letter-spacing:.8px;text-shadow:0 1px 3px #000;
+}
+.cameraOverlayTop{top:10px;color:#bde5ef}
+.cameraOverlayTop b{color:#58f2ca}
+.cameraOverlayBottom{bottom:10px;color:#8baeb9}
+.cameraOverlayBottom b{padding:3px 5px;border:1px solid #3b5965;border-radius:4px;color:#c9e8ef}
+.cameraSceneLabel{
+  position:absolute;z-index:9;left:50%;bottom:10px;transform:translateX(-50%);
+  color:#64818d;font-size:6px;letter-spacing:1.2px;white-space:nowrap;pointer-events:none;
+}
+.cameraFooter{
+  min-height:48px!important;padding:7px 10px!important;display:flex!important;align-items:center!important;gap:6px!important;
+  border-top:1px solid var(--line)!important;background:#09151f!important;
+}
+.cameraFooter button{width:34px;height:32px;padding:0!important;display:grid;place-items:center;font-size:13px!important}
+.cameraFooter button:first-child{color:#9ed8e8}
+.cameraFooter button:nth-child(2){color:#ff7d88}
+.cameraFooter button:nth-child(3){color:#b7d7e2}
+.cameraFooter span{margin-left:auto;color:#6f8c98;font-size:7px;line-height:1.3;text-align:right;max-width:190px}
+@media(max-width:650px){
+  .cameraViewport{height:56vw!important;min-height:225px!important;max-height:300px!important;margin:8px!important}
+  .camTargetBox{left:56%;top:36%;width:62px;height:84px}
+  .cameraOverlayTop,.cameraOverlayBottom{left:8px;right:8px}
+  .cameraFooter{padding:7px 8px!important}
+  .cameraFooter button{width:36px;height:34px}
+  .cameraFooter span{font-size:6px;max-width:145px}
+}
+@media(max-width:390px){
+  .cameraViewport{min-height:210px!important}
+  .camTargetBox{left:54%;width:58px;height:78px}
+  .cameraFooter span{max-width:125px}
+}
+
+
+/* MOBILE CAMERA + DEVICE REDESIGN — 2026-10-06
+   Mobile-only. Desktop layout/theme remains unchanged. */
+@media(max-width:650px){
+  /* Live camera: cleaner surveillance-feed presentation */
+  .cameraCard{
+    border-color:#23566a!important;
+    background:linear-gradient(180deg,#081720,#061119)!important;
+    box-shadow:inset 0 0 0 1px rgba(75,205,230,.04),0 10px 28px rgba(0,0,0,.38)!important;
+  }
+  .cameraCard .cardHeader{
+    min-height:44px!important;
+    padding:10px 12px!important;
+    background:linear-gradient(90deg,#0b202b,#07131b)!important;
+    border-bottom-color:#1c4353!important;
+  }
+  .cameraCard .cardHeader>b{
+    font-size:12px!important;
+    letter-spacing:1px!important;
+  }
+  .cameraViewport{
+    height:58vw!important;
+    min-height:235px!important;
+    max-height:310px!important;
+    margin:9px!important;
+    border-radius:11px!important;
+    border:1px solid #2a6275!important;
+    background:
+      radial-gradient(ellipse at 50% 30%,rgba(111,190,210,.22),transparent 34%),
+      linear-gradient(180deg,#183746 0%,#102934 43%,#08171f 44%,#0a1b22 100%)!important;
+    box-shadow:inset 0 0 55px rgba(0,0,0,.72),0 6px 18px rgba(0,0,0,.35)!important;
+  }
+  .cameraViewport:before{
+    background:
+      linear-gradient(rgba(154,218,229,.055) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(154,218,229,.045) 1px,transparent 1px)!important;
+    background-size:20px 20px!important;
+    opacity:.7!important;
+  }
+  .cameraViewport:after{
+    background:
+      linear-gradient(180deg,rgba(255,255,255,.06),transparent 17%,transparent 76%,rgba(0,0,0,.34)),
+      repeating-linear-gradient(180deg,transparent 0 3px,rgba(255,255,255,.012) 4px)!important;
+  }
+  .cameraSky{
+    background:
+      radial-gradient(ellipse at 50% 25%,rgba(154,218,229,.15),transparent 38%),
+      linear-gradient(180deg,rgba(86,158,181,.10),transparent 55%)!important;
+  }
+  .cameraField{
+    top:48%!important;
+    background:linear-gradient(180deg,rgba(38,88,77,.12),rgba(20,59,48,.42))!important;
+    clip-path:polygon(0 18%,100% 7%,100% 100%,0 100%)!important;
+  }
+  .cameraRoad{
+    inset:48% 12% 0!important;
+    background:linear-gradient(90deg,transparent 0 43%,rgba(174,220,220,.16) 44% 56%,transparent 57%)!important;
+    opacity:.75!important;
+  }
+  .camTargetBox{
+    left:56%!important;
+    top:34%!important;
+    width:66px!important;
+    height:88px!important;
+    border:1.5px solid #ff5968!important;
+    background:rgba(255,55,75,.025)!important;
+  }
+  .camTargetBox span{
+    top:-20px!important;
+    padding:4px 6px!important;
+    font-size:7px!important;
+    letter-spacing:.65px!important;
+    background:#ff5968!important;
+  }
+  .camTargetBox b{
+    bottom:-17px!important;
+    font-size:7px!important;
+  }
+  .cameraCrosshair{
+    font-size:27px!important;
+    color:#a8eee0!important;
+    opacity:.82!important;
+  }
+  .cameraOverlayTop,.cameraOverlayBottom{
+    font-size:7px!important;
+    letter-spacing:.8px!important;
+  }
+  .cameraOverlayTop{top:9px!important}
+  .cameraOverlayBottom{bottom:9px!important}
+  .cameraOverlayTop b{
+    padding:3px 5px;
+    border:1px solid rgba(78,235,201,.28);
+    border-radius:4px;
+    background:rgba(0,0,0,.22);
+  }
+  .cameraSceneLabel{
+    font-size:0!important;
+    bottom:9px!important;
+    opacity:.8;
+  }
+  .cameraSceneLabel:after{
+    content:"LIVE FEED • 1080P • AI TRACKING";
+    font:700 6px/1 monospace;
+    letter-spacing:1px;
+    color:#7898a4;
+  }
+  .cameraFooter{
+    min-height:48px!important;
+    padding:7px 9px!important;
+    gap:6px!important;
+    background:#07141d!important;
+  }
+  .cameraFooter button{
+    width:38px!important;
+    height:34px!important;
+    border-radius:8px!important;
+    background:#0c2330!important;
+    border-color:#285064!important;
+  }
+  .cameraFooter button.active{
+    border-color:#ff5968!important;
+    color:#ff8c97!important;
+    box-shadow:0 0 12px rgba(255,89,104,.16);
+  }
+  .cameraFooter span{
+    font-size:6.5px!important;
+    max-width:150px!important;
+    color:#7795a1!important;
+  }
+
+  /* My Device: make the actual rover photo the focus and eliminate the giant empty area */
+  .deviceCard{
+    border-color:#23566a!important;
+    background:linear-gradient(180deg,#081720,#061119)!important;
+  }
+  .deviceCard .cardHeader{
+    min-height:44px!important;
+    padding:10px 12px!important;
+    background:linear-gradient(90deg,#0b202b,#07131b)!important;
+  }
+  .deviceCard .cardHeader>b{
+    font-size:12px!important;
+    letter-spacing:.8px!important;
+  }
+  .deviceView{
+    height:220px!important;
+    min-height:220px!important;
+    margin:9px!important;
+    border-radius:11px!important;
+    overflow:hidden!important;
+    position:relative!important;
+    background:
+      radial-gradient(circle at 50% 35%,rgba(44,121,143,.12),transparent 42%),
+      #06131c!important;
+    border:1px solid #2a5668!important;
+    box-shadow:inset 0 0 35px rgba(0,0,0,.62)!important;
+  }
+  .deviceView:after{
+    content:"ROVER-01 • FRONT VIEW";
+    position:absolute;
+    left:9px;
+    top:8px;
+    z-index:2;
+    padding:4px 6px;
+    border:1px solid rgba(91,166,184,.32);
+    border-radius:4px;
+    background:rgba(2,10,15,.68);
+    color:#91b3bd;
+    font:700 6px/1 monospace;
+    letter-spacing:.8px;
+  }
+  .deviceView img{
+    width:100%!important;
+    height:100%!important;
+    object-fit:contain!important;
+    object-position:center!important;
+    display:block!important;
+    padding:8px!important;
+    filter:drop-shadow(0 10px 18px rgba(0,0,0,.5))!important;
+  }
+  .deviceView img[alt]{
+    color:#8daab4;
+  }
+  .deviceTag{
+    left:9px!important;
+    bottom:9px!important;
+    padding:6px 9px!important;
+    font-size:7px!important;
+    background:rgba(2,15,20,.86)!important;
+    border-color:#24cda8!important;
+    box-shadow:0 0 12px rgba(34,211,166,.12);
+  }
+  .deviceMetrics{
+    grid-template-columns:1.15fr 1fr 1fr!important;
+  }
+  .deviceMetrics>div{
+    min-width:0!important;
+    padding:9px 10px!important;
+  }
+  .deviceMetrics span{
+    font-size:7px!important;
+  }
+  .deviceMetrics b{
+    font-size:16px!important;
+    white-space:nowrap!important;
+  }
+  .deviceMetrics i{
+    height:4px!important;
+    margin-top:7px!important;
+  }
+  .deviceChips{
+    grid-template-columns:repeat(3,1fr)!important;
+    gap:5px!important;
+    padding:7px 8px 8px!important;
+  }
+  .deviceChips span{
+    min-width:0!important;
+    padding:7px 6px!important;
+    font-size:6.5px!important;
+    white-space:nowrap!important;
+  }
+  .deviceChips b{
+    display:block!important;
+    float:none!important;
+    margin-top:3px!important;
+    text-align:right!important;
+    font-size:7px!important;
+  }
+}
+@media(max-width:390px){
+  .cameraViewport{height:60vw!important;min-height:215px!important;max-height:285px!important}
+  .camTargetBox{left:54%!important;width:60px!important;height:80px!important}
+  .cameraFooter span{max-width:125px!important}
+  .deviceView{height:205px!important;min-height:205px!important}
+  .deviceMetrics>div{padding:8px!important}
+  .deviceMetrics b{font-size:15px!important}
+  .deviceChips{gap:4px!important}
+}
+
+
+/* MOBILE FINAL PASS — match current dashboard markup, 2026-10-06 */
+@media(max-width:650px){
+  html,body{width:100%;max-width:100%;overflow-x:hidden}
+  body{font-size:13px}
+
+  /* Compact mobile command header */
+  .topbar{
+    width:100%;min-height:56px;height:auto!important;padding:7px 9px!important;
+    display:flex!important;align-items:center!important;justify-content:flex-start!important;
+    flex-wrap:nowrap!important;gap:8px!important;overflow:visible!important;
+  }
+  .brandCluster{display:flex!important;align-items:center!important;flex:1 1 auto!important;min-width:0!important}
+  
+  .brandWords{
+    position:relative!important;display:block!important;min-width:0!important;
+    width:max-content!important;max-width:100%!important;padding-right:34px!important;
+  }
+  .brandName{font-size:24px!important;line-height:1!important;letter-spacing:2px!important}
+  .brandSub{display:none!important}
+  .mobileMenuBtn{
+    position:absolute!important;right:0!important;top:1px!important;
+    display:flex!important;width:27px!important;height:25px!important;
+    margin:0!important;padding:4px!important;gap:3px!important;
+    flex-direction:column!important;justify-content:center!important;
+    align-items:center!important;z-index:1400!important;
+  }
+  .mobileMenuBtn span{width:18px!important;height:2px!important;flex:0 0 2px!important}
+  .topStatus,.topActions{display:none!important}
+
+  /* Mobile navigation */
+  .mobileNavPanel{
+    position:fixed!important;top:58px!important;left:7px!important;right:7px!important;
+    z-index:2000!important;max-height:calc(100dvh - 68px)!important;overflow:auto!important;
+    padding:8px!important;
+  }
+  .mobileNavGrid{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important}
+  .mobileNavGrid .navItem{
+    min-height:42px!important;height:42px!important;padding:6px 8px!important;
+    font-size:8px!important;overflow:hidden!important;
+  }
+  .mobileNavGrid .navItem span{flex:0 0 20px!important}
+  .mobileLogout{
+    width:100%!important;min-height:40px!important;margin-top:6px!important;
+    display:flex!important;align-items:center!important;justify-content:center!important;
+    font-size:8px!important;color:#ff9aa2!important;border-color:#63313b!important;
+    background:#24131a!important;
+  }
+
+  /* Main dashboard: actual current class names */
+  .appShell{display:block!important;width:100%!important;max-width:100%!important}
+  .sidebar{display:none!important}
+  .dashboard{width:100%!important;max-width:100%!important;min-width:0!important;padding:0 7px 12px!important}
+  .missionBar{width:100%!important;min-width:0!important;padding:8px 2px!important}
+  .missionBar h1{font-size:20px!important}
+  .eyebrow{font-size:7px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .missionLive{font-size:8px!important;gap:5px!important}
+
+  .dashboardGrid,.lowerGrid{
+    width:100%!important;max-width:100%!important;min-width:0!important;
+    display:grid!important;grid-template-columns:minmax(0,1fr)!important;
+    gap:8px!important;
+  }
+  .rightStack{display:grid!important;grid-template-columns:minmax(0,1fr)!important;gap:8px!important;min-width:0!important}
+  .card,.mapCard,.cameraCard,.deviceCard,.controlCard,.statusCard,.targetCard,.recentCard,.adminLogCard,.quickCard{
+    width:100%!important;max-width:100%!important;min-width:0!important;margin:0!important;
+  }
+  .cardHeader{min-width:0!important;min-height:40px!important;padding:9px 10px!important;gap:6px!important}
+  .cardHeader>div{min-width:0!important}
+
+  /* Map */
+  .mapArea{height:72vw!important;min-height:285px!important;max-height:390px!important;width:100%!important}
+  .mapCard #map{width:100%!important;height:100%!important;min-height:0!important;max-height:none!important}
+  .mapReadout{
+    height:auto!important;min-height:104px!important;
+    grid-template-columns:1fr 1fr!important;
+  }
+  .mapReadout>div{min-height:52px!important;padding:8px 10px!important}
+  .mapReadout span{font-size:7px!important}.mapReadout b{font-size:13px!important}
+  .mapTabs{display:none!important}
+  .mapCompass{width:72px!important;height:72px!important;right:8px!important;top:8px!important}
+  .mapTargetHud{max-width:105px!important;font-size:7px!important}
+  .mapCoordsHud{left:8px!important;right:8px!important;bottom:8px!important}
+  .mapCoordsHud b{font-size:7px!important;white-space:nowrap!important}
+  .mapToolRail{right:8px!important;bottom:58px!important}
+
+  /* Camera */
+  .cameraViewport{width:calc(100% - 16px)!important;height:56vw!important;min-height:220px!important;max-height:300px!important;margin:8px!important}
+  .camTargetBox{left:56%!important;top:36%!important;width:62px!important;height:84px!important}
+  .cameraFooter{min-height:48px!important;height:auto!important;padding:7px 8px!important}
+  .cameraFooter button{width:36px!important;height:34px!important;flex:0 0 36px!important}
+  .cameraFooter span{font-size:6px!important;max-width:145px!important}
+
+  /* Device + control */
+  .deviceView{height:190px!important;margin:8px!important}
+  .deviceMetrics{grid-template-columns:1.2fr .8fr .9fr!important}
+  .deviceMetrics>div{min-width:0!important;padding:8px!important}
+  .deviceChips{gap:5px!important;padding:7px 8px 8px!important}
+  .deviceChips span{min-width:0!important;padding:7px 5px!important;font-size:6px!important}
+  .deviceChips b{font-size:6px!important}
+  .drivePad{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important;padding:10px!important}
+  .drivePad button{width:100%!important;height:52px!important;font-size:21px!important}
+  .drivePad button small{font-size:7px!important}
+  .modeRow{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;padding:0 8px 8px!important}
+  .modeRow button{min-width:0!important;padding:8px 4px!important;font-size:8px!important}
+
+  /* Tracking cards */
+  .statusBlocks{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+  .targetBody{grid-template-columns:48px minmax(0,1fr)!important}
+  .targetData{grid-template-columns:1fr 1fr!important}
+  .recentList{max-height:230px!important}
+  .adminLogTable{width:100%!important;overflow-x:auto!important}
+
+  /* Quick actions + safety */
+  .quickGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;padding:8px!important}
+  .quickGrid button{min-width:0!important;min-height:52px!important}
+  .safetyStrip{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0!important}
+  .safetyStrip>div{min-width:0!important;padding:9px!important}
+  .safetyStrip b{font-size:8px!important}.safetyStrip small{font-size:6px!important}
+
+  /* Modals and forms */
+  .modal{padding:6px!important}
+  .modalbox,.modalbox.wide{width:100%!important;max-width:100%!important;max-height:94dvh!important;padding:11px!important}
+  .adminTabs{overflow-x:auto!important;flex-wrap:nowrap!important}
+  .adminTabs button{flex:0 0 auto!important;min-height:36px!important}
+  .alertbar{display:grid!important;grid-template-columns:1fr 1fr!important}
+  .alertbar span{grid-column:1/-1!important}
+  .alertbar button{min-height:36px!important;font-size:7px!important}
+  .tablewrap{max-width:100%!important;overflow-x:auto!important;-webkit-overflow-scrolling:touch}
+  .tablewrap table{min-width:700px!important}
+  footer{padding:4px 8px 14px!important;font-size:7px!important}
+  .footerRight{display:none!important}
+}
+@media(max-width:390px){
+  .dashboard{padding-left:5px!important;padding-right:5px!important}
+  .mapArea{min-height:270px!important}
+  .cameraViewport{min-height:210px!important}
+  .mobileNavGrid{gap:5px!important}
+  .mobileNavGrid .navItem{min-height:40px!important;height:40px!important}
+  .brandName{font-size:22px!important}
+  .mapCompass{width:68px!important;height:68px!important}
+  .cameraFooter span{max-width:120px!important}
+}
+
+
+/* Hide account-role roster text from dashboard */
+#onlineUsersSub{display:none!important}
+
+
+/* DEFENX brand identity */
+
+
+
+.defenxBrandName{background:linear-gradient(90deg,#fff7e6 0%,#f2bb57 45%,#fff7e6 70%,#d58b24 100%);-webkit-background-clip:text;background-clip:text;color:transparent;text-shadow:0 0 18px rgba(240,176,65,.18)}
+@media(max-width:650px){.brandName.defenxBrandName{font-size:21px;letter-spacing:2px}.brandSub{font-size:8px;letter-spacing:.8px}}
+
+
+/* Exact uploaded DEFENX logo */
+
+
+
+/* TEMPORARY 360° CAMERA ROOM — isolated to LIVE CAMERA VIEW */
+.camera3DScene{
+  position:absolute;inset:0;overflow:hidden;z-index:2;perspective:820px;
+  background:radial-gradient(circle at 50% 42%,#173a47 0%,#091720 58%,#03080d 100%);
+  touch-action:none;user-select:none;
+}
+.camera3DRoom{
+  position:absolute;left:50%;top:50%;width:620px;height:330px;
+  transform-style:preserve-3d;transform:translate(-50%,-50%) rotateX(-2deg) rotateY(0deg);
+  transition:transform .28s cubic-bezier(.2,.8,.2,1);
+  will-change:transform;
+}
+.camera3DRoom.isDragging{transition:none}
+
+.roomPanel{
+  position:absolute;width:620px;height:330px;
+  background:linear-gradient(160deg,#183846,#0b202b 70%,#071118);
+  border:1px solid rgba(86,180,208,.32);
+  box-shadow:inset 0 0 40px rgba(0,0,0,.36);
+  backface-visibility:hidden;
+}
+.roomBack{transform:translateZ(-250px)}
+.roomFront{transform:translateZ(250px) rotateY(180deg)}
+.roomLeft{transform:translateX(-310px) rotateY(90deg)}
+.roomRight{transform:translateX(310px) rotateY(-90deg)}
+.roomFloor{position:absolute;width:620px;height:500px;left:0;top:165px;transform:rotateX(90deg) translateZ(-165px);transform-origin:top center;
+  background:linear-gradient(180deg,#0c222c,#061018);border:1px solid rgba(86,180,208,.22);
+}
+.roomCeiling{position:absolute;width:620px;height:500px;left:0;top:-335px;transform:rotateX(90deg) translateZ(165px);transform-origin:bottom center;
+  background:linear-gradient(180deg,#112c39,#08151e);border:1px solid rgba(86,180,208,.14);
+}
+.roomWallGlow{position:absolute;inset:0;background:radial-gradient(circle at 50% 32%,rgba(64,194,224,.19),transparent 42%)}
+.roomWindow{position:absolute;left:210px;top:52px;width:170px;height:92px;border:4px solid #244e60;border-radius:7px;background:linear-gradient(180deg,#0c1f32 0%,#17445a 62%,#071218 100%);box-shadow:0 0 28px rgba(45,165,210,.2),inset 0 0 22px rgba(5,12,18,.7)}
+.roomWindow:before,.roomWindow:after{content:"";position:absolute;background:#244e60}.roomWindow:before{left:50%;top:0;bottom:0;width:3px;transform:translateX(-50%)}.roomWindow:after{left:0;right:0;top:56%;height:3px;transform:translateY(-50%)}
+.roomWindow span{position:absolute;inset:10px;background:radial-gradient(circle at 74% 28%,#bde9ff 0 2px,transparent 3px),radial-gradient(circle at 22% 36%,#8fd6e8 0 1.5px,transparent 2.5px),linear-gradient(180deg,#153e58,#0c2433 56%,#08141d)}
+.roomWindow i{position:absolute;left:12px;right:12px;bottom:9px;height:18px;border-top:2px solid #163845;clip-path:polygon(0 100%,14% 44%,27% 77%,42% 38%,55% 72%,71% 28%,84% 62%,100% 22%,100% 100%);background:linear-gradient(180deg,rgba(20,53,56,.8),rgba(6,19,24,.95))}
+.roomWindow b{position:absolute;right:6px;top:6px;font:800 7px/1 ui-monospace,monospace;color:#6ff0cd;letter-spacing:1px;text-shadow:0 0 8px rgba(59,226,181,.45)}
+.roomShelf{position:absolute;right:48px;top:64px;width:108px;height:10px;background:#163746;border:1px solid #28586b;border-radius:3px;box-shadow:0 9px 0 #102a38,0 18px 0 #102a38,0 27px 0 #102a38}
+.roomShelf i{position:absolute;top:-18px;width:13px;height:16px;background:linear-gradient(180deg,#39b5d7,#0d566c);border-radius:2px;box-shadow:23px 0 0 #a55358,46px 0 0 #4b9c67,69px 0 0 #8e6bb0}
+.roomClock{position:absolute;left:62px;top:54px;padding:8px 9px;border:1px solid #245469;border-radius:5px;background:#07141d;color:#8be8d6;font:800 11px/1 ui-monospace,monospace;letter-spacing:1px;box-shadow:0 0 15px rgba(42,192,175,.16)}
+.roomDoor{position:absolute;left:62px;top:37px;width:92px;height:220px;border:4px solid #2a5160;background:linear-gradient(90deg,#08171f,#1b3743 52%,#0a1820);border-radius:5px;box-shadow:inset 0 0 23px rgba(0,0,0,.45)}
+.roomDoorHandle{position:absolute;right:13px;top:50%;width:8px;height:8px;border:2px solid #7db6c6;border-radius:50%;background:#12232b}
+.roomDoor b{position:absolute;right:10px;top:10px;font:800 7px/1 ui-monospace,monospace;color:#74d4ee;letter-spacing:1px}
+.roomWallSign{position:absolute;right:48px;bottom:48px;text-align:center;padding:10px 12px;border:1px solid #1f556a;border-radius:5px;background:rgba(4,14,20,.78);color:#58d3b7;font:900 12px/1.2 ui-monospace,monospace;letter-spacing:2px;box-shadow:0 0 18px rgba(33,186,167,.12)}.roomWallSign small{color:#6d8f9d;font-size:6px;letter-spacing:1.5px}
+.roomRack{position:absolute;left:50px;top:38px;width:120px;height:226px;border:3px solid #1e4858;background:#07131b;box-shadow:inset 0 0 18px rgba(0,0,0,.45)}
+.roomRack:after{content:"";position:absolute;inset:16px;background:repeating-linear-gradient(180deg,transparent 0 19px,#183a49 20px 21px)}.roomRack i{position:absolute;left:13px;right:13px;height:8px;background:#0e2935;border:1px solid #1f5466;border-radius:2px}.roomRack i:nth-child(1){top:30px}.roomRack i:nth-child(2){top:78px}.roomRack i:nth-child(3){top:126px}.roomRack i:nth-child(4){top:174px}
+.roomCabinet{position:absolute;right:54px;bottom:38px;width:180px;height:92px;border:2px solid #214b5d;border-radius:5px;background:linear-gradient(180deg,#12303c,#081920);box-shadow:inset 0 0 20px rgba(0,0,0,.4)}.roomCabinet span{display:block;position:absolute;top:16px;width:12px;height:4px;background:#2e6d7f;border-radius:9px}.roomCabinet span:nth-child(1){left:38px}.roomCabinet span:nth-child(2){left:84px}.roomCabinet span:nth-child(3){right:38px}
+.floorGrid{position:absolute;inset:0;background:linear-gradient(rgba(68,154,176,.10) 1px,transparent 1px),linear-gradient(90deg,rgba(68,154,176,.10) 1px,transparent 1px);background-size:42px 42px;mask-image:linear-gradient(180deg,rgba(0,0,0,.95),transparent 95%)}
+.roomDesk{position:absolute;left:72px;top:124px;width:200px;height:132px;transform:translateZ(90px);transform-style:preserve-3d}
+.deskTop{position:absolute;left:0;top:0;width:200px;height:14px;border-radius:4px;background:linear-gradient(180deg,#224c59,#102a34);border:1px solid #2b6274;box-shadow:0 7px 0 #08151c}.deskLeg{position:absolute;top:12px;width:10px;height:112px;background:linear-gradient(90deg,#0b1a21,#1e3a46)}.deskLeg.left{left:12px}.deskLeg.right{right:12px}
+.deskMonitor{position:absolute;left:46px;top:-54px;width:108px;height:66px;border:4px solid #1f4f60;border-radius:5px;background:#07131b;box-shadow:0 0 18px rgba(45,177,208,.18)}.deskMonitor>div{position:absolute;inset:7px;background:linear-gradient(160deg,#0a3949,#0a1720);box-shadow:inset 0 0 15px rgba(20,214,175,.08)}.deskMonitor:after{content:"AI VISION";position:absolute;left:12px;top:16px;color:#53e0c0;font:800 7px ui-monospace,monospace;letter-spacing:1px}.deskMonitor:before{content:"";position:absolute;left:45px;bottom:-18px;width:18px;height:14px;border-left:2px solid #214956;border-right:2px solid #214956}
+.roomChair{position:absolute;left:270px;top:170px;width:86px;height:120px;transform:translateZ(120px);transform-style:preserve-3d}.chairBack{position:absolute;left:10px;top:0;width:62px;height:74px;border-radius:10px 10px 4px 4px;background:linear-gradient(180deg,#214e5b,#0e2731);border:2px solid #2d6370}.chairSeat{position:absolute;left:6px;top:61px;width:70px;height:24px;border-radius:7px;background:#193742;border:2px solid #2c5f6c}.roomChair i{position:absolute;left:37px;top:85px;width:10px;height:35px;background:#0c2028;border-left:2px solid #285260;border-right:2px solid #285260}
+.roomRoverPlaceholder{position:absolute;left:390px;top:202px;width:112px;height:58px;transform:translateZ(135px);filter:drop-shadow(0 10px 12px rgba(0,0,0,.45));}.roverBody{position:absolute;left:12px;top:10px;width:88px;height:38px;border-radius:8px 11px 7px 7px;background:linear-gradient(150deg,#1d5563,#0a2631 75%);border:2px solid #39a7bc;box-shadow:inset 0 0 12px rgba(67,210,221,.12)}.roverCamera{position:absolute;left:42px;top:-1px;width:28px;height:19px;border-radius:6px 6px 3px 3px;background:linear-gradient(180deg,#345a67,#122a34);border:2px solid #6fdce7}.roverCamera:after{content:"";position:absolute;left:7px;top:4px;width:10px;height:10px;border-radius:50%;background:#071116;border:2px solid #3fe7de;box-shadow:0 0 10px rgba(63,231,222,.55)}.roomRoverPlaceholder i{position:absolute;bottom:1px;width:26px;height:26px;border-radius:50%;background:#071116;border:2px solid #35616d;box-shadow:inset 0 0 0 6px #102d37}.roomRoverPlaceholder i:nth-child(3){left:10px}.roomRoverPlaceholder i:nth-child(4){right:10px}
+.roomLamp{position:absolute;right:70px;top:166px;width:70px;height:115px;transform:translateZ(110px)}.lampShade{position:absolute;left:7px;top:0;width:56px;height:28px;background:#255567;border:2px solid #3c7c8b;clip-path:polygon(18% 0,82% 0,100% 100%,0 100%);box-shadow:0 0 28px rgba(57,203,219,.22)}.roomLamp i{position:absolute;left:33px;top:24px;width:5px;height:90px;background:#193744}.roomLamp:after{content:"";position:absolute;left:-8px;top:16px;width:86px;height:86px;background:radial-gradient(circle,rgba(56,225,217,.12),transparent 68%);border-radius:50%}
+.roomFrontConsole{position:absolute;left:178px;top:72px;width:260px;height:150px;border:2px solid #24576a;background:linear-gradient(180deg,#12303b,#08161d);box-shadow:inset 0 0 24px rgba(0,0,0,.5);border-radius:6px}.consoleTop{height:34px;border-bottom:1px solid #1d4b5d;display:flex;align-items:center;gap:8px;padding:0 10px}.consoleTop i{width:7px;height:7px;border-radius:50%;background:#2fe0b5;box-shadow:0 0 8px rgba(47,224,181,.5)}.consoleTop b{margin-left:auto;color:#73cee4;font:800 9px ui-monospace,monospace;letter-spacing:1px}.consoleScreen{position:absolute;left:16px;right:16px;top:50px;height:78px;background:#06131a;border:1px solid #1f5264;box-shadow:inset 0 0 18px rgba(24,201,185,.08)}.consoleScreen span{position:absolute;left:10px;right:10px;height:4px;border-radius:6px;background:#163b49}.consoleScreen span:nth-child(1){top:16px;width:55%;background:#2bb4b0}.consoleScreen span:nth-child(2){top:34px;width:76%;background:#28516a}.consoleScreen span:nth-child(3){top:52px;width:42%;background:#2b6575}
+.ceilingLight{position:absolute;left:250px;top:140px;width:120px;height:12px;border-radius:99px;background:#7cd7ec;box-shadow:0 0 32px rgba(87,208,237,.7)}
+.camera360Controls{
+  position:absolute;left:50%;bottom:8px;transform:translateX(-50%);z-index:12;display:flex;align-items:center;gap:4px;
+  padding:5px 7px;border:1px solid rgba(62,140,164,.58);border-radius:8px;background:rgba(3,14,20,.88);backdrop-filter:blur(7px);
+  box-shadow:0 8px 20px rgba(0,0,0,.34);white-space:nowrap;
+}
+.camera360Controls button{height:24px;padding:0 7px;border:1px solid #24566b!important;background:linear-gradient(180deg,#0b2936,#081b25)!important;color:#a9dce9!important;border-radius:5px!important;font:800 8px/1 ui-monospace,monospace!important;box-shadow:none!important}
+.camera360Controls button:hover{border-color:#39bce8!important;color:#fff!important}.camera360Controls button.active{background:#063c36!important;border-color:#26d5af!important;color:#82f6db!important}
+.camera360Hint{color:#6e929f;font-size:7px;margin-left:3px}.camera360Controls b{min-width:38px;text-align:right;color:#59e0c2;font:900 8px ui-monospace,monospace}
+@media(max-width:650px){
+  .camera3DRoom{width:520px;height:290px;}.roomPanel{width:520px;height:290px}.roomBack{transform:translateZ(-210px)}.roomFront{transform:translateZ(210px) rotateY(180deg)}.roomLeft{transform:translateX(-260px) rotateY(90deg)}.roomRight{transform:translateX(260px) rotateY(-90deg)}
+  .roomFloor{width:520px;height:420px;top:145px}.roomCeiling{width:520px;height:420px;top:-275px}
+  .camera360Controls{max-width:calc(100% - 10px);overflow:auto}.camera360Hint{display:none}.camera360Controls button{flex:0 0 auto}
+}
+
+/* === AUDIT-ONLY USABILITY PASS — 11 REQUESTED FINDINGS ===
+   Visual/layout normalization only. Existing controls, map, camera, tracking,
+   authentication and data behaviour are intentionally left unchanged.
+*/
+:root{
+  --ui-font:Inter,"Segoe UI",Roboto,Arial,sans-serif;
+  --ui-text:#e8f2f8;
+  --ui-muted:#8aa4b0;
+  --ui-accent:#22d3a6;
+  --ui-radius:10px;
+  --ui-radius-sm:8px;
+}
+body{
+  font-family:var(--ui-font)!important;
+  font-size:13px!important;
+  color:var(--ui-text)!important;
+}
+body button,body input,body select,body textarea{font-family:var(--ui-font)!important}
+.dashboard small,.sidebar small,.topbar small,footer small,
+.dashboard label,.sidebar label,.topbar label,.muted{
+  font-size:11px!important;line-height:1.25!important;
+}
+.cardHeader b,.sideTitle{font-size:12px!important}
+.cardHeader span,.quickCard .cardHeader span,.missionBar .eyebrow{
+  font-size:11px!important;color:var(--ui-muted)!important;
+}
+.mapReadout span,.deviceMetrics span,.targetData span,.statusBlocks small{font-size:11px!important}
+.mapReadout b,.deviceMetrics b,.targetData b,.statusBlocks b{
+  font-size:15px!important;line-height:1.25!important;
+}
+.profileWords b{font-size:12px!important}.profileWords small{font-size:11px!important}.brandSub{font-size:10px!important}
+
+/* Reduce visible text colour variety while preserving status/state colours. */
+.dashboard :where(.cardHeader b,.mapReadout b,.deviceMetrics b,.targetData b,.statusBlocks b,.quickGrid b,.missionBar h1),
+.sidebar :where(.sideTitle,.navItem),
+.topbar :where(.profileWords b,.statusBlock b),footer{color:var(--ui-text)!important}
+.dashboard :where(.cardHeader span,.mapReadout span,.deviceMetrics span,.targetData span,.statusBlocks small,.quickCard .cardHeader span),
+.sidebar :where(.brandSub,.sidePromo span),
+.topbar :where(.statusBlock small,.profileWords small),footer{color:var(--ui-muted)!important}
+
+/* Shared geometry / type scale for interactive controls. */
+button{border-radius:var(--ui-radius)!important;font-size:13px;line-height:1.1}
+.mapTabs .mapTab,.modeBtn,.modeOpen,.quickGrid button,.control{
+  border-radius:var(--ui-radius-sm)!important;font-size:12px!important;
+}
+input,select,textarea{border-radius:var(--ui-radius-sm)!important}
+.card,.cameraViewport,.deviceView,.mapCompass,.mapTargetHud,.mapCoordsHud,.missionLive{
+  border-radius:var(--ui-radius)!important;
+}
+.targetPill,.greenPill,.commandChip,.onlineLabel,.liveBadge{border-radius:999px!important}
+
+/* Compact Quick Actions: same IDs/actions, less vertical and horizontal bulk. */
+.quickGrid{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:8px!important;padding:10px!important}
+.quickGrid button{
+  width:auto!important;min-width:0!important;min-height:50px!important;
+  padding:8px 10px!important;display:flex!important;align-items:center!important;
+  justify-content:center!important;gap:8px!important;flex-direction:row!important;
+}
+.quickGrid button span{font-size:17px!important}.quickGrid button b{font-size:12px!important}
+@media(max-width:1050px){.quickGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important}}
+@media(max-width:650px){
+  .quickGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:6px!important}
+  .quickGrid button{min-height:46px!important;padding:7px 6px!important;gap:5px!important}
+  .quickGrid button span{font-size:15px!important}.quickGrid button b{font-size:11px!important}
+}
+
+/* Critical status/target data: larger values and more breathing room. */
+.statusBlocks{gap:1px!important}.statusBlocks>div{padding:12px!important}
+.statusBlocks small{display:block;line-height:1.25!important}
+.statusBlocks b{display:block;margin-top:3px!important}
+.targetData{gap:10px 14px!important}.targetData>div{line-height:1.25!important}
+.targetData span{display:block;line-height:1.25!important}
+.targetData b{display:block;margin-top:3px!important}.deviceMetrics>div{line-height:1.25!important}
+
+/* Neutral Logout styling; directional controls become muted except Stop. */
+.topLogout,.sideLogout{
+  color:#b8ccd5!important;border-color:#284555!important;background:#0b1a24!important;box-shadow:none!important;
+}
+.topLogout:hover,.sideLogout:hover{border-color:#3d6171!important;color:#d8e7ec!important}
+.control{
+  background:#102431!important;border-color:#2b4a59!important;color:#d9edf3!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 4px 10px rgba(0,0,0,.12)!important;
+}
+.control:hover:not(:disabled){border-color:#4b7181!important;color:#f2fbff!important}
+.control.stop{background:#321820!important;border-color:#87404b!important;color:#ffb0b5!important}
+
+/* Direction-pad layout: physical-style arrow arrangement. */
+.drivePad{
+  grid-template-columns:repeat(3,minmax(0,1fr))!important;
+  grid-template-areas:
+    ". forward ."
+    "left stop right"
+    ". reverse ."
+    ". mode .";
+  gap:8px!important;
+  padding:12px!important;
+  align-items:stretch;
+}
+.drivePad .forward{grid-area:forward}
+.drivePad .left{grid-area:left}
+.drivePad .stop{grid-area:stop}
+.drivePad .right{grid-area:right}
+.drivePad .reverse{grid-area:reverse}
+.drivePad .modeOpen{grid-area:mode}
+.drivePad .control{
+  height:62px!important;
+  min-height:62px!important;
+  border-radius:10px!important;
+  font-size:28px!important;
+  font-weight:1000!important;
+  transition:transform .12s ease,filter .12s ease,box-shadow .12s ease!important;
+}
+.drivePad .control small{
+  font-size:8px!important;
+  margin-top:5px!important;
+  letter-spacing:.5px;
+  opacity:.9;
+}
+.drivePad .forward{
+  background:linear-gradient(180deg,#19e6a5,#08b982)!important;
+  border-color:#39f2bd!important;
+  color:#021b14!important;
+  box-shadow:0 8px 18px rgba(18,220,163,.24)!important;
+}
+.drivePad .reverse{
+  background:linear-gradient(180deg,#ff4d61,#c91f39)!important;
+  border-color:#ff7180!important;
+  color:#fff!important;
+  box-shadow:0 8px 18px rgba(232,45,69,.22)!important;
+}
+.drivePad .left{
+  background:linear-gradient(180deg,#269dff,#1769d1)!important;
+  border-color:#5bb8ff!important;
+  color:#fff!important;
+  box-shadow:0 8px 18px rgba(38,157,255,.22)!important;
+}
+.drivePad .right{
+  background:linear-gradient(180deg,#a86cff,#7040d4)!important;
+  border-color:#c39aff!important;
+  color:#fff!important;
+  box-shadow:0 8px 18px rgba(132,79,224,.22)!important;
+}
+.drivePad .stop{
+  background:linear-gradient(180deg,#ffb83d,#d87912)!important;
+  border-color:#ffd274!important;
+  color:#211000!important;
+  box-shadow:0 8px 18px rgba(224,135,23,.2)!important;
+}
+.drivePad .modeOpen{
+  height:38px!important;
+  min-height:38px!important;
+  font-size:16px!important;
+  background:linear-gradient(180deg,#263b4e,#152534)!important;
+  border-color:#49667b!important;
+}
+.drivePad .control:hover:not(:disabled){
+  transform:translateY(-1px)!important;
+  filter:brightness(1.08)!important;
+}
+.drivePad .control:active:not(:disabled){
+  transform:translateY(1px) scale(.98)!important;
+}
+
+/* Prototype photo: stable 16:9 framing, full device visible, no crop. */
+.deviceView{
+  aspect-ratio:16 / 9!important;height:auto!important;min-height:0!important;max-height:none!important;
+  display:grid!important;place-items:center!important;
+}
+.deviceView img{
+  width:100%!important;height:100%!important;object-fit:contain!important;object-position:center!important;
+}
+@media(max-width:650px){
+  .deviceView{aspect-ratio:16 / 9!important;height:auto!important;min-height:0!important}
+  .cardHeader{min-height:42px!important;padding:9px 10px!important}
+  .statusBlocks>div,.targetData>div{min-width:0}
+  .statusBlocks b,.targetData b{font-size:14px!important}
+  .statusBlocks small,.targetData span,.deviceMetrics span{font-size:11px!important}
+}
+
+/* Restore previous Logout appearance — explicitly excluded from usability styling. */
+.topLogout{
+  width:44px!important;
+  color:#ff8e97!important;
+  border-color:#652334!important;
+  background:linear-gradient(180deg,#35111d,#1b0d13)!important;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 4px 10px rgba(0,0,0,.16)!important;
+}
+.topLogout:hover:not(:disabled){
+  color:#ff8e97!important;
+  border-color:#652334!important;
+  background:linear-gradient(180deg,#35111d,#1b0d13)!important;
+}
+.sideLogout{
+  width:100%!important;
+  height:48px!important;
+  border:1px solid #8a2c40!important;
+  background:linear-gradient(180deg,#3b1320,#240d15)!important;
+  color:#ff7585!important;
+  border-radius:9px!important;
+  font-weight:800!important;
+  text-align:left!important;
+  padding:0 12px!important;
+  font-size:12px!important;
+  box-shadow:none!important;
+}
+.sideLogout:hover:not(:disabled){filter:brightness(1.16)!important}
+
+/* MAP GAP FIX — keep map and map readout flush with no unused strip */
+.mapCard .mapArea{
+  margin:0!important;
+  padding:0!important;
+  line-height:0!important;
+  overflow:hidden!important;
+}
+.mapCard .mapArea #map,
+.mapCard .mapArea #map .leaflet-container{
+  margin:0!important;
+  padding:0!important;
+  width:100%!important;
+  height:100%!important;
+  min-height:0!important;
+  max-height:none!important;
+  display:block!important;
+}
+.mapCard .satellitePreview{
+  margin:0!important;
+  padding:0!important;
+  display:block!important;
+}
+.mapCard .mapReadout{
+  margin:0!important;
+  flex-shrink:0!important;
+}
+
+/* FINAL MAP SIZE / SPACE FIX
+   Desktop: the map card stretches to the full height of the right-side stack.
+   The map itself flexes into all remaining vertical space between header/readout.
+*/
+@media (min-width:901px){
+  .dashboardGrid{
+    align-items:stretch!important;
+  }
+  .dashboardGrid>.mapCard{
+    height:100%!important;
+    min-height:0!important;
+    display:flex!important;
+    flex-direction:column!important;
+  }
+  .dashboardGrid>.mapCard>.cardHeader{
+    flex:0 0 44px!important;
+  }
+  .dashboardGrid>.mapCard>.mapArea{
+    flex:1 1 auto!important;
+    height:auto!important;
+    min-height:620px!important;
+    max-height:none!important;
+  }
+  .dashboardGrid>.mapCard>.mapReadout{
+    flex:0 0 66px!important;
+    height:66px!important;
+    min-height:66px!important;
+  }
+}
+@media (min-width:1201px){
+  .dashboardGrid>.mapCard>.mapArea{
+    min-height:680px!important;
+  }
+}
+@media (max-width:900px){
+  .dashboardGrid{
+    align-items:stretch!important;
+  }
+  .dashboardGrid>.mapCard{
+    height:auto!important;
+  }
+  .dashboardGrid>.mapCard>.mapArea{
+    flex:none!important;
+  }
+}
+
+/* RIGHT-SIDE ROVER PHOTO — use the actual 4:3 rover photograph, fully visible */
+.deviceView{
+  aspect-ratio:4 / 3!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+  display:grid!important;
+  place-items:center!important;
+  background:#06131c!important;
+}
+.deviceView img{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  display:block!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  margin:0!important;
+}
+@media(max-width:650px){
+  .deviceView{
+    aspect-ratio:4 / 3!important;
+    height:auto!important;
+    min-height:0!important;
+    max-height:none!important;
+  }
+}
+
+
+/* FINAL ROVER PHOTO FIT — 5:4 source image fills the device frame cleanly */
+.deviceView{
+  aspect-ratio:5 / 4!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+  overflow:hidden!important;
+  display:grid!important;
+  place-items:center!important;
+  background:#f4f6f8!important;
+}
+.deviceView img{
+  width:100%!important;
+  height:100%!important;
+  max-width:100%!important;
+  max-height:100%!important;
+  display:block!important;
+  object-fit:contain!important;
+  object-position:center!important;
+  margin:0!important;
+}
+@media(max-width:650px){.deviceView{aspect-ratio:5 / 4!important;}}
+
+
+/* Persistent device-loss activity */
+.lastKnownRecent{border:1px solid rgba(255,76,92,.62)!important;background:linear-gradient(145deg,rgba(57,11,18,.82),rgba(15,18,25,.96))!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 8px 18px rgba(0,0,0,.14);align-items:center}
+.lastKnownRecent .lastKnownIcon{color:#ff7b87!important;border-color:rgba(255,76,92,.45)!important;background:rgba(70,11,20,.7)!important}
+.lastKnownRecent>div:nth-child(2){min-width:0}
+.lastKnownRecent>div:nth-child(2)>b{color:#ff929c!important;letter-spacing:.2px}
+.lastKnownRecent>div:nth-child(2)>span{color:#e9f1f5!important;white-space:normal;overflow-wrap:anywhere}
+.lastKnownRecent>div:nth-child(2)>small{display:block;margin-top:3px;color:#8fa9b4!important;font-size:10px!important;line-height:1.25}
+.lastKnownActions{display:flex;flex-direction:column;align-items:flex-end;gap:5px;margin-left:auto;flex:0 0 auto}
+.lastKnownActions time{color:#8fa9b4!important;white-space:nowrap}
+.lastKnownRemove{height:27px!important;padding:0 8px!important;border:1px solid #8e3341!important;border-radius:7px!important;background:#2b1118!important;color:#ffb5bc!important;font:800 10px/1 Inter,"Segoe UI",Roboto,Arial,sans-serif!important}
+.lastKnownRemove:hover{border-color:#d34f60!important;color:#fff!important;background:#42151e!important}
+@media(max-width:650px){.lastKnownRecent{align-items:flex-start}.lastKnownActions{gap:6px}.lastKnownActions time{font-size:10px!important}.lastKnownRemove{height:30px!important;padding:0 7px!important;font-size:9px!important}}

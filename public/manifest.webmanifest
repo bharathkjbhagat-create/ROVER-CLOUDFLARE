@@ -1,0 +1,11 @@
+{
+  "id": "/",
+  "name": "DEFENX — ROVER-01 Control Centre",
+  "short_name": "DEFENX",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#04090f",
+  "theme_color": "#04090f",
+  "description": "DEFENX intelligence in motion — ROVER-01 AI off-road control centre"
+}
