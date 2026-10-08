@@ -271,6 +271,22 @@ class Default(WorkerEntrypoint):
     def _normalize_login(value):
         return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
 
+    def _configure_app_secret(self):
+        """Synchronize Flask's signing key with the live Worker bindings."""
+        secret = self._env_value(self.env, "SESSION_SECRET")
+        if not secret:
+            seed = (
+                self._env_value(self.env, "ROVER_DEVICE_TOKEN")
+                or self._env_value(self.env, "ADMIN_PASSWORD")
+                or self._env_value(self.env, "ADMIN_PASSWORD_HASH")
+            )
+            if seed:
+                secret = "defenx-session-" + hashlib.sha256(seed.encode("utf-8")).hexdigest()
+        if secret:
+            app.secret_key = secret
+            return True
+        return False
+
     @staticmethod
     def _make_user(username, role, display_name=None, can_manage_users=False, user_id=None):
         username = str(username or "").strip().upper()
@@ -412,19 +428,20 @@ class Default(WorkerEntrypoint):
                 status=503,
                 headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
             )
+        secure = self._env_value(self.env, "COOKIE_SECURE", "1") != "0"
+        secure_flag = "; Secure" if secure else ""
         headers = {
             "Content-Type": "application/json",
             "Cache-Control": "no-store",
             "Set-Cookie": (
                 f"rover_session={cookie}; Max-Age=43200; Path=/; "
-                "HttpOnly; Secure; SameSite=Lax"
+                f"HttpOnly; SameSite=Lax{secure_flag}"
             ),
         }
-        auth_cookie = "rover_auth=1; Max-Age=43200; Path=/; HttpOnly; Secure; SameSite=Lax"
         return Response(
             json.dumps({"ok": True, "user": user, "db_connected": False}),
             status=200,
-            headers=headers | {"Set-Cookie": headers["Set-Cookie"] + ", " + auth_cookie},
+            headers=headers,
         )
 
     async def _handle_login(self, request):
@@ -449,6 +466,8 @@ class Default(WorkerEntrypoint):
         return self._login_response(user)
 
     async def fetch(self, request):
+        # Bind the real runtime secret before any Flask session is read/written.
+        self._configure_app_secret()
         url = urlparse(request.url)
 
         if url.path == "/api/ws":
