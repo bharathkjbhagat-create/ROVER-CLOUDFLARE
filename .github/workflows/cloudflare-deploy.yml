@@ -156,10 +156,21 @@ jobs:
               data = json.load(handle)
           assert data.get("ok") is False, data
           PY
+
+          code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-incomplete-login-response -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data '{"username":"","password":""}' "$base/api/login")"
+          echo "/api/login incomplete credentials -> HTTP $code"
+          test "$code" = "400"
+          python - <<'PY'
+          import json
+          with open("/tmp/defenx-incomplete-login-response", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is False, data
+          PY
+
           code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-me-response -w '%{http_code}' "$base/api/me")"
           echo "/api/me without session -> HTTP $code"
           test "$code" = "401"
-          echo "Invalid-login checks: PASS"
+          echo "Login contract checks: PASS"
 
       - name: Verify deployed admin login and session when credential is available
         env:
