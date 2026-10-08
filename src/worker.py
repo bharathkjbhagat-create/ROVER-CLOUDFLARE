@@ -251,92 +251,12 @@ class RealtimeHub(DurableObject):
 
 
 class Default(WorkerEntrypoint):
-    async def _legacy_auth_user(self, username, password):
-        """Authenticate against the still-live Vercel deployment using native
-        Worker Fetch. This avoids relying on synchronous JS Fetch from inside
-        Flask/WSGI during a cold start.
-        """
-        if not LEGACY_AUTH_ENABLED or not LEGACY_AUTH_URL:
-            return None
-        try:
-            options = {
-                "method": "POST",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
-                "body": json.dumps({
-                    "username": str(username or "").strip(),
-                    "password": str(password or ""),
-                }),
-            }
-            try:
-                options["signal"] = js.AbortSignal.timeout(5000)
-            except Exception:
-                pass
-            response = await js_fetch(LEGACY_AUTH_URL, options)
-            raw = await response.text()
-            data = json.loads(str(raw or "{}"))
-            if int(response.status) < 200 or int(response.status) >= 300:
-                return None
-            user = data.get("user") if isinstance(data, dict) else None
-            if not data.get("ok") or not isinstance(user, dict):
-                return None
-            role = str(user.get("role") or "user").strip().lower()
-            username_value = str(user.get("username") or "").strip().upper()
-            if not username_value or role not in {"admin", "user"}:
-                return None
-            return {
-                "id": str(user.get("id") or f"legacy-{username_value.lower()}"),
-                "username": username_value,
-                "display_name": str(user.get("display_name") or username_value)[:120],
-                "role": role,
-                "enabled": bool(user.get("enabled", True)),
-                "can_control": bool(user.get("can_control", True)),
-                "can_manage_users": bool(user.get("can_manage_users", False)),
-                "created_at": user.get("created_at"),
-                "last_login_at": None,
-            }
-        except Exception as exc:
-            print(f"DEFENX native legacy login bridge failed: {type(exc).__name__}")
-            return None
+    """Cloudflare entrypoint.
 
-    def _signed_request(self, request, body_text, user=None):
-        headers = {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        if user and SESSION_SECRET:
-            compact = json.dumps(user, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
-            payload = base64.urlsafe_b64encode(compact).decode("ascii").rstrip("=")
-            signature = hmac.new(
-                str(SESSION_SECRET).encode("utf-8"),
-                payload.encode("ascii"),
-                hashlib.sha256,
-            ).hexdigest()
-            headers["X-DEFENX-LEGACY-USER"] = payload
-            headers["X-DEFENX-LEGACY-SIG"] = signature
-        return js.Request.new(request.url, {
-            "method": "POST",
-            "headers": headers,
-            "body": body_text,
-        })
-
-    async def _handle_login(self, request):
-        """Run migration authentication at the Worker layer, then hand the
-        authenticated identity to Flask so its normal session cookie is issued.
-        """
-        try:
-            body_text = await request.text()
-            data = json.loads(str(body_text or "{}"))
-        except Exception:
-            body_text = "{}"
-            data = {}
-        username = str(data.get("username", "")).strip()
-        password = str(data.get("password", ""))
-        user = await self._legacy_auth_user(username, password)
-        internal = self._signed_request(request, body_text, user=user)
-        return await wsgi.fetch(app, internal, self.env)
+    Keep ordinary HTTP/API requests on the documented Flask WSGI path. Login
+    is handled by Flask itself so the browser request, Flask session cookie,
+    and authentication code all use one request pipeline.
+    """
 
     async def fetch(self, request):
         url = urlparse(request.url)
@@ -347,8 +267,5 @@ class Default(WorkerEntrypoint):
                 return Response("Expected WebSocket", status=426)
             stub = self.env.REALTIME_HUB.getByName("defenx-global")
             return await stub.fetch(request)
-
-        if url.path == "/api/login" and str(request.method).upper() == "POST":
-            return await self._handle_login(request)
 
         return await wsgi.fetch(app, request, self.env)
