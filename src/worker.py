@@ -7,8 +7,9 @@ import uuid
 import js
 from js import WebSocketPair, WebSocketRequestResponsePair, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint, wsgi
+from werkzeug.security import check_password_hash
 
-from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET
+from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME
 
 
 class RealtimeHub(DurableObject):
@@ -253,10 +254,199 @@ class RealtimeHub(DurableObject):
 class Default(WorkerEntrypoint):
     """Cloudflare entrypoint.
 
-    Keep ordinary HTTP/API requests on the documented Flask WSGI path. Login
-    is handled by Flask itself so the browser request, Flask session cookie,
-    and authentication code all use one request pipeline.
+    Authentication is handled here because Cloudflare's Worker Fetch API is
+    asynchronous. This prevents Flask's synchronous WSGI handler from trying
+    to block on a JavaScript Fetch promise, which causes Worker error 1101.
     """
+
+    @staticmethod
+    def _env_value(env, name, default=""):
+        try:
+            value = getattr(env, name)
+            return str(value if value is not None else default)
+        except Exception:
+            return default
+
+    @staticmethod
+    def _normalize_login(value):
+        return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
+
+    @staticmethod
+    def _make_user(username, role, display_name=None, can_manage_users=False, user_id=None):
+        username = str(username or "").strip().upper()
+        role = str(role or "user").strip().lower()
+        return {
+            "id": str(user_id or f"local-{username.lower()}"),
+            "username": username,
+            "display_name": str(display_name or username)[:120],
+            "role": role,
+            "enabled": True,
+            "can_control": True,
+            "can_manage_users": bool(can_manage_users),
+            "created_at": None,
+            "last_login_at": None,
+        }
+
+    def _local_authenticate(self, env, username, password):
+        key = self._normalize_login(username)
+        admin_name = self._env_value(env, "ADMIN_USERNAME", ADMIN_USERNAME).strip().upper() or "ADMIN"
+        admin_password = self._env_value(env, "ADMIN_PASSWORD")
+        admin_hash = self._env_value(env, "ADMIN_PASSWORD_HASH")
+
+        admin_aliases = {
+            self._normalize_login(admin_name),
+            "ADMIN",
+            "ADMINISTRATOR",
+            "DEFENXADMIN",
+            "DEFENXADMINISTRATOR",
+            "ROVERADMIN",
+            "ROVERADMINISTRATOR",
+            "ADMINUSER",
+            "ADMINUSERID",
+        }
+        if key in admin_aliases:
+            valid = bool(admin_password) and hmac.compare_digest(password, admin_password)
+            if not valid and admin_hash:
+                try:
+                    valid = check_password_hash(admin_hash, password)
+                except Exception:
+                    valid = False
+            if valid:
+                return self._make_user(
+                    admin_name, "admin", "ROVER Administrator",
+                    can_manage_users=True, user_id="env-admin"
+                )
+
+        friends = (
+            ("MAHANTESH", "FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH"),
+            ("DHANUSH", "FRIEND_DHANUSH_PASSWORD", "FRIEND_DHANUSH_PASSWORD_HASH"),
+            ("ANIRUDH", "FRIEND_ANIRUDH_PASSWORD", "FRIEND_ANIRUDH_PASSWORD_HASH"),
+            ("MAMLESHWAR", "FRIEND4_PASSWORD", "FRIEND4_PASSWORD_HASH"),
+        )
+        for friend_name, password_key, hash_key in friends:
+            aliases = {self._normalize_login(friend_name)}
+            if friend_name == "MAHANTESH":
+                aliases.add("MAHADESH")
+            if key not in aliases:
+                continue
+            plain = self._env_value(env, password_key)
+            hashed = self._env_value(env, hash_key)
+            valid = bool(plain) and hmac.compare_digest(password, plain)
+            if not valid and hashed:
+                try:
+                    valid = check_password_hash(hashed, password)
+                except Exception:
+                    valid = False
+            if valid:
+                return self._make_user(friend_name, "user", friend_name, can_manage_users=False)
+
+        return None
+
+    async def _legacy_authenticate(self, username, password):
+        if not LEGACY_AUTH_ENABLED or not LEGACY_AUTH_URL:
+            return None
+        try:
+            response = await js_fetch(
+                LEGACY_AUTH_URL,
+                {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json",
+                    },
+                    "body": json.dumps({
+                        "username": str(username or "").strip(),
+                        "password": str(password or ""),
+                    }),
+                },
+            )
+            raw = await response.text()
+            data = json.loads(str(raw or "{}"))
+            if int(response.status) < 200 or int(response.status) >= 300:
+                return None
+            user = data.get("user") if isinstance(data, dict) else None
+            if not data.get("ok") or not isinstance(user, dict):
+                return None
+            username_value = str(user.get("username") or "").strip().upper()
+            role = str(user.get("role") or "user").strip().lower()
+            if not username_value or role not in {"admin", "user"}:
+                return None
+            return {
+                "id": str(user.get("id") or f"legacy-{username_value.lower()}"),
+                "username": username_value,
+                "display_name": str(user.get("display_name") or username_value)[:120],
+                "role": role,
+                "enabled": bool(user.get("enabled", True)),
+                "can_control": bool(user.get("can_control", True)),
+                "can_manage_users": bool(user.get("can_manage_users", False)),
+                "created_at": user.get("created_at"),
+                "last_login_at": None,
+            }
+        except Exception as exc:
+            print(f"DEFENX legacy login fetch failed: {type(exc).__name__}")
+            return None
+
+    @staticmethod
+    def _session_cookie(user):
+        serializer = app.session_interface.get_signing_serializer(app)
+        if serializer is None:
+            return None
+        session_data = {
+            "fallback_user": user,
+            "user_cache": user,
+            "dashboard_entry": True,
+        }
+        return serializer.dumps(session_data)
+
+    def _login_response(self, user):
+        if not user:
+            return Response(
+                json.dumps({"ok": False, "error": "Invalid login ID or password.", "field": "username"}),
+                status=401,
+                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+            )
+        cookie = self._session_cookie(user)
+        if not cookie:
+            return Response(
+                json.dumps({"ok": False, "error": "Authentication service unavailable."}),
+                status=503,
+                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+            )
+        headers = {
+            "Content-Type": "application/json",
+            "Cache-Control": "no-store",
+            "Set-Cookie": (
+                f"rover_session={cookie}; Max-Age=43200; Path=/; "
+                "HttpOnly; Secure; SameSite=Lax"
+            ),
+        }
+        auth_cookie = "rover_auth=1; Max-Age=43200; Path=/; HttpOnly; Secure; SameSite=Lax"
+        return Response(
+            json.dumps({"ok": True, "user": user, "db_connected": False}),
+            status=200,
+            headers=headers | {"Set-Cookie": headers["Set-Cookie"] + ", " + auth_cookie},
+        )
+
+    async def _handle_login(self, request):
+        try:
+            data = json.loads(str(await request.text() or "{}"))
+        except Exception:
+            data = {}
+        username = str(data.get("username") or "").strip()
+        password = str(data.get("password") or "")
+        if not username or not password:
+            return Response(
+                json.dumps({"ok": False, "error": "Enter login ID and password."}),
+                status=400,
+                headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+            )
+
+        user = self._local_authenticate(self.env, username, password)
+        if not user:
+            canonical = "MAHANTESH" if self._normalize_login(username) == "MAHADESH" else username
+            user = await self._legacy_authenticate(canonical, password)
+
+        return self._login_response(user)
 
     async def fetch(self, request):
         url = urlparse(request.url)
@@ -267,5 +457,8 @@ class Default(WorkerEntrypoint):
                 return Response("Expected WebSocket", status=426)
             stub = self.env.REALTIME_HUB.getByName("defenx-global")
             return await stub.fetch(request)
+
+        if url.path == "/api/login" and str(request.method).upper() == "POST":
+            return await self._handle_login(request)
 
         return await wsgi.fetch(app, request, self.env)
