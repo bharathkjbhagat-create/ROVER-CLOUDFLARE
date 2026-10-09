@@ -33,5 +33,6 @@
         "RealtimeHub"
       ]
     }
-  ]
+  ],
+  "keep_vars": true
 }

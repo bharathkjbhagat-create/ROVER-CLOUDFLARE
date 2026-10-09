@@ -89,7 +89,7 @@ jobs:
           import os
 
           names = [
-              "ADMIN_PASSWORD", "ADMIN_PASSWORD_HASH", "ADMIN_USERNAME", "COOKIE_SECURE",
+              "ADMIN_PASSWORD", "ADMIN_PASSWORD_HASH", "COOKIE_SECURE",
               "DATABASE_URL", "DEVICE_OFFLINE_AFTER_SECONDS",
               "FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH",
               "FRIEND_DHANUSH_PASSWORD", "FRIEND_DHANUSH_PASSWORD_HASH",
@@ -109,6 +109,27 @@ jobs:
           else
             echo "No new application secrets supplied by GitHub; existing Cloudflare Worker secrets will be preserved."
           fi
+
+      - name: Configure admin username variable
+        env:
+          ADMIN_USERNAME: ${{ vars.ADMIN_ID || secrets.ADMIN_USERNAME }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path("wrangler.jsonc")
+          config = json.loads(path.read_text(encoding="utf-8"))
+          username = os.environ.get("ADMIN_USERNAME", "").strip()
+          if username:
+              config.setdefault("vars", {})["ADMIN_USERNAME"] = username
+              path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+              print("Configured ADMIN_USERNAME Worker variable.")
+          else:
+              print("No ADMIN_ID/ADMIN_USERNAME supplied; existing Worker variables will be preserved.")
+          PY
 
       - name: Deploy Worker
         run: uv run pywrangler deploy
@@ -131,10 +152,20 @@ jobs:
             sed -n '1,60p' /tmp/defenx-response || true
             return 1
           }
-          # Verify the actual homepage, not only the dashboard asset URL.
-          check_path / 200
-          root_html="$(curl -A 'Mozilla/5.0 (DEFENX homepage smoke test)' -fsS "$base/")"
-          printf '%s' "$root_html" | grep -qi 'DEFENX' || { echo "Homepage did not contain the DEFENX dashboard marker"; exit 1; }
+          # Root and the normal index must require a session; demo must be explicit.
+          check_path / 302
+          root_redirect="$(curl -A 'Mozilla/5.0 (DEFENX login-gate smoke test)' -sS -o /dev/null -w '%{redirect_url}' "$base/")"
+          case "$root_redirect" in
+            "$base/secure-login?ui=20261005"|"$base/login.html")
+              echo "Root authentication redirect: PASS ($root_redirect)"
+              ;;
+            *)
+              echo "Root did not redirect to secure login: $root_redirect"
+              exit 1
+              ;;
+          esac
+          check_path /index.html 302
+          check_path /secure-login 302
           check_path /login.html 200
           check_path /demo 302
           check_path "/index.html?demo=1" 200
