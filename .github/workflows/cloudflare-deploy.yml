@@ -173,7 +173,9 @@ jobs:
           # Regression: a recognized account with a deliberately random wrong
           # password must return 401, not trigger an unhandled Worker 500.
           wrong_password="$(python -c 'import secrets; print("invalid-test-" + secrets.token_urlsafe(24))')"
-          code="$(curl -A 'Mozilla/5.0 (DEFENX known-user auth test)' -sS -o /tmp/defenx-known-user-response -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$(python -c 'import json,os; print(json.dumps({"username":"DHANUSH","password":os.environ["WRONG_PASSWORD"]}))')" "$base/api/login" WRONG_PASSWORD="$wrong_password")"
+          export WRONG_PASSWORD="$wrong_password"
+          payload="$(python -c 'import json,os; print(json.dumps({"username":"DHANUSH","password":os.environ["WRONG_PASSWORD"]}))')"
+          code="$(curl -A 'Mozilla/5.0 (DEFENX known-user auth test)' -sS -o /tmp/defenx-known-user-response -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$payload" "$base/api/login")"
           echo "/api/login recognized username + wrong password -> HTTP $code"
           test "$code" = "401"
           python - <<'PY'
