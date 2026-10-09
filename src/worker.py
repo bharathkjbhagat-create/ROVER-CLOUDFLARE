@@ -415,33 +415,55 @@ class Default(WorkerEntrypoint):
         return serializer.dumps(session_data)
 
     def _login_response(self, user):
-        # Use the Python Workers JSON helper so authentication failures cannot
-        # surface as an uncaught Worker Response-construction exception.
+        # Use the same response constructor for both error and success paths.
+        # This avoids runtime differences in Response.json() when Set-Cookie
+        # is present, which could otherwise turn a successful login into HTTP 500.
         if not user:
-            return Response.json(
-                {"ok": False, "error": "Invalid login ID or password.", "field": "username"},
+            body = {
+                "ok": False,
+                "error": "Invalid login ID or password.",
+                "field": "username",
+            }
+            return Response(
+                json.dumps(body, separators=(",", ":")),
                 status=401,
-                headers={"Cache-Control": "no-store"},
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Cache-Control": "no-store",
+                },
             )
-        cookie = self._session_cookie(user)
+
+        try:
+            cookie = self._session_cookie(user)
+        except Exception as exc:
+            print(f"DEFENX session creation failed: {type(exc).__name__}")
+            cookie = None
         if not cookie:
-            return Response.json(
-                {"ok": False, "error": "Authentication service unavailable."},
+            return Response(
+                json.dumps({
+                    "ok": False,
+                    "error": "Authentication service unavailable.",
+                }, separators=(",", ":")),
                 status=503,
-                headers={"Cache-Control": "no-store"},
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Cache-Control": "no-store",
+                },
             )
+
         secure = self._env_value(self.env, "COOKIE_SECURE", "1") != "0"
         secure_flag = "; Secure" if secure else ""
         headers = {
-            "Content-Type": "application/json",
+            "Content-Type": "application/json; charset=utf-8",
             "Cache-Control": "no-store",
             "Set-Cookie": (
                 f"rover_session={cookie}; Max-Age=43200; Path=/; "
                 f"HttpOnly; SameSite=Lax{secure_flag}"
             ),
         }
-        return Response.json(
-            {"ok": True, "user": user, "db_connected": False},
+        body = {"ok": True, "user": user, "db_connected": False}
+        return Response(
+            json.dumps(body, separators=(",", ":")),
             status=200,
             headers=headers,
         )
