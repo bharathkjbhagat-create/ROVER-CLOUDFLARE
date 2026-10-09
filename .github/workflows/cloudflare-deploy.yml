@@ -63,7 +63,7 @@ jobs:
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
           ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_USERNAME: ${{ vars.ADMIN_ID || secrets.ADMIN_USERNAME }}
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEVICE_OFFLINE_AFTER_SECONDS: ${{ secrets.DEVICE_OFFLINE_AFTER_SECONDS }}
@@ -202,7 +202,7 @@ jobs:
 
       - name: Verify deployed admin login and session when credential is available
         env:
-          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_USERNAME: ${{ vars.ADMIN_ID || secrets.ADMIN_USERNAME }}
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
         run: |
           set -euo pipefail

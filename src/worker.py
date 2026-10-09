@@ -571,24 +571,10 @@ class Default(WorkerEntrypoint):
             if url.path == "/api/login" and str(request.method).upper() == "POST":
                 return await self._handle_login(request)
 
-            # Serve the public dashboard shell at the site root. This changes
-            # only page routing: private APIs and rover commands still require
-            # a valid authenticated session in the Flask application.
-            if url.path in {"/", "/index.html"} and str(request.method).upper() in {"GET", "HEAD"}:
-                original_url = str(request.url)
-                asset_url = original_url.split("?", 1)[0]
-                if url.path == "/":
-                    asset_url = asset_url.rstrip("/") + "/index.html"
-                if "?" in original_url:
-                    asset_url += "?" + original_url.split("?", 1)[1]
-                # Construct a fresh Request using only plain options. Passing
-                # the incoming Pyodide Headers proxy through the JS constructor
-                # can raise a Worker runtime exception (Error 1101).
-                asset_request = js.Request.new(
-                    asset_url,
-                    {"method": str(request.method).upper()},
-                )
-                return await self.env.ASSETS.fetch(asset_request)
+            # Route dashboard requests through Flask so its session gate protects
+            # the normal dashboard while explicitly requested demo=1 remains read-only.
+            # The Flask asset helper still serves static files with the correct headers.
+
 
             return await wsgi.fetch(app, request, self.env)
         except BaseException as exc:
