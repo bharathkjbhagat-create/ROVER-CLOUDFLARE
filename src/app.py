@@ -458,6 +458,10 @@ def security_headers(response):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(self), microphone=(), geolocation=(self)"
     response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    # Authentication pages and API responses can contain private account or rover
+    # state. Prevent browsers and intermediary caches from reusing those responses.
+    if request.path.startswith("/api/") or request.path in {"/", "/index.html", "/login.html", "/secure-login"}:
+        response.headers["Cache-Control"] = "no-store"
     return response
 
 state = {
