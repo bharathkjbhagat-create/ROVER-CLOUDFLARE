@@ -59,7 +59,7 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
         <div id="error" class="error"></div>
       </form>
       <div class="security"><b>SECURE</b><span>Session protected • access audited • refresh returns to lock screen.</span></div>
-      <button id="demoToggle" type="button" style="width:100%;margin-top:12px;padding:12px;border:1px solid #245166;border-radius:9px;background:#061925;color:#9fdff4;font-weight:800;letter-spacing:.5px">▶ OPEN READ-ONLY DEMO PREVIEW</button>
+      <button id="demoToggle" type="button" aria-expanded="false" aria-controls="demoPanel" onclick="(function(b){var p=document.getElementById('demoPanel');if(!p)return;var opening=p.hidden;p.hidden=!opening;b.setAttribute('aria-expanded',String(opening));b.textContent=opening?'▼ CLOSE READ-ONLY DEMO PREVIEW':'▶ OPEN READ-ONLY DEMO PREVIEW';})(this)" style="width:100%;min-height:48px;touch-action:manipulation;cursor:pointer;position:relative;z-index:2;display:block;pointer-events:auto;margin-top:12px;padding:12px;border:1px solid #245166;border-radius:9px;background:#061925;color:#9fdff4;font-weight:800;letter-spacing:.5px">▶ OPEN READ-ONLY DEMO PREVIEW</button>
       <section id="demoPanel" hidden aria-live="polite" style="margin-top:12px;padding:14px;border:1px solid #245166;border-radius:10px;background:#041019">
         <div style="font-size:10px;letter-spacing:2px;color:#55d6ff;font-weight:900">DEMO MODE · SIMULATED DATA</div>
         <div style="font-size:17px;font-weight:900;margin:10px 0">ROVER-01 SYSTEM OVERVIEW</div>
@@ -90,9 +90,12 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
   const demoToggle=document.getElementById("demoToggle");
   const demoPanel=document.getElementById("demoPanel");
   if(demoToggle && demoPanel){
+    demoToggle.setAttribute("aria-controls","demoPanel");
+    demoToggle.setAttribute("aria-expanded",String(!demoPanel.hidden));
     demoToggle.addEventListener("click",function(){
       const opening=demoPanel.hidden;
       demoPanel.hidden=!opening;
+      demoToggle.setAttribute("aria-expanded",String(opening));
       demoToggle.textContent=opening?"▼ CLOSE READ-ONLY DEMO PREVIEW":"▶ OPEN READ-ONLY DEMO PREVIEW";
     });
   }
