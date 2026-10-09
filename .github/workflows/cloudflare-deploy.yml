@@ -170,6 +170,19 @@ jobs:
           code="$(curl -A 'Mozilla/5.0 (DEFENX auth smoke test)' -sS -o /tmp/defenx-me-response -w '%{http_code}' "$base/api/me")"
           echo "/api/me without session -> HTTP $code"
           test "$code" = "401"
+          # Regression: a recognized account with a deliberately random wrong
+          # password must return 401, not trigger an unhandled Worker 500.
+          wrong_password="$(python -c 'import secrets; print("invalid-test-" + secrets.token_urlsafe(24))')"
+          code="$(curl -A 'Mozilla/5.0 (DEFENX known-user auth test)' -sS -o /tmp/defenx-known-user-response -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$(python -c 'import json,os; print(json.dumps({"username":"DHANUSH","password":os.environ["WRONG_PASSWORD"]}))')" "$base/api/login" WRONG_PASSWORD="$wrong_password")"
+          echo "/api/login recognized username + wrong password -> HTTP $code"
+          test "$code" = "401"
+          python - <<'PY'
+          import json
+          with open("/tmp/defenx-known-user-response", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is False, data
+          PY
+          echo "Recognized-user invalid-password regression: PASS"
           echo "Login contract checks: PASS"
 
       - name: Verify deployed admin login and session when credential is available
