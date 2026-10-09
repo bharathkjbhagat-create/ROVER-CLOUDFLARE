@@ -877,6 +877,18 @@ def login_page():
 def secure_login():
     return redirect("/login.html", code=302)
 
+@app.get("/api/logout")
+def logout_to_login():
+    """Clear the browser session and return the operator to the sign-in screen."""
+    session.clear()
+    response = redirect("/login.html", code=302)
+    response.delete_cookie(
+        "rover_session", path="/", secure=True, httponly=True, samesite="Lax"
+    )
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
 def cached_static(filename, mimetype):
     response = _asset_response(filename, mimetype)
     # app.js and style.css are loaded with a version query string in index.html.
