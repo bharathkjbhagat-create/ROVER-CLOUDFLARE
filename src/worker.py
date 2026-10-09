@@ -534,18 +534,36 @@ class Default(WorkerEntrypoint):
             )
 
     async def fetch(self, request):
-        # Bind the real runtime secret before any Flask session is read/written.
-        self._configure_app_secret()
+        # Parse the route first, then guard Worker-level setup as well as the
+        # handler. A failure before _handle_login starts must not leak through
+        # as an opaque platform HTTP 500.
         url = urlparse(request.url)
+        try:
+            self._configure_app_secret()
 
-        if url.path == "/api/ws":
-            upgrade = str(request.headers.get("Upgrade") or "").lower()
-            if upgrade != "websocket":
-                return Response("Expected WebSocket", status=426)
-            stub = self.env.REALTIME_HUB.getByName("defenx-global")
-            return await stub.fetch(request)
+            if url.path == "/api/ws":
+                upgrade = str(request.headers.get("Upgrade") or "").lower()
+                if upgrade != "websocket":
+                    return Response("Expected WebSocket", status=426)
+                stub = self.env.REALTIME_HUB.getByName("defenx-global")
+                return await stub.fetch(request)
 
-        if url.path == "/api/login" and str(request.method).upper() == "POST":
-            return await self._handle_login(request)
+            if url.path == "/api/login" and str(request.method).upper() == "POST":
+                return await self._handle_login(request)
 
-        return await wsgi.fetch(app, request, self.env)
+            return await wsgi.fetch(app, request, self.env)
+        except Exception as exc:
+            print(f"DEFENX Worker fetch recovered from {type(exc).__name__}")
+            if url.path == "/api/login":
+                return Response(
+                    json.dumps({
+                        "ok": False,
+                        "error": "Authentication service temporarily unavailable. Please try again.",
+                    }, separators=(",", ":")),
+                    status=503,
+                    headers={
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Cache-Control": "no-store",
+                    },
+                )
+            raise
