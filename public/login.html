@@ -89,15 +89,11 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
   const passwordError=document.getElementById("passwordError");
   const demoToggle=document.getElementById("demoToggle");
   const demoPanel=document.getElementById("demoPanel");
+  // The inline click handler on #demoToggle is the single source of truth.
+  // Do not add a second listener: toggling twice cancels the visible change.
   if(demoToggle && demoPanel){
     demoToggle.setAttribute("aria-controls","demoPanel");
     demoToggle.setAttribute("aria-expanded",String(!demoPanel.hidden));
-    demoToggle.addEventListener("click",function(){
-      const opening=demoPanel.hidden;
-      demoPanel.hidden=!opening;
-      demoToggle.setAttribute("aria-expanded",String(opening));
-      demoToggle.textContent=opening?"▼ CLOSE READ-ONLY DEMO PREVIEW":"▶ OPEN READ-ONLY DEMO PREVIEW";
-    });
   }
 
   eye.addEventListener("click",function(e){
