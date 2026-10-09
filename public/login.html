@@ -59,6 +59,18 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
         <div id="error" class="error"></div>
       </form>
       <div class="security"><b>SECURE</b><span>Session protected • access audited • refresh returns to lock screen.</span></div>
+      <button id="demoToggle" type="button" style="width:100%;margin-top:12px;padding:12px;border:1px solid #245166;border-radius:9px;background:#061925;color:#9fdff4;font-weight:800;letter-spacing:.5px">▶ OPEN READ-ONLY DEMO PREVIEW</button>
+      <section id="demoPanel" hidden aria-live="polite" style="margin-top:12px;padding:14px;border:1px solid #245166;border-radius:10px;background:#041019">
+        <div style="font-size:10px;letter-spacing:2px;color:#55d6ff;font-weight:900">DEMO MODE · SIMULATED DATA</div>
+        <div style="font-size:17px;font-weight:900;margin:10px 0">ROVER-01 SYSTEM OVERVIEW</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+          <div style="padding:10px;border:1px solid #17384b;border-radius:8px"><div style="font-size:9px;color:#7897a6">DEVICE LINK</div><strong style="color:#16e3a5">SIMULATED</strong></div>
+          <div style="padding:10px;border:1px solid #17384b;border-radius:8px"><div style="font-size:9px;color:#7897a6">GPS TELEMETRY</div><strong style="color:#55d6ff">DEMO ONLY</strong></div>
+          <div style="padding:10px;border:1px solid #17384b;border-radius:8px"><div style="font-size:9px;color:#7897a6">CAMERA FEED</div><strong>NOT CONNECTED</strong></div>
+          <div style="padding:10px;border:1px solid #17384b;border-radius:8px"><div style="font-size:9px;color:#7897a6">ROVER COMMANDS</div><strong style="color:#ff7886">DISABLED</strong></div>
+        </div>
+        <p style="font-size:10px;line-height:1.6;color:#90acb9;margin:12px 0 0">This preview uses illustrative status only. It does not connect to GPS, cameras, stored accounts, or the rover, and cannot send commands.</p>
+      </section>
       <div class="statusLine"><span class="miniBrand">ROVER-01 ONLINE</span><span id="time"></span></div>
       <div class="footer">ADVANCED TRACKING • LIVE CONTROL • SECURE ACCESS</div>
     </div>
@@ -75,6 +87,15 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
   const time=document.getElementById("time");
   const usernameError=document.getElementById("usernameError");
   const passwordError=document.getElementById("passwordError");
+  const demoToggle=document.getElementById("demoToggle");
+  const demoPanel=document.getElementById("demoPanel");
+  if(demoToggle && demoPanel){
+    demoToggle.addEventListener("click",function(){
+      const opening=demoPanel.hidden;
+      demoPanel.hidden=!opening;
+      demoToggle.textContent=opening?"▼ CLOSE READ-ONLY DEMO PREVIEW":"▶ OPEN READ-ONLY DEMO PREVIEW";
+    });
+  }
 
   eye.addEventListener("click",function(e){
     e.preventDefault();
