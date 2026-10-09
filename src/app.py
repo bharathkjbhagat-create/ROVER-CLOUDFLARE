@@ -835,10 +835,11 @@ def add_track():
 
 @app.get("/")
 @app.get("/index.html")
+@app.get("/demo")
 def index():
     # Public access is limited to an explicitly requested, read-only simulation.
     # It uses browser-generated demo telemetry and never creates an auth session.
-    if request.args.get("demo") == "1":
+    if request.path == "/demo" or request.args.get("demo") == "1":
         response = _asset_response("index.html", "text/html; charset=utf-8")
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"

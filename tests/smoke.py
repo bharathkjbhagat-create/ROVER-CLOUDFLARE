@@ -21,10 +21,11 @@ assert resp.status_code == 200 and resp.get_json().get("ok") is True
 # Public demo entry serves the dashboard shell without creating a user session.
 # Its APIs for live telemetry and control must remain private.
 demo_client = rover_app.app.test_client()
-demo_resp = demo_client.get("/?demo=1")
+demo_resp = demo_client.get("/demo")
 assert demo_resp.status_code == 200, demo_resp.status_code
 assert demo_resp.headers.get("X-DEFENX-Demo") == "read-only"
-assert b"/app.js?v=20261009-demo-01" in demo_resp.data
+assert b"/app.js?v=20261009-demo-02" in demo_resp.data
+assert demo_client.get("/?demo=1").status_code == 200
 assert demo_client.get("/api/bootstrap").status_code == 401
 assert demo_client.get("/api/telemetry").status_code == 401
 assert demo_client.post("/api/command", json={"command":"FORWARD"}).status_code == 401
