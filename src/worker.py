@@ -398,7 +398,10 @@ class Default(WorkerEntrypoint):
                 "created_at": user.get("created_at"),
                 "last_login_at": None,
             }
-        except Exception as exc:
+        except BaseException as exc:
+            # JavaScript Fetch/Promise failures can cross the Pyodide boundary
+            # as non-Exception BaseException subclasses. Fail closed so a
+            # recognized username cannot crash the entire Worker request.
             print(f"DEFENX legacy login fetch failed: {type(exc).__name__}")
             return None
 
@@ -516,10 +519,10 @@ class Default(WorkerEntrypoint):
             canonical = "MAHANTESH" if key == "MAHADESH" else username
             user = await self._legacy_authenticate(canonical, password)
             return self._login_response(user)
-        except Exception as exc:
-            # Never let an error while building the normal login response cascade
-            # into an unhandled Worker 500. Keep failures closed: no session is
-            # issued, and callers receive a generic temporary-service error.
+        except BaseException as exc:
+            # Never let a Python or JavaScript/Pyodide error while building the
+            # login response cascade into an unhandled Worker 500. Keep failures
+            # closed: no session is issued, and callers receive a generic error.
             print(f"DEFENX login handler recovered from {type(exc).__name__}")
             return Response(
                 json.dumps({
@@ -552,7 +555,9 @@ class Default(WorkerEntrypoint):
                 return await self._handle_login(request)
 
             return await wsgi.fetch(app, request, self.env)
-        except Exception as exc:
+        except BaseException as exc:
+            # Treat errors crossing the Worker/Pyodide boundary as request
+            # failures too, rather than letting them escape as platform HTTP 500.
             print(f"DEFENX Worker fetch recovered from {type(exc).__name__}")
             if url.path == "/api/login":
                 return Response(
