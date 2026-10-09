@@ -312,6 +312,7 @@ class Default(WorkerEntrypoint):
         admin_aliases = {
             self._normalize_login(admin_name),
             "ADMIN",
+            "ADMIN-1",
             "ADMINISTRATOR",
             "DEFENXADMIN",
             "DEFENXADMINISTRATOR",
