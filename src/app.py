@@ -836,9 +836,17 @@ def add_track():
 @app.get("/")
 @app.get("/index.html")
 def index():
-    # Dashboard entry is intentionally one-time. A successful login grants
-    # exactly one dashboard document load; a browser refresh must return to
-    # the sign-in screen instead of reusing the existing session.
+    # Public access is limited to an explicitly requested, read-only simulation.
+    # It uses browser-generated demo telemetry and never creates an auth session.
+    if request.args.get("demo") == "1":
+        response = _asset_response("index.html", "text/html; charset=utf-8")
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        response.headers["X-DEFENX-Demo"] = "read-only"
+        return response
+
+    # Normal dashboard entry remains session-protected.
     entry_granted = bool(session.pop("dashboard_entry", False))
     if not entry_granted or not current_user():
         session.clear()

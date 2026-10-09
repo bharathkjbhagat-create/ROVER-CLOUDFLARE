@@ -8,6 +8,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 
 (function(){
 "use strict";
+const demoMode = new URLSearchParams(window.location.search).get("demo") === "1";
 let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="";
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
@@ -117,6 +118,7 @@ function openModal(id){show(id)}
 function closeModal(id){const e=$(id);if(e)e.classList.add("hidden")}
 
 async function api(url,options={}){
+  if(demoMode)throw new Error("This action is unavailable in the read-only demo.");
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),12000);
   let r;
@@ -536,9 +538,10 @@ async function enableBrowserAlerts(){
   }catch(_){setText("alertStatus","Could not enable browser notifications. In-app alerts remain active.")}
 }
 function updatePermissionUI(){
-  const control=!!me;
+  const control=!!me&&!demoMode;
   document.querySelectorAll(".control").forEach(b=>b.disabled=!control);
-  setText("permissionNotice",control?"Control permission: ENABLED":"View-only access: rover controls disabled");
+  document.querySelectorAll(".modeBtn").forEach(b=>b.disabled=!control);
+  setText("permissionNotice",demoMode?"DEMO MODE: SIMULATED DATA ONLY • ROVER CONTROLS DISABLED":(control?"Control permission: ENABLED":"View-only access: rover controls disabled"));
   const manager=!!(me&&(me.role==="admin"||me.can_manage_users));
   const adminBtn=$("adminBtn"),deviceBtn=$("deviceBtn"),auditTabBtn=$("auditTabBtn");
   if(adminBtn)adminBtn.classList.toggle("hidden",!manager);
@@ -564,11 +567,12 @@ async function loadBootstrap(){
 function demoTelemetry(){
   const now=Date.now(),ang=(now/9000)%(Math.PI*2);
   return {
-    battery:78,signal:82,gps_fix:true,gps_sats:9,
+    battery:78,signal:82,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",
     speed_kmh:3.5,heading:(now/80)%360,
     lat:12.9716+0.0012*Math.sin(ang),lon:77.5946+0.0014*Math.cos(ang),
     updated:new Date().toISOString(),mode:"AUTO-DEMO",last_command:"STOP",
-    network:"DEMO",camera:true,tracking:true,geofence:true,temp_c:32,storage_pct:72,
+    network:"DEMO • SIMULATED",camera:true,camera_source:"SIMULATION",target_source:"SIMULATION",
+    tracking:true,geofence:true,temp_c:32,storage_pct:72,
     ai:{person:1,vehicle:0,object:0,confidence:.92},obstacle_cm:125,track:[],
     target:{type:"Person",range_m:842,speed_kmh:18.4,heading:42,direction:"NE",size_m:1.7,confidence:.92,lat:12.9794,lon:77.6048,detected:true}
   };
@@ -576,6 +580,10 @@ function demoTelemetry(){
 async function initRealCameraStream(){
   if(realCameraInitialized)return;
   realCameraInitialized=true;
+  if(demoMode){
+    setText("cameraSceneLabel","DEMO CAMERA VIEW • SIMULATION ONLY");
+    return;
+  }
   const viewport=$("cameraViewport");
   const scene=$("camera3DScene");
   if(!viewport)return;
@@ -674,6 +682,11 @@ async function loop(){
   if(telemetryBusy)return;
   telemetryBusy=true;
   try{
+    if(demoMode){
+      updateUI(demoTelemetry());
+      setText("conn","● DEMO • SIMULATED DATA");
+      return;
+    }
     const r=await api("/api/telemetry");
     const d=await r.json();
     if(!r.ok)throw new Error(d.error);
@@ -695,6 +708,7 @@ function scheduleTelemetry(){
   setTimeout(async()=>{await loop();scheduleTelemetry()},delay);
 }
 async function sendCommand(command){
+  if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}
   if(!me){
     try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return false}
   }
@@ -722,6 +736,7 @@ async function sendCommand(command){
   }catch(e){addLog("RECONNECT","Command is queued by the client and will be re-sent on the next operator action");return false}
 }
 async function setMode(mode){
+  if(demoMode){addLog("DEMO","Operating modes are disabled in the read-only demo");return;}
   if(!me){
     try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return}
   }
@@ -1084,6 +1099,18 @@ async function bootDashboard(){
 
   bindUI();
   updateNotificationSoundUI();
+  if(demoMode){
+    me=null;
+    updatePermissionUI();
+    setText("who","DEMO VIEW · READ ONLY");
+    updateUI(demoTelemetry());
+    setText("conn","● DEMO • SIMULATED DATA");
+    loadMapAsync();
+    scheduleTelemetry();
+    setInterval(tickClock,1000);
+    tickClock();
+    return;
+  }
   try{
     // SECURITY: never trust sessionStorage/local UI state as authentication.
     // The server-side session must authenticate before the dashboard starts.
