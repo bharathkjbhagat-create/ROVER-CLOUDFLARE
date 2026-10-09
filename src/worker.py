@@ -573,10 +573,10 @@ class Default(WorkerEntrypoint):
             # Serve the public dashboard shell at the site root. This changes
             # only page routing: private APIs and rover commands still require
             # a valid authenticated session in the Flask application.
-            if url.path in {"/", "/index.html", "/demo"} and str(request.method).upper() in {"GET", "HEAD"}:
+            if url.path in {"/", "/index.html"} and str(request.method).upper() in {"GET", "HEAD"}:
                 original_url = str(request.url)
                 asset_url = original_url.split("?", 1)[0]
-                if url.path in {"/", "/demo"}:
+                if url.path == "/":
                     asset_url = asset_url.rstrip("/") + "/index.html"
                 if "?" in original_url:
                     asset_url += "?" + original_url.split("?", 1)[1]
