@@ -177,7 +177,14 @@ jobs:
           payload="$(python -c 'import json,os; print(json.dumps({"username":"DHANUSH","password":os.environ["WRONG_PASSWORD"]}))')"
           code="$(curl -A 'Mozilla/5.0 (DEFENX known-user auth test)' -sS -o /tmp/defenx-known-user-response -w '%{http_code}' -H 'Content-Type: application/json' -H 'Accept: application/json' --data "$payload" "$base/api/login")"
           echo "/api/login recognized username + wrong password -> HTTP $code"
-          test "$code" = "401"
+          if [ "$code" != "401" ]; then
+            echo "Unexpected response body from recognized-user login regression:"
+            sed -n '1,80p' /tmp/defenx-known-user-response || true
+            echo "Cloudflare app diagnostics:"
+            curl -A 'Mozilla/5.0 (DEFENX known-user diagnostic)' -sS "$base/api/health" || true
+            echo
+            exit 1
+          fi
           python - <<'PY'
           import json
           with open("/tmp/defenx-known-user-response", encoding="utf-8") as handle:
