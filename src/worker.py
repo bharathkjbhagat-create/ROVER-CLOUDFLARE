@@ -362,26 +362,36 @@ class Default(WorkerEntrypoint):
         if not LEGACY_AUTH_ENABLED or not LEGACY_AUTH_URL:
             return None
         try:
-            request_options = {
+            from pyodide.ffi import to_js
+            legacy_headers = js.Object.fromEntries(to_js({
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            }))
+            legacy_payload = json.dumps({
+                "username": str(username or "").strip(),
+                "password": str(password or ""),
+            })
+
+            # Pyodide does not automatically turn a Python dict into a plain
+            # JavaScript object when passed as fetch init options. Convert the
+            # headers explicitly and pass the remaining options as keywords.
+            # Otherwise this branch can terminate the Worker with error 1101.
+            fetch_options = {
                 "method": "POST",
-                "headers": {
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
-                "body": json.dumps({
-                    "username": str(username or "").strip(),
-                    "password": str(password or ""),
-                }),
+                "headers": legacy_headers,
+                "body": legacy_payload,
             }
-            # Construct an explicit JS Request. Passing a Python dictionary
-            # directly as the second argument to global fetch can fail at the
-            # Pyodide/Workers boundary on this auth-only path.
             try:
-                request_options["signal"] = js.AbortSignal.timeout(5000)
+                fetch_options["signal"] = js.AbortSignal.timeout(5000)
             except BaseException:
                 pass
-            legacy_request = js.Request.new(LEGACY_AUTH_URL, request_options)
-            response = await js_fetch(legacy_request)
+            response = await js_fetch(
+                LEGACY_AUTH_URL,
+                method=fetch_options["method"],
+                headers=fetch_options["headers"],
+                body=fetch_options["body"],
+                signal=fetch_options.get("signal"),
+            )
             raw = await response.text()
             data = json.loads(str(raw or "{}"))
             if int(response.status) < 200 or int(response.status) >= 300:
