@@ -38,13 +38,19 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
 .security b:before{content:"●";margin-right:5px;animation:blink 1.2s infinite}@keyframes blink{50%{opacity:.25}}.statusLine b{color:#5cf0ca}.miniBrand{font-size:8px;letter-spacing:1.3px;color:#5e8191}.brandName{font-weight:1000}
 @media(max-width:850px){body{overflow:auto}.shell{grid-template-columns:1fr;min-height:0;margin:18px 0}.hero{padding:30px 26px;border-right:0;border-bottom:1px solid #163b50}.heroCopy h1{font-size:43px}.radar{width:175px;height:175px}.loginPanel{padding:32px 26px}.hero{gap:24px}}
 @media(max-width:520px){.brandName{font-size:28px}.heroCopy h1{font-size:35px}.loginPanel{padding:28px 18px}.hero{padding:24px 18px}.shell{width:96vw;border-radius:17px}.chips span{font-size:7px}}
+
+:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+.eye:focus-visible,.submit:focus-visible{outline-color:var(--green)}
+.submit:disabled{cursor:wait;opacity:.72;filter:saturate(.7)}
+@media(max-height:720px) and (min-width:851px){body{overflow:auto;align-items:start;padding:16px 0}.shell{margin:auto}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
 <div class="shell">
   <section class="hero">
     <div class="heroGrid"></div>
-    <div class="brandRow"><div><div class="brandName">DEFENX</div><div class="brandSub">DEFENX - Intellegence in Motion.</div></div></div>
+    <div class="brandRow"><div><div class="brandName">DEFENX</div><div class="brandSub">DEFENX — Intelligence in Motion.</div></div></div>
     <div class="heroCopy"><div class="kicker">ADVANCED TRACKING & SURVEILLANCE SYSTEM</div><h1>SECURE<br><span>COMMAND ACCESS</span></h1><p>Real-time telemetry, GPS tracking, AI vision and controlled rover operations in one command centre.</p><div class="chips"><span>LIVE TELEMETRY</span><span>GNSS LOCK</span><span>AI VISION</span><span>MULTI-USER</span></div></div>
     <div class="radar"><i class="crossH"></i><i class="crossV"></i><i class="sweep"></i></div>
     <div class="statusLine"><span>ROVER-01 • CONTROL LINK</span><b>● SYSTEM READY</b></div>
@@ -54,10 +60,10 @@ linear-gradient(160deg,#04121c,#071b27 54%,#041019)}
       <div class="eyebrow">◉ ROVER-01 / AUTHENTICATION GATE / LINK ESTABLISHED</div><h2>COMMAND CENTRE<br><span style="color:var(--green)">SIGN IN</span></h2>
       <div class="desc">Enter your secure operator credentials to open the command centre.</div>
       <form id="form">
-        <label class="fieldLabel">LOGIN ID</label><div class="field"><input id="username" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" enterkeyhint="next" autofocus required></div><div id="usernameError" class="fieldError"></div>
-        <label class="fieldLabel">PASSWORD</label><div class="field"><input id="password" name="password" type="password" autocomplete="current-password" enterkeyhint="go" required><button class="eye" id="eye" type="button" title="Show password" aria-label="Show password">◉</button></div><div id="passwordError" class="fieldError"></div>
+        <label class="fieldLabel" for="username">LOGIN ID</label><div class="field"><input id="username" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" enterkeyhint="next" autofocus required></div><div id="usernameError" class="fieldError" aria-live="polite"></div>
+        <label class="fieldLabel" for="password">PASSWORD</label><div class="field"><input id="password" name="password" type="password" autocomplete="current-password" enterkeyhint="go" required><button class="eye" id="eye" type="button" title="Show password" aria-label="Show password">◉</button></div><div id="passwordError" class="fieldError" aria-live="polite"></div>
         <button class="submit" type="submit">▶  ENTER COMMAND CENTRE  ◀</button>
-        <div id="error" class="error"></div>
+        <div id="error" class="error" role="status" aria-live="polite"></div>
       </form>
       <div class="security"><b>SECURE</b><span>Session protected • access audited • refresh returns to lock screen.</span></div>
       <div class="statusLine"><span class="miniBrand">ROVER-01 ONLINE</span><span id="time"></span></div>
