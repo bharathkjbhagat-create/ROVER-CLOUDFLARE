@@ -118,7 +118,7 @@ ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().
 LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "1")).strip().lower() not in {"0", "false", "no", "off"}
 LEGACY_AUTH_URL = str(_config("LEGACY_AUTH_URL", "https://rover-ten-weld.vercel.app/api/login")).strip()
 
-KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "MAHADESH", "DHANUSH", "ANIRUDH", "MAMLESHWAR")
+KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMLESHWAR")
 
 FRIEND_ACCOUNTS = [
     {
@@ -500,11 +500,6 @@ for i, friend in enumerate(FRIEND_ACCOUNTS, start=1):
     }
     runtime_password_hashes[friend["username"]] = friend.get("password_hash")
 
-# Common spelling alias used for MAHANTESH.
-if "MAHANTESH" in runtime_users:
-    runtime_users["MAHADESH"] = dict(runtime_users["MAHANTESH"])
-    runtime_users["MAHADESH"]["username"] = "MAHANTESH"
-    runtime_password_hashes["MAHADESH"] = runtime_password_hashes.get("MAHANTESH")
 
 lock = threading.Lock()
 _db_initialized = False
@@ -1040,9 +1035,7 @@ def login():
         return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
 
     login_key = normalize_login_id(username)
-    # Canonicalize the known alias before external or database authentication.
-    friend_aliases = {"MAHADESH": "MAHANTESH"}
-    canonical_username = friend_aliases.get(login_key, username)
+    canonical_username = username
     password = str(data.get("password", ""))
 
     # Keep validation consistent with the Worker-native login path: malformed
