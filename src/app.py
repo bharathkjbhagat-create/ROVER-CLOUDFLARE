@@ -1061,6 +1061,7 @@ def login():
         for x in {
             ADMIN_USERNAME,
             "ADMIN",
+            "ADMIN-1",
             "ADMINISTRATOR",
             "DEFENX ADMIN",
             "DEFENX ADMINISTRATOR",
