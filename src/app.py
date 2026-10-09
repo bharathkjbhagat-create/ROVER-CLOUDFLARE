@@ -835,11 +835,10 @@ def add_track():
 
 @app.get("/")
 @app.get("/index.html")
-@app.get("/demo")
 def index():
     # Public access is limited to an explicitly requested, read-only simulation.
     # It uses browser-generated demo telemetry and never creates an auth session.
-    if request.path == "/demo" or request.args.get("demo") == "1":
+    if request.args.get("demo") == "1":
         response = _asset_response("index.html", "text/html; charset=utf-8")
         response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
         response.headers["Pragma"] = "no-cache"
@@ -859,6 +858,12 @@ def index():
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+@app.get("/demo")
+def demo_entry():
+    # Static asset routing only knows actual files; send demo visitors to the
+    # existing HTML entry point, where the query flag activates local simulation.
+    return redirect("/index.html?demo=1", code=302)
 
 @app.get("/login.html")
 def login_page():
