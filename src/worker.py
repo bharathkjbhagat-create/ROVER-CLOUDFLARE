@@ -570,6 +570,22 @@ class Default(WorkerEntrypoint):
             if url.path == "/api/login" and str(request.method).upper() == "POST":
                 return await self._handle_login(request)
 
+            # Serve the public dashboard shell at the site root. This changes
+            # only page routing: private APIs and rover commands still require
+            # a valid authenticated session in the Flask application.
+            if url.path in {"/", "/index.html"} and str(request.method).upper() in {"GET", "HEAD"}:
+                asset_url = str(request.url).split("?", 1)[0].rstrip("/") + "/index.html"
+                if "?" in str(request.url):
+                    asset_url += "?" + str(request.url).split("?", 1)[1]
+                asset_request = js.Request.new(
+                    asset_url,
+                    {
+                        "method": str(request.method).upper(),
+                        "headers": request.headers,
+                    },
+                )
+                return await self.env.ASSETS.fetch(asset_request)
+
             return await wsgi.fetch(app, request, self.env)
         except BaseException as exc:
             # Treat errors crossing the Worker/Pyodide boundary as request
