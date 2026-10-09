@@ -31,7 +31,12 @@ resp = client.post("/api/login", json={"username":"","password":""})
 assert resp.status_code == 400, resp.get_data(as_text=True)
 
 worker_py = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
-assert "return Response.json(" in worker_py
+# Login responses, including the successful Set-Cookie path, use the
+# Worker-compatible Response constructor with an explicit JSON body.
+assert "return Response(" in worker_py
+assert '"Set-Cookie": (' in worker_py
+assert 'json.dumps(body, separators=(",", ":"))' in worker_py
+assert "return Response.json(" not in worker_py
 
 resp = client.get("/api/bootstrap")
 assert resp.status_code == 200 and resp.get_json().get("telemetry") is not None
