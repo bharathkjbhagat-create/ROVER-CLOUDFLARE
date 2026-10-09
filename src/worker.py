@@ -574,9 +574,12 @@ class Default(WorkerEntrypoint):
             # only page routing: private APIs and rover commands still require
             # a valid authenticated session in the Flask application.
             if url.path in {"/", "/index.html"} and str(request.method).upper() in {"GET", "HEAD"}:
-                asset_url = str(request.url).split("?", 1)[0].rstrip("/") + "/index.html"
-                if "?" in str(request.url):
-                    asset_url += "?" + str(request.url).split("?", 1)[1]
+                original_url = str(request.url)
+                asset_url = original_url.split("?", 1)[0]
+                if url.path == "/":
+                    asset_url = asset_url.rstrip("/") + "/index.html"
+                if "?" in original_url:
+                    asset_url += "?" + original_url.split("?", 1)[1]
                 # Construct a fresh Request using only plain options. Passing
                 # the incoming Pyodide Headers proxy through the JS constructor
                 # can raise a Worker runtime exception (Error 1101).
