@@ -517,11 +517,21 @@ class Default(WorkerEntrypoint):
             user = await self._legacy_authenticate(canonical, password)
             return self._login_response(user)
         except Exception as exc:
-            # Authentication must never turn a bad/unsupported request or a
-            # migration-provider failure into a Worker 500. Invalid credentials
-            # remain a normal 401 response so clients can recover cleanly.
+            # Never let an error while building the normal login response cascade
+            # into an unhandled Worker 500. Keep failures closed: no session is
+            # issued, and callers receive a generic temporary-service error.
             print(f"DEFENX login handler recovered from {type(exc).__name__}")
-            return self._login_response(None)
+            return Response(
+                json.dumps({
+                    "ok": False,
+                    "error": "Authentication service temporarily unavailable. Please try again.",
+                }, separators=(",", ":")),
+                status=503,
+                headers={
+                    "Content-Type": "application/json; charset=utf-8",
+                    "Cache-Control": "no-store",
+                },
+            )
 
     async def fetch(self, request):
         # Bind the real runtime secret before any Flask session is read/written.
