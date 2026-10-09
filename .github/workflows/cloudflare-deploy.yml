@@ -131,6 +131,10 @@ jobs:
             sed -n '1,60p' /tmp/defenx-response || true
             return 1
           }
+          # Verify the actual homepage, not only the dashboard asset URL.
+          check_path / 200
+          root_html="$(curl -A 'Mozilla/5.0 (DEFENX homepage smoke test)' -fsS "$base/")"
+          printf '%s' "$root_html" | grep -qi 'DEFENX' || { echo "Homepage did not contain the DEFENX dashboard marker"; exit 1; }
           check_path /login.html 200
           check_path /demo 302
           check_path "/index.html?demo=1" 200
