@@ -362,20 +362,26 @@ class Default(WorkerEntrypoint):
         if not LEGACY_AUTH_ENABLED or not LEGACY_AUTH_URL:
             return None
         try:
-            response = await js_fetch(
-                LEGACY_AUTH_URL,
-                {
-                    "method": "POST",
-                    "headers": {
-                        "Content-Type": "application/json",
-                        "Accept": "application/json",
-                    },
-                    "body": json.dumps({
-                        "username": str(username or "").strip(),
-                        "password": str(password or ""),
-                    }),
+            request_options = {
+                "method": "POST",
+                "headers": {
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
                 },
-            )
+                "body": json.dumps({
+                    "username": str(username or "").strip(),
+                    "password": str(password or ""),
+                }),
+            }
+            # Construct an explicit JS Request. Passing a Python dictionary
+            # directly as the second argument to global fetch can fail at the
+            # Pyodide/Workers boundary on this auth-only path.
+            try:
+                request_options["signal"] = js.AbortSignal.timeout(5000)
+            except BaseException:
+                pass
+            legacy_request = js.Request.new(LEGACY_AUTH_URL, request_options)
+            response = await js_fetch(legacy_request)
             raw = await response.text()
             data = json.loads(str(raw or "{}"))
             if int(response.status) < 200 or int(response.status) >= 300:
