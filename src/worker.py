@@ -577,12 +577,12 @@ class Default(WorkerEntrypoint):
                 asset_url = str(request.url).split("?", 1)[0].rstrip("/") + "/index.html"
                 if "?" in str(request.url):
                     asset_url += "?" + str(request.url).split("?", 1)[1]
+                # Construct a fresh Request using only plain options. Passing
+                # the incoming Pyodide Headers proxy through the JS constructor
+                # can raise a Worker runtime exception (Error 1101).
                 asset_request = js.Request.new(
                     asset_url,
-                    {
-                        "method": str(request.method).upper(),
-                        "headers": request.headers,
-                    },
+                    {"method": str(request.method).upper()},
                 )
                 return await self.env.ASSETS.fetch(asset_request)
 
