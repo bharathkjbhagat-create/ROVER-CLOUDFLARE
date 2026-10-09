@@ -17,6 +17,16 @@ client = rover_app.app.test_client()
 
 resp = client.get("/api/ping")
 assert resp.status_code == 200 and resp.get_json().get("ok") is True
+assert resp.headers.get("Cache-Control") == "no-store"
+assert resp.headers.get("X-Content-Type-Options") == "nosniff"
+assert resp.headers.get("X-Frame-Options") == "DENY"
+
+login_page = client.get("/login.html")
+assert login_page.status_code == 200
+assert login_page.headers.get("Cache-Control") == "no-store"
+assert b'for="username"' in login_page.data
+assert b'for="password"' in login_page.data
+assert b'prefers-reduced-motion:reduce' in login_page.data
 
 # Public demo entry serves the dashboard shell without creating a user session.
 # Its APIs for live telemetry and control must remain private.
