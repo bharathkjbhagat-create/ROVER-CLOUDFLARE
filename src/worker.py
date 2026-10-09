@@ -533,7 +533,26 @@ class Default(WorkerEntrypoint):
             if key not in known_keys:
                 return self._login_response(None)
 
-            canonical = "MAHANTESH" if key == "MAHADESH" else username
+            canonical_friend_ids = {
+                "MAHANTESH": "MAHANTESH",
+                "MAHADESH": "MAHANTESH",
+                "DHANUSH": "DHANUSH",
+                "ANIRUDH": "ANIRUDH",
+                "MAMLESHWAR": "MAMLESHWAR",
+            }
+            canonical_admin_ids = {
+                self._normalize_login(admin_name),
+                "ADMIN", "ADMIN1", "ADMINISTRATOR", "DEFENXADMIN",
+                "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
+                "ADMINUSER", "ADMINUSERID",
+            }
+            # The legacy service may compare IDs literally. Send canonical
+            # uppercase IDs instead of preserving the casing/spacing typed by
+            # the user, while keeping the password unchanged.
+            canonical = canonical_friend_ids.get(
+                key,
+                admin_name.strip().upper() if key in canonical_admin_ids else username.strip().upper(),
+            )
             user = await self._legacy_authenticate(canonical, password)
             return self._login_response(user)
         except BaseException as exc:
