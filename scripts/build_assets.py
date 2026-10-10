@@ -51,3 +51,6 @@ for variable, output in ASSETS.items():
         raise SystemExit(f"Could not externalize embedded image: {variable}")
 
     print(f"Generated {output.relative_to(ROOT)} ({len(data)} bytes); externalized URL {public_url}")
+
+# Persist the smaller JS bundle for the current deployment build.
+APP_JS.write_text(source, encoding="utf-8")
