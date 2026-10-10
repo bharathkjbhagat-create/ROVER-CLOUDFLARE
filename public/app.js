@@ -15,6 +15,7 @@ if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
 let notificationSoundEnabled=localStorage.getItem("rover_notification_sound")!=="off";
 let notificationAudioCtx=null,targetAlarmTimer=null,targetAlarmActive=false,targetAlarmSirenTimer=null,targetDetectionInitialized=false,targetDetectedState=false;
+let warningDisplayEnabled=localStorage.getItem("rover_warning_display")!=="off",lastTargetAlarmData=null;
 function targetSirenBurst(){
   if(!notificationSoundEnabled)return false;
   return initNotificationAudio().then(ready=>{
@@ -39,7 +40,8 @@ function stopTargetAlarm(){
   const p=$("targetAlarmPopup");if(p)p.remove();
 }
 function startTargetAlarm(t){
-  if(targetAlarmActive)return;
+  if(!warningDisplayEnabled||targetAlarmActive)return;
+  lastTargetAlarmData=t||lastTargetAlarmData;
   targetAlarmActive=true;
   const old=$("targetAlarmPopup");if(old)old.remove();
   const p=document.createElement("div");p.id="targetAlarmPopup";
@@ -52,10 +54,34 @@ function startTargetAlarm(t){
 }
 function syncTargetAlarm(detected,t){
   const now=!!detected;
-  if(!targetDetectionInitialized){targetDetectionInitialized=true;targetDetectedState=now;if(now)startTargetAlarm(t);return;}
-  if(now&&!targetDetectedState)startTargetAlarm(t);
+  if(t)lastTargetAlarmData=t;
+  if(!targetDetectionInitialized){targetDetectionInitialized=true;targetDetectedState=now;if(now&&warningDisplayEnabled)startTargetAlarm(t);return;}
+  if(now&&!targetDetectedState){if(warningDisplayEnabled)startTargetAlarm(t);}
   else if(!now&&targetDetectedState)stopTargetAlarm();
+  else if(now&&warningDisplayEnabled&&!targetAlarmActive)startTargetAlarm(t||lastTargetAlarmData);
   targetDetectedState=now;
+}
+function updateWarningControlUI(d){
+  const button=$("warningToggleBtn");
+  const state=$("alarmStateText");
+  const active=!!warningDisplayEnabled;
+  if(button){
+    button.textContent=active?"TURN WARNING OFF":"TURN WARNING ON";
+    button.setAttribute("aria-pressed",String(active));
+    button.style.borderColor=active?"#f0b44c":"#52c6a8";
+    button.style.background=active?"#38280d":"#10332d";
+    button.style.color=active?"#ffe1a0":"#baf7e5";
+  }
+  const sensorWarning=Number(d?.obstacle_cm??999)<45||!!d?.target?.detected;
+  if(state)state.textContent=active?(sensorWarning?"ON • WARNING":"ON • ARMED"):"OFF • DISPLAY MUTED";
+}
+function toggleWarningDisplay(){
+  warningDisplayEnabled=!warningDisplayEnabled;
+  localStorage.setItem("rover_warning_display",warningDisplayEnabled?"on":"off");
+  if(!warningDisplayEnabled)stopTargetAlarm();
+  else if(targetDetectedState)startTargetAlarm(lastTargetAlarmData);
+  updateWarningControlUI({obstacle_cm:999,target:{detected:targetDetectedState}});
+  setText("conn",me?"● ONLINE • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"):"● DEMO • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"));
 }
 function initNotificationAudio(){
   try{
@@ -365,7 +391,7 @@ function updateUI(d){
   setText("person",d.ai?.person||0);setText("vehicle",d.ai?.vehicle||0);setText("object",d.ai?.object||0);setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence",Math.round((d.ai?.confidence||0)*100)+"%");
   setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState",(d.target?.detected||d.ai?.confidence>0.5)?"DETECTING":"READY");
   setText("missionObstacle",(d.obstacle_cm??"--")+" cm");setText("missionTracking",d.tracking===false?"PAUSED":"ACTIVE");setText("missionGeofence",d.geofence===false?"OFF":"ACTIVE");setText("missionNetwork",d.network||"ONLINE");setText("missionState",(Number(d.obstacle_cm||999)<45)?"WARNING":"READY");
-  setText("alarmStateText",(Number(d.obstacle_cm||999)<45||Number(d.target?.confidence||0)>0.88)?"WARNING":"ARMED");
+  updateWarningControlUI(d);
   const t=d.target||{type:"Object",range_m:0,speed_kmh:0,heading:0,direction:"N",size_m:0,confidence:0,lat:Number(d.lat),lon:Number(d.lon),detected:false};
   const range=Math.round(Number(t.range_m||0)); const tspeed=Number(t.speed_kmh||0).toFixed(1); const theading=Math.round(Number(t.heading||0));
   const dir=t.direction||bearingToDirection(theading);
@@ -1050,6 +1076,8 @@ function bindUI(){
   $("alertBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Login alerts opened");await loadAudit();});
   $("enableAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
   $("soundBtn")?.addEventListener("click",toggleNotificationSound);
+  $("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay);
+  updateWarningControlUI({obstacle_cm:999,target:{detected:false}});
   const armNotificationAudio=()=>{initNotificationAudio().then(ok=>{if(ok&&targetAlarmActive)targetSirenBurst()}).catch(()=>{})};
   document.addEventListener("pointerdown",armNotificationAudio,{once:true,passive:true});
   document.addEventListener("touchstart",armNotificationAudio,{once:true,passive:true});
