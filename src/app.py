@@ -115,7 +115,7 @@ ADMIN_PASSWORD = _config("ADMIN_PASSWORD")
 ROVER_DEVICE_TOKEN = _config("ROVER_DEVICE_TOKEN", "").strip()
 ROVER_CAMERA_STREAM_URL = _config("ROVER_CAMERA_STREAM_URL", "").strip()
 ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().lower()
-LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "1")).strip().lower() not in {"0", "false", "no", "off"}
+LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "0")).strip().lower() not in {"0", "false", "no", "off"}
 LEGACY_AUTH_URL = str(_config("LEGACY_AUTH_URL", "https://rover-ten-weld.vercel.app/api/login")).strip()
 
 KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMLESHWAR")
