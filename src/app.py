@@ -1044,7 +1044,9 @@ def _signed_worker_legacy_user():
 
 @app.post("/api/login")
 def login():
-    if not SESSION_SECRET_CONFIGURED:
+    # Worker bindings may only become available when the entrypoint runs.
+    # Trust the current runtime signing key, not the import-time snapshot alone.
+    if not app.secret_key or app.secret_key == "DEFENX-CLOUDFLARE-BOOTSTRAP-INVALID":
         return jsonify({
             "ok": False,
             "error": "Cloudflare SESSION_SECRET is not configured."
