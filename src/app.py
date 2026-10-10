@@ -1426,32 +1426,48 @@ def reset_password(user_id):
     actor = current_user()
     ensure_db()
 
-    # No database required: update the running friend account's password hash.
+    # Resolve the runtime account first, but persist its password to PostgreSQL
+    # whenever the matching database user exists. Never report a durable reset
+    # when the only available store is per-isolate memory.
+    runtime_username = None
     for username, target in runtime_users.items():
-        if str(target["id"]) == str(user_id):
-            runtime_password_hashes[username] = generate_password_hash(password)
-            audit("PASSWORD_RESET", f"Reset password for {username}", actor)
-            return jsonify({"ok": True, "db_connected": False,
-                            "warning": "Password changed successfully for the running application instance."})
+        if str(target.get("id")) == str(user_id):
+            runtime_username = username
+            break
 
-    if not db_available():
-        return jsonify({"ok": False, "error": "User not found"}), 404
+    if db_available():
+        try:
+            with get_db() as conn:
+                with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                    if runtime_username:
+                        cur.execute("SELECT id,username FROM users WHERE username=%s", (runtime_username,))
+                    else:
+                        cur.execute("SELECT id,username FROM users WHERE id=%s", (user_id,))
+                    target = cur.fetchone()
+                    if target:
+                        cur.execute(
+                            "UPDATE users SET password_hash=%s WHERE id=%s",
+                            (generate_password_hash(password), target["id"]),
+                        )
+                        if runtime_username:
+                            runtime_password_hashes[runtime_username] = generate_password_hash(password)
+                        audit("PASSWORD_RESET", f"Reset password for {target['username']}", actor)
+                        return jsonify({"ok": True, "db_connected": True})
+        except Exception:
+            # If the database is temporarily unavailable, use only the clearly
+            # identified volatile fallback below.
+            pass
 
-    try:
-        with get_db() as conn:
-            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                cur.execute("SELECT id,username FROM users WHERE id=%s", (user_id,))
-                target = cur.fetchone()
-                if not target:
-                    return jsonify({"ok": False, "error": "User not found"}), 404
-                cur.execute(
-                    "UPDATE users SET password_hash=%s WHERE id=%s",
-                    (generate_password_hash(password), user_id),
-                )
-        audit("PASSWORD_RESET", f"Reset password for {target['username']}", actor)
-        return jsonify({"ok": True})
-    except Exception:
-        return jsonify({"ok": False, "error": "Could not reset password"}), 400
+    if runtime_username:
+        runtime_password_hashes[runtime_username] = generate_password_hash(password)
+        audit("PASSWORD_RESET", f"Reset password for {runtime_username}", actor)
+        return jsonify({
+            "ok": True,
+            "db_connected": False,
+            "warning": "Password changed only for the current running instance; configure database persistence for durable resets."
+        })
+
+    return jsonify({"ok": False, "error": "User not found or database unavailable"}), 404
 
 @app.get("/api/audit")
 @require_admin
