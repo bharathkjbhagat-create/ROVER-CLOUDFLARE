@@ -9,7 +9,7 @@ from js import WebSocketPair, WebSocketRequestResponsePair, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint, wsgi
 from werkzeug.security import check_password_hash
 
-from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME
+from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME, runtime_users, runtime_password_hashes, safe_check_password_hash
 
 
 class RealtimeHub(DurableObject):
@@ -333,6 +333,19 @@ class Default(WorkerEntrypoint):
                     admin_name, "admin", "ROVER Administrator",
                     can_manage_users=True, user_id="env-admin"
                 )
+
+        # Check admin-reset runtime accounts before calling an external auth service.
+        # When no database is configured, reset_password updates these in-memory hashes.
+        for runtime_name, runtime_user in list(runtime_users.items()):
+            if self._normalize_login(runtime_name) != key:
+                continue
+            runtime_hash = runtime_password_hashes.get(runtime_name)
+            if runtime_user.get("enabled") and runtime_hash:
+                try:
+                    if safe_check_password_hash(runtime_hash, password):
+                        return dict(runtime_user)
+                except Exception:
+                    pass
 
         friends = (
             ("MAHANTESH", "FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH"),
