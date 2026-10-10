@@ -183,6 +183,21 @@ jobs:
           printf '%s\n' "$health" | grep -q '"realtime_bound":true'
           echo "Public health checks: PASS"
 
+      - name: Verify deployed warning controls and JavaScript bindings
+        run: |
+          set -euo pipefail
+          base="$WORKER_URL"
+          curl -fsS -A 'Mozilla/5.0 (DEFENX warning-controls live test)' "$base/index.html?demo=1" -o /tmp/defenx-live-index.html
+          curl -fsS -A 'Mozilla/5.0 (DEFENX warning-controls live test)' "$base/app.js" -o /tmp/defenx-live-app.js
+          for id in warningOnBtn warningOffBtn warningToggleBtn; do
+            grep -Fq "id=\"$id\"" /tmp/defenx-live-index.html || { echo "Missing deployed warning button: $id"; exit 1; }
+            echo "Live HTML button $id: PASS"
+          done
+          grep -Fq '$("warningOnBtn")?.addEventListener("click"' /tmp/defenx-live-app.js
+          grep -Fq '$("warningOffBtn")?.addEventListener("click"' /tmp/defenx-live-app.js
+          echo "Live JavaScript ON/OFF handlers: PASS"
+
+
       - name: Verify deployed login endpoint rejects bad credentials cleanly
         run: |
           set -euo pipefail
