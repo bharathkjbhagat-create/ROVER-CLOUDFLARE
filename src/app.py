@@ -516,6 +516,7 @@ CREATE TABLE IF NOT EXISTS users (
  enabled BOOLEAN NOT NULL DEFAULT TRUE,
  can_control BOOLEAN NOT NULL DEFAULT TRUE,
  can_manage_users BOOLEAN NOT NULL DEFAULT FALSE,
+ auth_version INTEGER NOT NULL DEFAULT 0,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  last_login_at TIMESTAMPTZ
 );
@@ -614,6 +615,7 @@ def ensure_db():
                 with conn.cursor() as cur:
                     for statement in [s.strip() for s in SCHEMA.split(";") if s.strip()]:
                         cur.execute(statement)
+                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("UPDATE users SET can_control=TRUE WHERE enabled=TRUE")
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
@@ -665,12 +667,43 @@ def current_user():
     if hasattr(g, "_rover_user_loaded"):
         return g._rover_user
 
-    # Fast path: after login, the signed Flask session already contains the
-    # authenticated user's public identity and permissions. Do not hit
-    # PostgreSQL for every dashboard/API request.
     cached = session.get("user_cache")
     if cached and cached.get("username"):
         user = dict(cached)
+        database_configured = bool(DATABASE_URL or _cf_hyperdrive())
+        if database_configured:
+            if session.get("auth_source") == "legacy":
+                pass
+            elif session.get("auth_source") != "database":
+                user = None
+            else:
+                try:
+                    ensure_db()
+                    if not db_available():
+                        user = None
+                    else:
+                        with get_db() as conn:
+                            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                                cur.execute(
+                                    "SELECT id,username,display_name,role,enabled,can_control,can_manage_users,auth_version FROM users WHERE id=%s",
+                                    (str(cached.get("id") or ""),),
+                                )
+                                current = cur.fetchone()
+                        if (not current or not current["enabled"]
+                                or int(current["auth_version"]) != int(session.get("auth_version", -1))):
+                            session.clear()
+                            user = None
+                        else:
+                            user = {
+                                "id": str(current["id"]), "username": current["username"],
+                                "display_name": current["display_name"], "role": current["role"],
+                                "enabled": current["enabled"], "can_control": current["can_control"],
+                                "can_manage_users": current["can_manage_users"],
+                            }
+                            session["user_cache"] = user
+                except Exception:
+                    mark_db_unavailable()
+                    user = None
     else:
         user = fallback_user()
 
@@ -1030,13 +1063,22 @@ def login():
     # Preserve the real login ID for database/email-style accounts. A compact
     # comparison key is used only for admin aliases and runtime lookup.
     username = raw_username.upper()
+    login_identifier = raw_username
 
     def normalize_login_id(value):
         return "".join(ch for ch in str(value or "").upper() if ch.isalnum())
 
+    runtime_id_user = next(
+        (user for user in runtime_users.values()
+         if str(user.get("id", "")).casefold() == login_identifier.casefold()),
+        None,
+    )
+    if runtime_id_user:
+        username = str(runtime_id_user.get("username") or username).strip().upper()
     login_key = normalize_login_id(username)
     canonical_username = username
     password = str(data.get("password", ""))
+    database_configured = bool(DATABASE_URL or _cf_hyperdrive())
 
     # Keep validation consistent with the Worker-native login path: malformed
     # or incomplete credentials are client errors, not authentication failures.
@@ -1069,11 +1111,11 @@ def login():
     # Fast authentication path: configured Admin and Friend accounts are already
     # available in Worker memory. Verify them locally before touching PostgreSQL,
     # so a slow database can never hold the sign-in screen hostage.
-    if ADMIN_USERNAME and ADMIN_PASSWORD and login_key in admin_login_ids and _safe_equal(password, ADMIN_PASSWORD):
+    if not database_configured and ADMIN_USERNAME and ADMIN_PASSWORD and login_key in admin_login_ids and _safe_equal(password, ADMIN_PASSWORD):
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
-    else:
+    elif not database_configured:
         runtime_user = runtime_users.get(username)
         runtime_hash = runtime_password_hashes.get(username)
         if not runtime_user and login_key:
@@ -1097,6 +1139,7 @@ def login():
         session.permanent = False
         session["fallback_user"] = fast_user
         session["user_cache"] = fast_user
+        session["auth_source"] = "legacy" if request.headers.get("X-DEFENX-LEGACY-USER") else "environment"
         session["dashboard_entry"] = True
         # Do not block sign-in on a database audit write. Keep the event in the
         # local/realtime login-alert path and let administrative persistence happen
@@ -1136,7 +1179,7 @@ def login():
         database_ready = False
 
     if not database_ready:
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        if not database_configured and username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                     "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                     "created_at": None, "last_login_at": None}
@@ -1145,12 +1188,12 @@ def login():
             known_username = login_key in admin_login_ids or username in runtime_users or any(normalize_login_id(x) == login_key for x in runtime_users)
             runtime_user = runtime_users.get(username)
             runtime_hash = runtime_password_hashes.get(username)
-            if runtime_user and runtime_user.get("enabled") and runtime_hash is None:
+            if not database_configured and runtime_user and runtime_user.get("enabled") and runtime_hash is None:
                 configured_friend = next((f for f in FRIEND_ACCOUNTS if f["username"] == username), None)
                 if configured_friend and configured_friend.get("password"):
                     runtime_hash = generate_password_hash(configured_friend["password"])
                     runtime_password_hashes[username] = runtime_hash
-            if runtime_user and runtime_user.get("enabled") and runtime_hash and safe_check_password_hash(runtime_hash, password):
+            if not database_configured and runtime_user and runtime_user.get("enabled") and runtime_hash and safe_check_password_hash(runtime_hash, password):
                 user = dict(runtime_user)
                 user["last_login_at"] = datetime.now(timezone.utc).isoformat()
                 runtime_users[username] = dict(user)
@@ -1178,6 +1221,19 @@ def login():
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
             cur.execute("SELECT * FROM users WHERE UPPER(username)=UPPER(%s) LIMIT 1", (canonical_username,))
             user = cur.fetchone()
+
+            if not user:
+                try:
+                    database_user_id = str(uuid.UUID(login_identifier))
+                except (TypeError, ValueError, AttributeError):
+                    database_user_id = None
+                if database_user_id:
+                    cur.execute("SELECT * FROM users WHERE id=%s LIMIT 1", (database_user_id,))
+                    user = cur.fetchone()
+                    if user:
+                        canonical_username = str(user.get("username") or canonical_username)
+                        username = canonical_username
+                        login_key = normalize_login_id(username)
 
             # Seed configured friend accounts only when their DB row does not
             # exist. Once a row exists, its password hash is authoritative so an
@@ -1247,6 +1303,8 @@ def login():
     session.clear()
     session.permanent = False
     session["user_id"] = str(user["id"])
+    session["auth_source"] = "database"
+    session["auth_version"] = int(user.get("auth_version", 0))
     session["dashboard_entry"] = True
     public_user = {
         "id": str(user["id"]), "username": user["username"], "display_name": user["display_name"],
@@ -1299,7 +1357,7 @@ def profile():
     with get_db() as conn:
         with conn.cursor() as cur:
             if new_password:
-                cur.execute("UPDATE users SET display_name=%s,password_hash=%s WHERE id=%s",
+                cur.execute("UPDATE users SET display_name=%s,password_hash=%s,auth_version=auth_version+1 WHERE id=%s",
                             (display_name, generate_password_hash(new_password), u["id"]))
             else:
                 cur.execute("UPDATE users SET display_name=%s WHERE id=%s", (display_name, u["id"]))
@@ -1309,6 +1367,8 @@ def profile():
         "can_manage_users": u["can_manage_users"]
     }
     session["user_cache"] = public
+    if new_password:
+        session["auth_version"] = int(session.get("auth_version", 0)) + 1
     audit("PROFILE_UPDATED", "Profile updated", u)
     return jsonify({"ok": True, "user": public, "db_connected": True})
 
@@ -1410,7 +1470,8 @@ def update_user(user_id):
             can_manage_users = bool(data.get("can_manage_users", target["can_manage_users"]))
             if str(target["id"]) == str(actor["id"]) and not enabled:
                 return jsonify({"ok": False, "error": "You cannot disable your own account"}), 400
-            cur.execute("""UPDATE users SET display_name=%s,role=%s,enabled=%s,can_control=%s,can_manage_users=%s
+            cur.execute("""UPDATE users SET display_name=%s,role=%s,enabled=%s,can_control=%s,can_manage_users=%s,
+                           auth_version=auth_version+1
                            WHERE id=%s""",
                         (display_name, role, enabled, can_control, can_manage_users, user_id))
     audit("USER_UPDATED", f"Updated {target['username']}", actor)
@@ -1449,7 +1510,7 @@ def reset_password(user_id):
                     target = cur.fetchone()
                     if target:
                         cur.execute(
-                            "UPDATE users SET password_hash=%s WHERE id=%s",
+                            "UPDATE users SET password_hash=%s,auth_version=auth_version+1 WHERE id=%s",
                             (password_hash, target["id"]),
                         )
                     elif runtime_username and runtime_target:
@@ -1461,7 +1522,7 @@ def reset_password(user_id):
                                (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
                                VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
                             (
-                                str(runtime_target.get("id") or uuid.uuid4()),
+                                str(uuid.uuid4()),
                                 runtime_username,
                                 runtime_target.get("display_name") or runtime_username,
                                 password_hash,

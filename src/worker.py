@@ -305,23 +305,21 @@ class Default(WorkerEntrypoint):
 
     def _local_authenticate(self, env, username, password):
         key = self._normalize_login(username)
+        database_configured = bool(self._env_value(env, "DATABASE_URL"))
+        if not database_configured:
+            try:
+                database_configured = getattr(env, "HYPERDRIVE", None) is not None
+            except Exception:
+                database_configured = False
         admin_name = self._env_value(env, "ADMIN_USERNAME", ADMIN_USERNAME).strip().upper() or "ADMIN"
         admin_password = self._env_value(env, "ADMIN_PASSWORD")
         admin_hash = self._env_value(env, "ADMIN_PASSWORD_HASH")
-
         admin_aliases = {
-            self._normalize_login(admin_name),
-            "ADMIN",
-            "ADMIN-1",
-            "ADMINISTRATOR",
-            "DEFENXADMIN",
-            "DEFENXADMINISTRATOR",
-            "ROVERADMIN",
-            "ROVERADMINISTRATOR",
-            "ADMINUSER",
-            "ADMINUSERID",
+            self._normalize_login(admin_name), "ADMIN", "ADMIN-1", "ADMINISTRATOR",
+            "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
+            "ADMINUSER", "ADMINUSERID",
         }
-        if key in admin_aliases:
+        if not database_configured and key in admin_aliases:
             valid = bool(admin_password) and hmac.compare_digest(password, admin_password)
             if not valid and admin_hash:
                 try:
@@ -333,43 +331,7 @@ class Default(WorkerEntrypoint):
                     admin_name, "admin", "ROVER Administrator",
                     can_manage_users=True, user_id="env-admin"
                 )
-
-        # Check admin-reset runtime accounts before calling an external auth service.
-        # When no database is configured, reset_password updates these in-memory hashes.
-        for runtime_name, runtime_user in list(runtime_users.items()):
-            if self._normalize_login(runtime_name) != key:
-                continue
-            runtime_hash = runtime_password_hashes.get(runtime_name)
-            if runtime_user.get("enabled") and runtime_hash:
-                try:
-                    if safe_check_password_hash(runtime_hash, password):
-                        return dict(runtime_user)
-                except Exception:
-                    pass
-
-        friends = (
-            ("MAHANTESH", "FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH"),
-            ("DHANUSH", "FRIEND_DHANUSH_PASSWORD", "FRIEND_DHANUSH_PASSWORD_HASH"),
-            ("ANIRUDH", "FRIEND_ANIRUDH_PASSWORD", "FRIEND_ANIRUDH_PASSWORD_HASH"),
-            ("MAMLESHWAR", "FRIEND4_PASSWORD", "FRIEND4_PASSWORD_HASH"),
-        )
-        for friend_name, password_key, hash_key in friends:
-            aliases = {self._normalize_login(friend_name)}
-            if friend_name == "MAHANTESH":
-                aliases.add("MAHADESH")
-            if key not in aliases:
-                continue
-            plain = self._env_value(env, password_key)
-            hashed = self._env_value(env, hash_key)
-            valid = bool(plain) and hmac.compare_digest(password, plain)
-            if not valid and hashed:
-                try:
-                    valid = check_password_hash(hashed, password)
-                except Exception:
-                    valid = False
-            if valid:
-                return self._make_user(friend_name, "user", friend_name, can_manage_users=False)
-
+        # Database-managed friend credentials remain authoritative after a reset.
         return None
 
     async def _legacy_authenticate(self, username, password):
@@ -507,8 +469,6 @@ class Default(WorkerEntrypoint):
         )
 
     async def _handle_login(self, request):
-        # Keep an untouched request for Flask's full authentication path,
-        # including database-backed users, if Worker-native credentials do not match.
         try:
             fallback_request = request.clone()
         except Exception:
@@ -518,7 +478,6 @@ class Default(WorkerEntrypoint):
                 data = json.loads(str(await request.text() or "{}"))
             except Exception:
                 data = {}
-
             username = str(data.get("username") or "").strip()
             password = str(data.get("password") or "")
             if not username or not password:
@@ -532,52 +491,41 @@ class Default(WorkerEntrypoint):
             if user:
                 return self._login_response(user)
 
-            # Accounts not configured as Worker secrets may still be valid in
-            # the signed account service. Verify the supplied password there;
-            # never trust a username-only match or a response without a user.
-            legacy_unavailable = False
-            legacy_user = await self._legacy_authenticate(username, password)
-            if legacy_user:
-                if legacy_user.get("_auth_unavailable"):
-                    legacy_unavailable = True
-                else:
-                    return self._login_response(legacy_user)
-
-            # Continue through DEFENX's own database/runtime authentication
-            # path as well, so local accounts continue working if the account
-            # service has no record for this login.
-            if fallback_request is not None:
-                fallback_response = await wsgi.fetch(app, fallback_request, self.env)
-                if legacy_unavailable and int(fallback_response.status) in {401, 403}:
-                    return Response(
-                        json.dumps({
-                            "ok": False,
-                            "error": "Authentication service temporarily unavailable. Please try again.",
-                        }, separators=(",", ":")),
-                        status=503,
-                        headers={
-                            "Content-Type": "application/json; charset=utf-8",
-                            "Cache-Control": "no-store",
-                        },
-                    )
-                return fallback_response
-            if legacy_unavailable:
+            # Local/DB authentication gets priority over the optional legacy
+            # provider so old passwords cannot bypass a local reset.
+            if fallback_request is None:
                 return Response(
                     json.dumps({
                         "ok": False,
                         "error": "Authentication service temporarily unavailable. Please try again.",
                     }, separators=(",", ":")),
                     status=503,
-                    headers={
-                        "Content-Type": "application/json; charset=utf-8",
-                        "Cache-Control": "no-store",
-                    },
+                    headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
                 )
-            return self._login_response(None)
+            fallback_response = await wsgi.fetch(app, fallback_request, self.env)
+            if int(fallback_response.status) != 401:
+                return fallback_response
+            try:
+                local_error = json.loads(str(await fallback_response.clone().text() or "{}"))
+            except Exception:
+                local_error = {}
+            if local_error.get("field") != "username":
+                return fallback_response
+
+            legacy_user = await self._legacy_authenticate(username, password)
+            if legacy_user:
+                if legacy_user.get("_auth_unavailable"):
+                    return Response(
+                        json.dumps({
+                            "ok": False,
+                            "error": "Authentication service temporarily unavailable. Please try again.",
+                        }, separators=(",", ":")),
+                        status=503,
+                        headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
+                    )
+                return self._login_response(legacy_user)
+            return fallback_response
         except BaseException as exc:
-            # Never let a Python or JavaScript/Pyodide error while building the
-            # login response cascade into an unhandled Worker 500. Keep failures
-            # closed: no session is issued, and callers receive a generic error.
             print(f"DEFENX login handler recovered from {type(exc).__name__}")
             return Response(
                 json.dumps({
