@@ -44,11 +44,11 @@ class AuthenticationRegressionTests(unittest.TestCase):
             self.assertEqual(self.client.get("/api/bootstrap").status_code, 200)
 
     def test_runtime_injected_session_secret_allows_login(self):
-        with patch.object(rover_app, "SESSION_SECRET_CONFIGURED", False), \\
-             patch.object(rover_app.app, "secret_key", "runtime-injected-test-session"), \\
-             patch.object(rover_app, "DATABASE_URL", None), \\
-             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \\
-             patch.object(rover_app, "db_available", return_value=False), \\
+        with patch.object(rover_app, "SESSION_SECRET_CONFIGURED", False), \
+             patch.object(rover_app.app, "secret_key", "runtime-injected-test-session"), \
+             patch.object(rover_app, "DATABASE_URL", None), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
+             patch.object(rover_app, "db_available", return_value=False), \
              patch.object(rover_app, "ensure_db", return_value=None):
             response = self.client.post("/api/login", json={
                 "username": "ROVERADMIN", "password": "test-only-admin-password"
