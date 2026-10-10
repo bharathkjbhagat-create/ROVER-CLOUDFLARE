@@ -347,7 +347,10 @@ function connectRealtime(){
     }
   }
 }
-function updateUI(d){
+function updateUI(input){
+  // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
+  const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
+  const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:Object.assign({},input&&input.target?input.target:{}, {lat:simTarget.lat,lon:simTarget.lon})};
   const gpsQuality=d.gps_fix?(Number(d.gps_sats||0)>=8?"Excellent":Number(d.gps_sats||0)>=5?"Good":"Fair"):"No Fix";
   setText("battery",Math.round(Number(d.battery||0))+"%");setText("deviceBattery",Math.round(Number(d.battery||0))+"%");
   setText("signal",Math.round(Number(d.signal||0))+"%");setText("signalDevice",Number(d.signal||0)>=70?"Strong":Number(d.signal||0)>=45?"Medium":"Weak");
@@ -591,16 +594,16 @@ async function loadBootstrap(){
   return d;
 }
 function demoTelemetry(){
-  const now=Date.now(),ang=(now/9000)%(Math.PI*2);
+  const point=randomDemoPoint(),targetPoint=randomDemoPoint();
   return {
     battery:78,signal:82,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",
-    speed_kmh:3.5,heading:(now/80)%360,
-    lat:12.9716+0.0012*Math.sin(ang),lon:77.5946+0.0014*Math.cos(ang),
+    speed_kmh:3.5,heading:Math.random()*360,
+    lat:point.lat,lon:point.lon,
     updated:new Date().toISOString(),mode:"AUTO-DEMO",last_command:"STOP",
     network:"DEMO • SIMULATED",camera:true,camera_source:"SIMULATION",target_source:"SIMULATION",
     tracking:true,geofence:true,temp_c:32,storage_pct:72,
     ai:{person:1,vehicle:0,object:0,confidence:.92},obstacle_cm:125,track:[],
-    target:{type:"Person",range_m:842,speed_kmh:18.4,heading:42,direction:"NE",size_m:1.7,confidence:.92,lat:12.9794,lon:77.6048,detected:true}
+    target:{type:"Person",range_m:842,speed_kmh:18.4,heading:Math.random()*360,direction:"SIM",size_m:1.7,confidence:.92,lat:targetPoint.lat,lon:targetPoint.lon,detected:true}
   };
 }
 async function initRealCameraStream(){
@@ -666,44 +669,9 @@ async function initRealCameraStream(){
   }
 }
 
-async function publishLiveGPS(position){
-  if(gpsPublishBusy)return;
-  const c=position?.coords;
-  if(!c||!Number.isFinite(c.latitude)||!Number.isFinite(c.longitude))return;
-  const accuracy=Number(c.accuracy);
-  if(!Number.isFinite(accuracy)||accuracy<=0||accuracy>5000)return;
-  const now=Date.now();
-  if(now-gpsLastPublishedAt<1000)return;
-  gpsPublishBusy=true;gpsLastPublishedAt=now;
-  try{
-    if(window.ROVER_GPS_SOURCE==="ROVER_DEVICE")return;
-    const payload={lat:c.latitude,lon:c.longitude,accuracy_m:accuracy,source_id:gpsSourceId};
-    const r=await api("/api/gps",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});
-    if(r.ok){
-      const d=await r.json();if(d.telemetry)updateUI(d.telemetry);
-      setText("gps","LIVE");setText("gpsSignalText","LIVE GPS • ±"+Math.round(accuracy)+" m");
-      setText("deviceGpsState","LIVE • ±"+Math.round(accuracy)+" m");
-    }else if(r.status===409){
-      if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null}
-      setText("gpsSignalText","LIVE GPS • another source active");
-    }
-  }catch(_){
-    setText("gpsSignalText","GPS feed reconnecting");
-  }finally{gpsPublishBusy=false}
-}
-function initLiveGPSFeed(){
-  if(!navigator.geolocation){
-    setText("gpsSignalText","No device GPS available");
-    setText("deviceGpsState","NO GPS");
-    return;
-  }
-  const options={enableHighAccuracy:true,maximumAge:1000,timeout:10000};
-  gpsWatchId=navigator.geolocation.watchPosition(
-    publishLiveGPS,
-    ()=>{setText("gpsSignalText","Waiting for live GPS fix");setText("deviceGpsState","SEARCHING")},
-    options
-  );
-}
+// Privacy mode: do not request or publish browser geolocation.
+function randomDemoPoint(){return {lat:12.9716+(Math.random()-0.5)*0.018,lon:77.5946+(Math.random()-0.5)*0.022};}
+function initLiveGPSFeed(){setText("gpsSignalText","SIMULATION • RANDOM LOCATION");setText("deviceGpsState","SIMULATED");}
 async function loop(){
   if(telemetryBusy)return;
   telemetryBusy=true;
