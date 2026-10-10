@@ -32,6 +32,9 @@ jobs:
       - name: Build embedded WebP assets
         run: python scripts/build_assets.py
 
+      - name: Enforce frontend performance budgets
+        run: python scripts/check_performance_budget.py
+
       - name: Validate Python Worker source
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate frontend JavaScript
