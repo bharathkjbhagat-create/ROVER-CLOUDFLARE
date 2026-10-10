@@ -1,0 +1,31 @@
+name: Validate DEFENX performance changes
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Build and externalize WebP assets
+        run: python scripts/build_assets.py
+      - name: Enforce frontend performance budgets
+        run: python scripts/check_performance_budget.py
+      - name: Validate frontend JavaScript syntax
+        run: node --check public/app.js
+      - name: Validate Python Worker syntax
+        run: python -m py_compile src/app.py src/worker.py
