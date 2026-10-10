@@ -279,6 +279,10 @@ class Default(WorkerEntrypoint):
                 self._env_value(self.env, "ROVER_DEVICE_TOKEN")
                 or self._env_value(self.env, "ADMIN_PASSWORD")
                 or self._env_value(self.env, "ADMIN_PASSWORD_HASH")
+                or self._env_value(self.env, "FRIEND_MAHANTESH_PASSWORD_HASH")
+                or self._env_value(self.env, "FRIEND_DHANUSH_PASSWORD_HASH")
+                or self._env_value(self.env, "FRIEND_ANIRUDH_PASSWORD_HASH")
+                or self._env_value(self.env, "FRIEND4_PASSWORD_HASH")
             )
             if seed:
                 secret = "defenx-session-" + hashlib.sha256(seed.encode("utf-8")).hexdigest()
