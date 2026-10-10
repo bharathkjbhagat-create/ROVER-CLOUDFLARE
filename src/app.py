@@ -1430,33 +1430,55 @@ def reset_password(user_id):
     # whenever the matching database user exists. Never report a durable reset
     # when the only available store is per-isolate memory.
     runtime_username = None
-    for username, target in runtime_users.items():
-        if str(target.get("id")) == str(user_id):
+    runtime_target = None
+    for username, candidate in runtime_users.items():
+        if str(candidate.get("id")) == str(user_id):
             runtime_username = username
+            runtime_target = candidate
             break
 
     if db_available():
         try:
+            password_hash = generate_password_hash(password)
             with get_db() as conn:
                 with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
                     if runtime_username:
-                        cur.execute("SELECT id,username FROM users WHERE username=%s", (runtime_username,))
+                        cur.execute("SELECT id,username FROM users WHERE UPPER(username)=UPPER(%s) LIMIT 1", (runtime_username,))
                     else:
                         cur.execute("SELECT id,username FROM users WHERE id=%s", (user_id,))
                     target = cur.fetchone()
                     if target:
                         cur.execute(
                             "UPDATE users SET password_hash=%s WHERE id=%s",
-                            (generate_password_hash(password), target["id"]),
+                            (password_hash, target["id"]),
                         )
+                    elif runtime_username and runtime_target:
+                        # Runtime-only friend accounts must be created in the
+                        # durable DB during reset, otherwise a successful reset
+                        # is lost across Cloudflare Worker isolates/restarts.
+                        cur.execute(
+                            """INSERT INTO users
+                               (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
+                               VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
+                            (
+                                str(runtime_target.get("id") or uuid.uuid4()),
+                                runtime_username,
+                                runtime_target.get("display_name") or runtime_username,
+                                password_hash,
+                                runtime_target.get("role") or "user",
+                                bool(runtime_target.get("enabled", True)),
+                                bool(runtime_target.get("can_control", True)),
+                                bool(runtime_target.get("can_manage_users", False)),
+                            ),
+                        )
+                        target = {"id": str(runtime_target.get("id") or ""), "username": runtime_username}
+                    if target:
                         if runtime_username:
-                            runtime_password_hashes[runtime_username] = generate_password_hash(password)
+                            runtime_password_hashes[runtime_username] = password_hash
                         audit("PASSWORD_RESET", f"Reset password for {target['username']}", actor)
                         return jsonify({"ok": True, "db_connected": True})
-        except Exception:
-            # If the database is temporarily unavailable, use only the clearly
-            # identified volatile fallback below.
-            pass
+        except Exception as exc:
+            print(f"DEFENX password reset persistence failed: {type(exc).__name__}")
 
     if runtime_username:
         runtime_password_hashes[runtime_username] = generate_password_hash(password)
