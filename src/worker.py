@@ -508,34 +508,14 @@ class Default(WorkerEntrypoint):
             if user:
                 return self._login_response(user)
 
-            # Never send arbitrary login IDs to the legacy migration service.
-            # Unknown IDs must be rejected locally with a normal 401.
-            key = self._normalize_login(username)
-            admin_name = self._env_value(
-                self.env, "ADMIN_USERNAME", ADMIN_USERNAME
-            )
-            known_keys = {
-                self._normalize_login(admin_name),
-                "ADMIN",
-                "ADMINISTRATOR",
-                "DEFENXADMIN",
-                "DEFENXADMINISTRATOR",
-                "ROVERADMIN",
-                "ROVERADMINISTRATOR",
-                "ADMINUSER",
-                "ADMINUSERID",
-                "MAHANTESH",
-                "MAHADESH",
-                "DHANUSH",
-                "ANIRUDH",
-                "MAMLESHWAR",
-            }
-            if key not in known_keys:
-                return self._login_response(None)
-
-            canonical = "MAHANTESH" if key == "MAHADESH" else username
-            user = await self._legacy_authenticate(canonical, password)
-            return self._login_response(user)
+            # Support accounts created on the previous website, including
+            # usernames that are not in the current local-account list. The
+            # configured legacy service must validate the credentials; this
+            # Worker never grants a session based on the username alone.
+            user = await self._legacy_authenticate(username, password)
+            if user and user.get("enabled", True):
+                return self._login_response(user)
+            return self._login_response(None)
         except BaseException as exc:
             # Never let a Python or JavaScript/Pyodide error while building the
             # login response cascade into an unhandled Worker 500. Keep failures
