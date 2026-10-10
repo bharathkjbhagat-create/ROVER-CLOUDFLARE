@@ -75,14 +75,15 @@ function updateWarningControlUI(d){
   const sensorWarning=Number(d?.obstacle_cm??999)<45||!!d?.target?.detected;
   if(state)state.textContent=active?(sensorWarning?"ON • WARNING":"ON • ARMED"):"OFF • DISPLAY MUTED";
 }
-function toggleWarningDisplay(){
-  warningDisplayEnabled=!warningDisplayEnabled;
-  localStorage.setItem("rover_warning_display",warningDisplayEnabled?"on":"off");
+function setWarningDisplay(enabled){
+  warningDisplayEnabled=!!enabled;
+  try{localStorage.setItem("rover_warning_display",warningDisplayEnabled?"on":"off")}catch(_){}
   if(!warningDisplayEnabled)stopTargetAlarm();
   else if(targetDetectedState)startTargetAlarm(lastTargetAlarmData);
   updateWarningControlUI({obstacle_cm:999,target:{detected:targetDetectedState}});
   setText("conn",me?"● ONLINE • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"):"● DEMO • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"));
 }
+function toggleWarningDisplay(){setWarningDisplay(!warningDisplayEnabled);}
 function initNotificationAudio(){
   try{
     const AC=window.AudioContext||window.webkitAudioContext;
@@ -1046,6 +1047,8 @@ function bindUI(){
   $("enableAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
   $("soundBtn")?.addEventListener("click",toggleNotificationSound);
   $("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay);
+  $("warningOnBtn")?.addEventListener("click",()=>setWarningDisplay(true));
+  $("warningOffBtn")?.addEventListener("click",()=>setWarningDisplay(false));
   updateWarningControlUI({obstacle_cm:999,target:{detected:false}});
   const armNotificationAudio=()=>{initNotificationAudio().then(ok=>{if(ok&&targetAlarmActive)targetSirenBurst()}).catch(()=>{})};
   document.addEventListener("pointerdown",armNotificationAudio,{once:true,passive:true});
