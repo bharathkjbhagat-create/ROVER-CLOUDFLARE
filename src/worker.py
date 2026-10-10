@@ -403,18 +403,22 @@ class Default(WorkerEntrypoint):
             return {"_auth_unavailable": True}
 
     @staticmethod
-    def _session_cookie(user):
+    def _session_cookie(user, auth_source="environment"):
         serializer = app.session_interface.get_signing_serializer(app)
         if serializer is None:
             return None
+        # Flask's request guard uses these fields to decide whether to validate
+        # a DB session version or accept a trusted legacy-provider session.
         session_data = {
             "fallback_user": user,
             "user_cache": user,
+            "auth_source": auth_source,
+            "auth_version": int(user.get("auth_version", 0)),
             "dashboard_entry": True,
         }
         return serializer.dumps(session_data)
 
-    def _login_response(self, user):
+    def _login_response(self, user, auth_source="environment"):
         # Use the same response constructor for both error and success paths.
         # This avoids runtime differences in Response.json() when Set-Cookie
         # is present, which could otherwise turn a successful login into HTTP 500.
@@ -434,7 +438,7 @@ class Default(WorkerEntrypoint):
             )
 
         try:
-            cookie = self._session_cookie(user)
+            cookie = self._session_cookie(user, auth_source=auth_source)
         except Exception as exc:
             print(f"DEFENX session creation failed: {type(exc).__name__}")
             cookie = None
@@ -523,7 +527,7 @@ class Default(WorkerEntrypoint):
                         status=503,
                         headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
                     )
-                return self._login_response(legacy_user)
+                return self._login_response(legacy_user, auth_source="legacy")
             return fallback_response
         except BaseException as exc:
             print(f"DEFENX login handler recovered from {type(exc).__name__}")
