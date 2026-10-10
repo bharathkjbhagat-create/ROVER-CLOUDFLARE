@@ -494,6 +494,12 @@ class Default(WorkerEntrypoint):
         )
 
     async def _handle_login(self, request):
+        # Keep an untouched request for Flask's full authentication path,
+        # including database-backed users, if Worker-native credentials do not match.
+        try:
+            fallback_request = request.clone()
+        except Exception:
+            fallback_request = None
         try:
             try:
                 data = json.loads(str(await request.text() or "{}"))
@@ -513,25 +519,12 @@ class Default(WorkerEntrypoint):
             if user:
                 return self._login_response(user)
 
-            # Support accounts created on the previous website, including
-            # usernames that are not in the current local-account list. The
-            # configured legacy service must validate the credentials; this
-            # Worker never grants a session based on the username alone.
-            user = await self._legacy_authenticate(username, password)
-            if isinstance(user, dict) and user.get("_auth_unavailable"):
-                return Response(
-                    json.dumps({
-                        "ok": False,
-                        "error": "Legacy authentication service unavailable. Please try again later.",
-                    }, separators=(",", ":")),
-                    status=503,
-                    headers={
-                        "Content-Type": "application/json; charset=utf-8",
-                        "Cache-Control": "no-store",
-                    },
-                )
-            if user and user.get("enabled", True):
-                return self._login_response(user)
+            # Worker-native credentials did not match. Continue through the
+            # app's own authentication handler so enabled runtime and database
+            # accounts are checked by DEFENX itself. Do not depend on a separate
+            # authentication endpoint, and never issue a session on username alone.
+            if fallback_request is not None:
+                return await wsgi.fetch(app, fallback_request, self.env)
             return self._login_response(None)
         except BaseException as exc:
             # Never let a Python or JavaScript/Pyodide error while building the
