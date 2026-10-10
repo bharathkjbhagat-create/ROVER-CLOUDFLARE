@@ -43,6 +43,19 @@ class AuthenticationRegressionTests(unittest.TestCase):
             self.assertIn("rover_auth=", "; ".join(response.headers.getlist("Set-Cookie")))
             self.assertEqual(self.client.get("/api/bootstrap").status_code, 200)
 
+    def test_runtime_injected_session_secret_allows_login(self):
+        with patch.object(rover_app, "SESSION_SECRET_CONFIGURED", False), \\
+             patch.object(rover_app.app, "secret_key", "runtime-injected-test-session"), \\
+             patch.object(rover_app, "DATABASE_URL", None), \\
+             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \\
+             patch.object(rover_app, "db_available", return_value=False), \\
+             patch.object(rover_app, "ensure_db", return_value=None):
+            response = self.client.post("/api/login", json={
+                "username": "ROVERADMIN", "password": "test-only-admin-password"
+            })
+            self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+            self.assertTrue(response.get_json()["ok"])
+
     def test_database_configured_disables_stale_runtime_fallback(self):
         with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
