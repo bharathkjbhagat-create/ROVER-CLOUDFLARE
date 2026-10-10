@@ -36,4 +36,18 @@ for variable, output in ASSETS.items():
         raise SystemExit(f"Decoded asset is not a WebP file: {output.name}")
 
     output.write_bytes(data)
-    print(f"Generated {output.relative_to(ROOT)} ({len(data)} bytes)")
+
+    # Keep image bytes out of the JavaScript download. The dashboard still
+    # uses the same global variable, but it now points at the separately
+    # served, cacheable WebP asset instead of embedding base64 in app.js.
+    public_url = "/" + output.name
+    source, replacements = re.subn(
+        pattern,
+        lambda _match: f'window.{variable}="{public_url}"',
+        source,
+        count=1,
+    )
+    if replacements != 1:
+        raise SystemExit(f"Could not externalize embedded image: {variable}")
+
+    print(f"Generated {output.relative_to(ROOT)} ({len(data)} bytes); externalized URL {public_url}")
