@@ -27,7 +27,7 @@ assert demo_redirect.headers.get("Location") == "/index.html?demo=1"
 demo_resp = demo_client.get("/index.html?demo=1")
 assert demo_resp.status_code == 200, demo_resp.status_code
 assert demo_resp.headers.get("X-DEFENX-Demo") == "read-only"
-assert b"/app.js?v=20261010-warning-toggle-01" in demo_resp.data
+assert b"/app.js?v=20261010-random-location-01" in demo_resp.data
 assert demo_client.get("/api/bootstrap").status_code == 401
 assert demo_client.get("/api/telemetry").status_code == 401
 assert demo_client.post("/api/command", json={"command":"FORWARD"}).status_code == 401
@@ -72,6 +72,9 @@ assert resp.status_code == 200, resp.get_data(as_text=True)
 
 app_js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
 assert "/api/camera-config" in app_js
+assert "navigator.geolocation" not in app_js
+assert "SIMULATION • RANDOM LOCATION" in app_js
+assert "randomDemoPoint" in app_js
 assert "ROVER_DEVICE" in app_js
 
 print("DEFENX smoke tests: PASS")
