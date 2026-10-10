@@ -395,8 +395,13 @@ class Default(WorkerEntrypoint):
             )
             raw = await response.text()
             data = json.loads(str(raw or "{}"))
-            if int(response.status) < 200 or int(response.status) >= 300:
+            status = int(response.status)
+            if status in {401, 403}:
+                # The legacy service explicitly rejected the credentials.
                 return None
+            if status < 200 or status >= 300:
+                print(f"DEFENX legacy login service returned HTTP {status}")
+                return {"_auth_unavailable": True}
             user = data.get("user") if isinstance(data, dict) else None
             if not data.get("ok") or not isinstance(user, dict):
                 return None
@@ -420,7 +425,7 @@ class Default(WorkerEntrypoint):
             # as non-Exception BaseException subclasses. Fail closed so a
             # recognized username cannot crash the entire Worker request.
             print(f"DEFENX legacy login fetch failed: {type(exc).__name__}")
-            return None
+            return {"_auth_unavailable": True}
 
     @staticmethod
     def _session_cookie(user):
@@ -513,6 +518,18 @@ class Default(WorkerEntrypoint):
             # configured legacy service must validate the credentials; this
             # Worker never grants a session based on the username alone.
             user = await self._legacy_authenticate(username, password)
+            if isinstance(user, dict) and user.get("_auth_unavailable"):
+                return Response(
+                    json.dumps({
+                        "ok": False,
+                        "error": "Legacy authentication service unavailable. Please try again later.",
+                    }, separators=(",", ":")),
+                    status=503,
+                    headers={
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Cache-Control": "no-store",
+                    },
+                )
             if user and user.get("enabled", True):
                 return self._login_response(user)
             return self._login_response(None)
