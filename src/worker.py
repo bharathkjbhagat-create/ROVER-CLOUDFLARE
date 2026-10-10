@@ -519,12 +519,47 @@ class Default(WorkerEntrypoint):
             if user:
                 return self._login_response(user)
 
-            # Worker-native credentials did not match. Continue through the
-            # app's own authentication handler so enabled runtime and database
-            # accounts are checked by DEFENX itself. Do not depend on a separate
-            # authentication endpoint, and never issue a session on username alone.
+            # Accounts not configured as Worker secrets may still be valid in
+            # the signed account service. Verify the supplied password there;
+            # never trust a username-only match or a response without a user.
+            legacy_unavailable = False
+            legacy_user = await self._legacy_authenticate(username, password)
+            if legacy_user:
+                if legacy_user.get("_auth_unavailable"):
+                    legacy_unavailable = True
+                else:
+                    return self._login_response(legacy_user)
+
+            # Continue through DEFENX's own database/runtime authentication
+            # path as well, so local accounts continue working if the account
+            # service has no record for this login.
             if fallback_request is not None:
-                return await wsgi.fetch(app, fallback_request, self.env)
+                fallback_response = await wsgi.fetch(app, fallback_request, self.env)
+                if legacy_unavailable and int(fallback_response.status) in {401, 403}:
+                    return Response(
+                        json.dumps({
+                            "ok": False,
+                            "error": "Authentication service temporarily unavailable. Please try again.",
+                        }, separators=(",", ":")),
+                        status=503,
+                        headers={
+                            "Content-Type": "application/json; charset=utf-8",
+                            "Cache-Control": "no-store",
+                        },
+                    )
+                return fallback_response
+            if legacy_unavailable:
+                return Response(
+                    json.dumps({
+                        "ok": False,
+                        "error": "Authentication service temporarily unavailable. Please try again.",
+                    }, separators=(",", ":")),
+                    status=503,
+                    headers={
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Cache-Control": "no-store",
+                    },
+                )
             return self._login_response(None)
         except BaseException as exc:
             # Never let a Python or JavaScript/Pyodide error while building the
