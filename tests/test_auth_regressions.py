@@ -64,6 +64,13 @@ class AuthenticationRegressionTests(unittest.TestCase):
         )
         self.assertIn("if not database_configured and key in admin_aliases:", source)
 
+    def test_worker_signed_session_keeps_auth_source_metadata(self):
+        source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        self.assertIn('def _session_cookie(user, auth_source="environment"):', source)
+        self.assertIn('"auth_source": auth_source', source)
+        self.assertIn('"auth_version": int(user.get("auth_version", 0))', source)
+        self.assertIn('self._login_response(legacy_user, auth_source="legacy")', source)
+
 
 if __name__ == "__main__":
     unittest.main()
