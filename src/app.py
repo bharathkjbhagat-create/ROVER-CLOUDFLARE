@@ -85,6 +85,7 @@ if not SESSION_SECRET:
     _session_seed = (
         _config("ROVER_DEVICE_TOKEN")
         or _config("ADMIN_PASSWORD")
+        or _config("ADMIN_PASSWORD_HASH")
         or _config("FRIEND_MAHANTESH_PASSWORD_HASH")
         or _config("FRIEND_DHANUSH_PASSWORD_HASH")
         or _config("FRIEND_ANIRUDH_PASSWORD_HASH")
