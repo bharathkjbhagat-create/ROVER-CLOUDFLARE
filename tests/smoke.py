@@ -27,7 +27,7 @@ assert demo_redirect.headers.get("Location") == "/index.html?demo=1"
 demo_resp = demo_client.get("/index.html?demo=1")
 assert demo_resp.status_code == 200, demo_resp.status_code
 assert demo_resp.headers.get("X-DEFENX-Demo") == "read-only"
-assert b"/app.js?v=20261009-demo-03" in demo_resp.data
+assert b"/app.js?v=20261010-warning-toggle-01" in demo_resp.data
 assert demo_client.get("/api/bootstrap").status_code == 401
 assert demo_client.get("/api/telemetry").status_code == 401
 assert demo_client.post("/api/command", json={"command":"FORWARD"}).status_code == 401
