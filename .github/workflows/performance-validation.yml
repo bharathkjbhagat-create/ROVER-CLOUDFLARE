@@ -29,3 +29,9 @@ jobs:
         run: node --check public/app.js
       - name: Validate Python Worker syntax
         run: python -m py_compile src/app.py src/worker.py
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Run backend smoke tests
+        run: uv run --group dev python tests/smoke.py
+      - name: Run authentication regression tests
+        run: uv run --group dev python -m unittest discover -s tests -p 'test_*.py'
