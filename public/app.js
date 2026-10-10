@@ -403,6 +403,7 @@ function updateUI(input){
   setText("targetHudType",t.type||"Object");setText("targetDistanceHud",range+" m");setText("cameraTargetType",t.type||"Object");
   const detected=t.detected===true;
   syncTargetAlarm(detected,t);
+  updateWarningControlUI({obstacle_cm:d.obstacle_cm,target:{detected}});
   window.ROVER_CAMERA_TARGET_STATE={detected,type:t.type||"Object",range_m:range,speed_kmh:Number(t.speed_kmh||0),confidence:Number(t.confidence||0)};
   window.dispatchEvent(new CustomEvent("rover-target-state",{detail:window.ROVER_CAMERA_TARGET_STATE}));
   const pill=$("targetAlert");if(pill){pill.textContent=detected?"DETECTED":"CLEAR";pill.classList.toggle("clear",!detected)}
