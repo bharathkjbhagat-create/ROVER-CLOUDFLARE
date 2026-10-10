@@ -45,7 +45,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
 
     def test_runtime_injected_session_secret_allows_login(self):
         with patch.object(rover_app, "SESSION_SECRET_CONFIGURED", False), \
-             patch.object(rover_app.app, "secret_key", "runtime-injected-test-session"), \
+             patch.dict(rover_app.app.config, {"SECRET_KEY": "runtime-injected-test-session"}), \
              patch.object(rover_app, "DATABASE_URL", None), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
