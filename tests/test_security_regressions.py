@@ -70,7 +70,18 @@ class SecurityRegressionTests(unittest.TestCase):
                 for index in range(5):
                     rover_app._login_attempts.pop(f"capacity-test-{index}", None)
 
-    def test_logout_clears_authenticated_session(self):
+    def test_worker_only_revokes_sessions_for_post_logout(self):
+        source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'url.path == "/api/logout" and str(request.method).upper() == "POST"',
+            source,
+        )
+        self.assertNotIn(
+            'url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}',
+            source,
+        )
+
+    def test_logout_clears_both_session_and_auth_marker_cookies(self):
         with self.client.session_transaction() as session:
             session["fallback_user"] = {
                 "id": "security-test-user",
@@ -83,12 +94,31 @@ class SecurityRegressionTests(unittest.TestCase):
             }
             session["user_cache"] = dict(session["fallback_user"])
             session["dashboard_entry"] = True
+
         response = self.client.post("/api/logout")
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertTrue(response.get_json().get("ok"))
         self.assertEqual(self.client.get("/api/me").status_code, 401)
-        self.assertTrue(any("rover_auth=;" in value or "rover_auth" in value and "Max-Age=0" in value
-                            for value in response.headers.getlist("Set-Cookie")))
+
+        set_cookie_headers = response.headers.getlist("Set-Cookie")
+        # rover_session is Flask's signed authentication session and must expire.
+        self.assertTrue(
+            any(
+                value.startswith("rover_session=;")
+                and ("Max-Age=0" in value or "Expires=" in value)
+                for value in set_cookie_headers
+            ),
+            f"Logout must expire rover_session. Set-Cookie headers: {set_cookie_headers!r}",
+        )
+        # rover_auth is a separate legacy/UI marker and must also expire.
+        self.assertTrue(
+            any(
+                value.startswith("rover_auth=;")
+                and ("Max-Age=0" in value or "Expires=" in value)
+                for value in set_cookie_headers
+            ),
+            f"Logout must expire rover_auth. Set-Cookie headers: {set_cookie_headers!r}",
+        )
 
 
 if __name__ == "__main__":
