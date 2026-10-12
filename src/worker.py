@@ -655,7 +655,7 @@ class Default(WorkerEntrypoint):
                 hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
                 if valid_session_cookie else None
             )
-            if session_hash and url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}:
+            if session_hash and url.path == "/api/logout" and str(request.method).upper() == "POST":
                 hub = self.env.REALTIME_HUB.getByName("defenx-global")
                 revoked = await hub.revoke_session(session_hash, int(time.time()) + 43200)
                 if not revoked:
