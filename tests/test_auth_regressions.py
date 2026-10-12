@@ -84,6 +84,19 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn('"auth_version": int(user.get("auth_version", 0))', source)
         self.assertIn('self._login_response(legacy_user, auth_source="legacy")', source)
 
+    def test_worker_revokes_signed_sessions_on_logout_and_checks_protected_routes(self):
+        source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        self.assertIn("async def revoke_session(self, session_hash, expires_at):", source)
+        self.assertIn("async def is_session_revoked(self, session_hash, now=None):", source)
+        self.assertIn('url.path == "/api/logout"', source)
+        self.assertIn("self._needs_revocation_check(url.path)", source)
+        self.assertIn("if await self.is_session_revoked(session_hash):", source)
+
+    def test_mamleswar_supports_the_configured_plaintext_password_secret(self):
+        source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        self.assertIn('"password": _config("FRIEND4_PASSWORD")', source)
+        self.assertIn("if not friend.get(\"password_hash\") and not friend.get(\"password\"):", source)
+
 
 if __name__ == "__main__":
     unittest.main()
