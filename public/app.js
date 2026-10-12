@@ -138,7 +138,7 @@ const demoCenter=[12.9716,77.5946];
 
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function setText(id,v){const e=$(id);if(e)e.textContent=v;}
+function setText(id,v){const target=id==="conn"?"connStatus":id;const e=$(target);if(e)e.textContent=v;}
 function show(id){const e=$(id);if(e)e.classList.remove("hidden")}
 function hide(id){const e=$(id);if(e)e.classList.add("hidden")}
 function openModal(id){show(id)}
