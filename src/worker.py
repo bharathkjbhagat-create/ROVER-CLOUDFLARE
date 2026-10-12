@@ -501,6 +501,19 @@ class Default(WorkerEntrypoint):
             "/api/login", "/api/ping", "/api/health", "/api/logout"
         }
 
+    async def _login_edge_rate_limited(self, request):
+        """Use Cloudflare's shared rate-limit binding in addition to local throttling."""
+        try:
+            limiter = self.env.LOGIN_RATE_LIMITER
+            ip = str(request.headers.get("CF-Connecting-IP") or "unknown")
+            result = await limiter.limit({"key": ip})
+            return not bool(result.success)
+        except BaseException as exc:
+            # Keep the app available in local/test runtimes without this binding;
+            # production config declares it and the Flask limiter remains a fallback.
+            print(f"DEFENX edge login limiter unavailable: {type(exc).__name__}")
+            return False
+
     def _login_response(self, user, auth_source="environment"):
         # Use the same response constructor for both error and success paths.
         # This avoids runtime differences in Response.json() when Set-Cookie
@@ -676,6 +689,16 @@ class Default(WorkerEntrypoint):
                 return await stub.fetch(request)
 
             if url.path == "/api/login" and str(request.method).upper() == "POST":
+                if await self._login_edge_rate_limited(request):
+                    return Response(
+                        json.dumps({"ok": False, "error": "Too many login attempts. Please wait before trying again."}),
+                        status=429,
+                        headers={
+                            "Content-Type": "application/json; charset=utf-8",
+                            "Cache-Control": "no-store",
+                            "Retry-After": "300",
+                        },
+                    )
                 return await self._handle_login(request)
 
             # Route dashboard requests through Flask so its session gate protects
