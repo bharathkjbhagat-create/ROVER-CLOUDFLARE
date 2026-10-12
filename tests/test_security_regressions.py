@@ -5,6 +5,7 @@ import os
 import sys
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -57,6 +58,17 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertTrue(rover_app.login_rate_limited(ip))
         rover_app.clear_login_failures(ip)
         self.assertFalse(rover_app.login_rate_limited(ip))
+
+    def test_login_throttle_storage_is_bounded(self):
+        now = rover_app.time.monotonic()
+        with patch.object(rover_app, "LOGIN_MAX_TRACKED_IPS", 2):
+            with rover_app._login_lock:
+                for index in range(5):
+                    rover_app._login_attempts[f"capacity-test-{index}"] = [now - index / 1000]
+                rover_app._prune_login_attempts(now)
+                self.assertLessEqual(len(rover_app._login_attempts), 2)
+                for index in range(5):
+                    rover_app._login_attempts.pop(f"capacity-test-{index}", None)
 
     def test_logout_clears_authenticated_session(self):
         with self.client.session_transaction() as session:
