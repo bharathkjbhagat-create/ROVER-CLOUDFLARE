@@ -412,8 +412,28 @@ def mark_device_offline_if_stale(snapshot):
 # this is an additional defense rather than a replacement for edge/WAF limits.
 LOGIN_WINDOW_SECONDS = 300
 LOGIN_MAX_ATTEMPTS = 6
+# Keep the per-instance fallback limiter bounded. Cloudflare edge/WAF rate
+# limiting should also be enabled because Workers may run multiple instances.
+LOGIN_MAX_TRACKED_IPS = 4096
 _login_attempts = {}
 _login_lock = threading.Lock()
+
+def _prune_login_attempts(now):
+    """Drop expired buckets and cap memory use during distributed login noise."""
+    expired = [
+        ip for ip, attempts in _login_attempts.items()
+        if not any(now - timestamp < LOGIN_WINDOW_SECONDS for timestamp in attempts)
+    ]
+    for ip in expired:
+        _login_attempts.pop(ip, None)
+    overflow = len(_login_attempts) - LOGIN_MAX_TRACKED_IPS
+    if overflow > 0:
+        oldest = sorted(
+            _login_attempts,
+            key=lambda ip: max(_login_attempts.get(ip, [0])),
+        )[:overflow]
+        for ip in oldest:
+            _login_attempts.pop(ip, None)
 
 def safe_check_password_hash(password_hash, password):
     """Return False instead of crashing when a stored hash is malformed or
@@ -429,16 +449,22 @@ def safe_check_password_hash(password_hash, password):
 def login_rate_limited(ip):
     now = time.monotonic()
     with _login_lock:
+        _prune_login_attempts(now)
         attempts = [t for t in _login_attempts.get(ip, []) if now - t < LOGIN_WINDOW_SECONDS]
-        _login_attempts[ip] = attempts
+        if attempts:
+            _login_attempts[ip] = attempts
+        else:
+            _login_attempts.pop(ip, None)
         return len(attempts) >= LOGIN_MAX_ATTEMPTS
 
 def record_login_failure(ip):
     now = time.monotonic()
     with _login_lock:
+        _prune_login_attempts(now)
         attempts = [t for t in _login_attempts.get(ip, []) if now - t < LOGIN_WINDOW_SECONDS]
         attempts.append(now)
         _login_attempts[ip] = attempts
+        _prune_login_attempts(now)
 
 def clear_login_failures(ip):
     with _login_lock:
