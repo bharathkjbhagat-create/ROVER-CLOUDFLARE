@@ -70,6 +70,17 @@ class SecurityRegressionTests(unittest.TestCase):
                 for index in range(5):
                     rover_app._login_attempts.pop(f"capacity-test-{index}", None)
 
+    def test_worker_only_revokes_sessions_for_post_logout(self):
+        source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        self.assertIn(
+            'url.path == "/api/logout" and str(request.method).upper() == "POST"',
+            source,
+        )
+        self.assertNotIn(
+            'url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}',
+            source,
+        )
+
     def test_logout_clears_both_session_and_auth_marker_cookies(self):
         with self.client.session_transaction() as session:
             session["fallback_user"] = {
