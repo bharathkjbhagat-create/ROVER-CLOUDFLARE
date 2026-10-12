@@ -142,7 +142,7 @@ FRIEND_ACCOUNTS = [
     },
     {
         "username": "MAMLESHWAR",
-        "password": None,
+        "password": _config("FRIEND4_PASSWORD"),
         "password_hash": _config("FRIEND4_PASSWORD_HASH"),
         "display_name": "MAMLESHWAR",
     },
@@ -660,6 +660,10 @@ def ensure_db():
                             (str(uuid.uuid4()), "ROVER-01", "ROVER-01", "Default demonstration rover"),
                         )
                     for i, friend in enumerate(FRIEND_ACCOUNTS, start=1):
+                        # Known usernames without configured credentials are placeholders,
+                        # not accounts to seed with an invalid/empty password.
+                        if not friend.get("password_hash") and not friend.get("password"):
+                            continue
                         cur.execute("SELECT id FROM users WHERE username=%s", (friend["username"],))
                         if not cur.fetchone():
                             cur.execute(
