@@ -508,7 +508,7 @@ class Default(WorkerEntrypoint):
             ip = str(request.headers.get("CF-Connecting-IP") or "unknown")
             result = await limiter.limit({"key": ip})
             return not bool(result.success)
-        except BaseException as exc:
+        except Exception as exc:
             # Keep the app available in local/test runtimes without this binding;
             # production config declares it and the Flask limiter remains a fallback.
             print(f"DEFENX edge login limiter unavailable: {type(exc).__name__}")
@@ -696,7 +696,7 @@ class Default(WorkerEntrypoint):
                         headers={
                             "Content-Type": "application/json; charset=utf-8",
                             "Cache-Control": "no-store",
-                            "Retry-After": "300",
+                            "Retry-After": "60",
                         },
                     )
                 return await self._handle_login(request)
