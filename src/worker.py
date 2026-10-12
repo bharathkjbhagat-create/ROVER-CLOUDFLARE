@@ -4,6 +4,7 @@ import hashlib
 import hmac
 from urllib.parse import urlparse
 import uuid
+import time
 import js
 from js import WebSocketPair, WebSocketRequestResponsePair, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint, wsgi
@@ -38,6 +39,51 @@ class RealtimeHub(DurableObject):
     async def get_state(self):
         state = await self.ctx.storage.get("state")
         return state if isinstance(state, dict) else None
+
+    async def revoke_session(self, session_hash, expires_at):
+        """Persist logout revocation; never evict an unexpired revocation."""
+        session_hash = str(session_hash or "")
+        if len(session_hash) != 64 or any(ch not in "0123456789abcdef" for ch in session_hash):
+            return False
+        now = int(time.time())
+        try:
+            expires_at = int(expires_at)
+        except (TypeError, ValueError):
+            return False
+        if expires_at <= now:
+            return False
+        sessions = await self.ctx.storage.get("revoked_sessions")
+        if not isinstance(sessions, dict):
+            sessions = {}
+        sessions = {
+            key: int(expiry) for key, expiry in sessions.items()
+            if str(expiry).isdigit() and int(expiry) > now
+        }
+        if session_hash not in sessions and len(sessions) >= 4096:
+            return False
+        sessions[session_hash] = expires_at
+        await self.ctx.storage.put("revoked_sessions", sessions)
+        return True
+
+    async def is_session_revoked(self, session_hash, now=None):
+        session_hash = str(session_hash or "")
+        if len(session_hash) != 64 or any(ch not in "0123456789abcdef" for ch in session_hash):
+            return False
+        now = int(now or time.time())
+        sessions = await self.ctx.storage.get("revoked_sessions")
+        if not isinstance(sessions, dict):
+            return False
+        expiry = sessions.get(session_hash)
+        if expiry is None:
+            return False
+        try:
+            if int(expiry) > now:
+                return True
+        except (TypeError, ValueError):
+            pass
+        sessions.pop(session_hash, None)
+        await self.ctx.storage.put("revoked_sessions", sessions)
+        return False
 
     async def append_login_event(self, event):
         if not isinstance(event, dict):
@@ -126,6 +172,9 @@ class RealtimeHub(DurableObject):
             try:
                 serializer.loads(session_cookie, max_age=int(app.permanent_session_lifetime.total_seconds()))
             except Exception:
+                return Response("Authentication required", status=401)
+            session_hash = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
+            if await self.is_session_revoked(session_hash):
                 return Response("Authentication required", status=401)
         except Exception:
             return Response("Authentication service unavailable", status=503)
@@ -422,6 +471,36 @@ class Default(WorkerEntrypoint):
         }
         return serializer.dumps(session_data)
 
+    @staticmethod
+    def _session_cookie_from_request(request):
+        cookie_name = str(app.config.get("SESSION_COOKIE_NAME", "session"))
+        for part in str(request.headers.get("Cookie") or "").split(";"):
+            name, sep, value = part.strip().partition("=")
+            if name == cookie_name and sep and value:
+                return value
+        return None
+
+    @staticmethod
+    def _valid_session_cookie(cookie):
+        if not cookie:
+            return False
+        try:
+            serializer = app.session_interface.get_signing_serializer(app)
+            if serializer is None:
+                return False
+            serializer.loads(cookie, max_age=int(app.permanent_session_lifetime.total_seconds()))
+            return True
+        except Exception:
+            return False
+
+    @staticmethod
+    def _needs_revocation_check(path):
+        if path in {"/", "/index.html"}:
+            return True
+        return path.startswith("/api/") and path not in {
+            "/api/login", "/api/ping", "/api/health", "/api/logout"
+        }
+
     def _login_response(self, user, auth_source="environment"):
         # Use the same response constructor for both error and success paths.
         # This avoids runtime differences in Response.json() when Set-Cookie
@@ -554,6 +633,40 @@ class Default(WorkerEntrypoint):
         url = urlparse(request.url)
         try:
             self._configure_app_secret()
+
+            # Signed Flask cookies are stateless; revoke them in Durable Object
+            # storage so copied cookies and existing WebSockets stop working after logout.
+            session_cookie = self._session_cookie_from_request(request)
+            valid_session_cookie = self._valid_session_cookie(session_cookie)
+            session_hash = (
+                hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
+                if valid_session_cookie else None
+            )
+            if session_hash and url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}:
+                hub = self.env.REALTIME_HUB.getByName("defenx-global")
+                revoked = await hub.revoke_session(session_hash, int(time.time()) + 43200)
+                if not revoked:
+                    return Response(
+                        json.dumps({"ok": False, "error": "Secure logout is temporarily unavailable. Please retry."}),
+                        status=503,
+                        headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
+                    )
+            elif session_hash and self._needs_revocation_check(url.path):
+                hub = self.env.REALTIME_HUB.getByName("defenx-global")
+                try:
+                    revoked = await hub.is_session_revoked(session_hash, int(time.time()))
+                except BaseException:
+                    return Response(
+                        json.dumps({"ok": False, "error": "Session security check unavailable. Please retry."}),
+                        status=503,
+                        headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
+                    )
+                if revoked:
+                    return Response(
+                        json.dumps({"ok": False, "error": "Session expired. Please sign in again."}),
+                        status=401,
+                        headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
+                    )
 
             if url.path == "/api/ws":
                 upgrade = str(request.headers.get("Upgrade") or "").lower()
