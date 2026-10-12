@@ -41,6 +41,8 @@ jobs:
         run: node --check public/app.js
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
+      - name: Run authentication and security regression tests
+        run: uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
       - name: Verify required frontend assets
         run: |
           set -e
@@ -280,3 +282,63 @@ jobs:
           assert data.get("ok") is True, data
           PY
           echo "Valid-login/session checks: PASS"
+
+      - name: Verify configured friend logins and sessions when credentials are available
+        env:
+          WORKER_URL: ${{ env.WORKER_URL }}
+          FRIEND_MAHANTESH_PASSWORD: ${{ secrets.FRIEND_MAHANTESH_PASSWORD }}
+          FRIEND_DHANUSH_PASSWORD: ${{ secrets.FRIEND_DHANUSH_PASSWORD }}
+          FRIEND_ANIRUDH_PASSWORD: ${{ secrets.FRIEND_ANIRUDH_PASSWORD }}
+          FRIEND4_PASSWORD: ${{ secrets.FRIEND4_PASSWORD }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          import subprocess
+          import tempfile
+
+          accounts = [
+              ("MAHANTESH", "FRIEND_MAHANTESH_PASSWORD"),
+              ("DHANUSH", "FRIEND_DHANUSH_PASSWORD"),
+              ("ANIRUDH", "FRIEND_ANIRUDH_PASSWORD"),
+              ("MAMLESHWAR", "FRIEND4_PASSWORD"),
+          ]
+          base = os.environ["WORKER_URL"]
+          checked = 0
+          for username, env_name in accounts:
+              password = os.environ.get(env_name, "")
+              if not password:
+                  print(f"{username}: SKIP (plaintext password secret unavailable; hash-only accounts cannot be tested by CI)")
+                  continue
+              with tempfile.TemporaryDirectory() as tmp:
+                  login_path = os.path.join(tmp, "login.json")
+                  cookie_path = os.path.join(tmp, "cookies.txt")
+                  payload = json.dumps({"username": username, "password": password})
+                  login = subprocess.run([
+                      "curl", "-sS", "-o", login_path, "-w", "%{http_code}",
+                      "-c", cookie_path, "-H", "Content-Type: application/json",
+                      "-H", "Accept: application/json", "--data", payload,
+                      base + "/api/login"
+                  ], capture_output=True, text=True, check=True)
+                  if login.stdout.strip() != "200":
+                      raise SystemExit(f"{username}: login failed with HTTP {login.stdout.strip()}")
+                  with open(login_path, encoding="utf-8") as handle:
+                      body = json.load(handle)
+                  if not body.get("ok") or str(body.get("user", {}).get("username", "")).upper() != username:
+                      raise SystemExit(f"{username}: login response identity mismatch")
+                  me_path = os.path.join(tmp, "me.json")
+                  me = subprocess.run([
+                      "curl", "-sS", "-o", me_path, "-w", "%{http_code}",
+                      "-b", cookie_path, base + "/api/me"
+                  ], capture_output=True, text=True, check=True)
+                  if me.stdout.strip() != "200":
+                      raise SystemExit(f"{username}: session check failed with HTTP {me.stdout.strip()}")
+                  with open(me_path, encoding="utf-8") as handle:
+                      current = json.load(handle)
+                  if not current.get("ok") or str(current.get("user", {}).get("username", "")).upper() != username:
+                      raise SystemExit(f"{username}: authenticated identity mismatch")
+                  checked += 1
+                  print(f"{username}: PASS (login + session)")
+          print(f"Friend login checks passed: {checked}; unavailable credentials were explicitly skipped.")
+          PY
