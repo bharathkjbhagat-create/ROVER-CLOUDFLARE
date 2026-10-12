@@ -285,7 +285,7 @@ jobs:
 
       - name: Verify configured friend logins and sessions when credentials are available
         env:
-          WORKER_URL: ${{ env.WORKER_URL }}
+          WORKER_URL: https://defenx.bindukjagadish.workers.dev
           FRIEND_MAHANTESH_PASSWORD: ${{ secrets.FRIEND_MAHANTESH_PASSWORD }}
           FRIEND_DHANUSH_PASSWORD: ${{ secrets.FRIEND_DHANUSH_PASSWORD }}
           FRIEND_ANIRUDH_PASSWORD: ${{ secrets.FRIEND_ANIRUDH_PASSWORD }}
