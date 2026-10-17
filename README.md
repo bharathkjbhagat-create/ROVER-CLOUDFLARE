@@ -32,3 +32,7 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Do not merge authentication changes or deploy to production until the GitHub Actions checks pass and the deployed login/session flow has been verified.
+
+## DEFENX Return to Base
+
+The current feature branch contains dashboard scaffolding for selecting a base and a fail-closed Return to Base request. Physical autonomous movement is intentionally disabled until controller capabilities and a hardware command/acknowledgement protocol are implemented and tested. See [`docs/RETURN_TO_BASE.md`](docs/RETURN_TO_BASE.md) for the proposed GPS + obstacle sensors + camera architecture, fail-safe state machine, device protocol contract, and acceptance tests. Do not merge/deploy this feature as hardware-ready.
