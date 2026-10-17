@@ -19,6 +19,62 @@ ASSETS = {
     "ROVER_LEFT_IMAGE": ROOT / "public" / "rover-left.webp",
 }
 
+def compact_runtime_js(source: str) -> str:
+    """Trim JS source-only indentation and comments without editing code tokens.
+
+    The current dashboard has one plain multiline CSS template string. If
+    template interpolation is introduced, stop and require a real JS minifier
+    rather than risk changing runtime semantics.
+    """
+    if "${" in source:
+        raise SystemExit("Template interpolation detected; review/minify with a parser first")
+
+    output: list[str] = []
+    in_template = False
+    for raw_line in source.splitlines(keepends=True):
+        line = raw_line.rstrip("\r\n")
+        ending = raw_line[len(line):]
+
+        if not in_template:
+            trimmed = line.lstrip(" \\t")
+            if trimmed.startswith("//"):
+                continue
+            if trimmed.startswith("/*") and trimmed.endswith("*/"):
+                continue
+            line = trimmed
+
+        output.append(line + ending)
+
+        # Track quotes and the dashboard's plain multiline template literal.
+        quote = None
+        escaped = False
+        for char in line:
+            if in_template:
+                if escaped:
+                    escaped = False
+                elif char == "\\\\":
+                    escaped = True
+                elif char == "`":
+                    in_template = False
+                continue
+
+            if quote is not None:
+                if escaped:
+                    escaped = False
+                elif char == "\\\\":
+                    escaped = True
+                elif char == quote:
+                    quote = None
+                continue
+
+            if char in ("'", '"'):
+                quote = char
+            elif char == "`":
+                in_template = True
+
+    return "".join(output)
+
+
 source = APP_JS.read_text(encoding="utf-8")
 
 for variable, output in ASSETS.items():
@@ -53,4 +109,7 @@ for variable, output in ASSETS.items():
     print(f"Generated {output.relative_to(ROOT)} ({len(data)} bytes); externalized URL {public_url}")
 
 # Persist the smaller JS bundle for the current deployment build.
+# Reduce raw transfer size without changing JS tokens. Keep all template-literal
+# content intact, since whitespace inside generated CSS/HTML may be meaningful.
+source = compact_runtime_js(source)
 APP_JS.write_text(source, encoding="utf-8")
