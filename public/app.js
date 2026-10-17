@@ -709,7 +709,7 @@ function scheduleTelemetry(){
 let returnBaseMarker=null,returnBaseSelection=false,returnBase=null;
 let returnRouteLine=null,returnRouteMode="none";
 
-try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon))returnBase=parsed;}}catch(_){}
+try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(parsed&&Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon)&&parsed.lat>=-90&&parsed.lat<=90&&parsed.lon>=-180&&parsed.lon<=180)returnBase=parsed;else localStorage.removeItem("defenx_return_base");}}catch(_){}
 function renderReturnBase(){
   if(!mapReady||!map)return;
   if(returnBaseMarker){map.removeLayer(returnBaseMarker);returnBaseMarker=null;}
@@ -756,7 +756,9 @@ function beginBaseSelection(){
 }
 function handleBaseMapClick(e){
   if(!returnBaseSelection||!e?.latlng)return;
-  returnBase={lat:Number(e.latlng.lat),lon:Number(e.latlng.lng),saved_at:new Date().toISOString()};
+  const lat=Number(e.latlng.lat),lon=Number(e.latlng.lng);
+  if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180){setText("returnBaseStatus","INVALID BASE LOCATION · TRY AGAIN");addLog("BASE","Rejected invalid base coordinates");return;}
+  returnBase={lat,lon,saved_at:new Date().toISOString()};
   try{localStorage.setItem("defenx_return_base",JSON.stringify(returnBase));}catch(_){}
   returnBaseSelection=false;renderReturnBase();addLog("BASE","Base location saved on this browser");
 }
@@ -767,12 +769,12 @@ async function requestReturnToBase(){
   // Fail closed: current firmware/controller capability is unknown. Do not issue
   // a sequence of directional commands or claim autonomy from a dashboard click.
   const telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
-  if(!telemetry||telemetry.gps_fix!==true||!Number.isFinite(Number(telemetry.lat))||!Number.isFinite(Number(telemetry.lon))){
-    addLog("RETURN BLOCKED","Fresh, valid rover GPS fix is required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VALID LIVE GPS REQUIRED");return;
+  if(!telemetry||telemetry.gps_fix!==true||!Number.isFinite(telemetry.lat)||telemetry.lat < -90||telemetry.lat > 90||!Number.isFinite(telemetry.lon)||telemetry.lon < -180||telemetry.lon > 180){
+    addLog("RETURN BLOCKED","Verified, valid live rover GPS coordinates are required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VERIFIED LIVE GPS REQUIRED");return;
   }
-  if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true){
-    addLog("RETURN BLOCKED","Controller has not confirmed autonomous navigation and obstacle avoidance; rover was not commanded to move");setText("returnBaseStatus","RETURN BLOCKED · CONTROLLER CAPABILITY NOT VERIFIED");
-    alert("Return to Base is not started. The connected controller must explicitly report autonomous_navigation=true and obstacle_avoidance=true, with fresh GPS and obstacle telemetry. No movement command was sent.");return;
+  if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true||telemetry.obstacle_sensor_healthy!==true||telemetry.safety_controller_healthy!==true){
+    addLog("RETURN BLOCKED","Autonomous navigation, obstacle-sensor health, and safety-controller health are not all confirmed; rover was not commanded to move");setText("returnBaseStatus","RETURN BLOCKED · SAFETY CAPABILITIES UNVERIFIED");
+    alert("Return to Base is not started. The connected controller must confirm autonomous navigation, obstacle avoidance, healthy obstacle sensing, and a healthy safety controller. No movement command was sent.");return;
   }
   addLog("RETURN BLOCKED","A verified hardware return-to-base command endpoint is not yet configured; no movement command was sent");
   setText("returnBaseStatus","RETURN BLOCKED · HARDWARE COMMAND ENDPOINT REQUIRED");
