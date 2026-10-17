@@ -20,13 +20,12 @@ ASSETS = {
 }
 
 def compact_runtime_js(source: str) -> str:
-    """Trim JS source-only indentation and comments without editing code tokens.
+    """Trim JS-only comments and indentation without rewriting code tokens.
 
-    The current dashboard has one plain multiline CSS template string. If
-    template interpolation is introduced, stop and require a real JS minifier
-    rather than risk changing runtime semantics.
+    The current dashboard has a plain multiline CSS template string. If a
+    template interpolation is added, stop and use a parser-based minifier.
     """
-    if "${" in source:
+    if chr(36) + chr(123) in source:
         raise SystemExit("Template interpolation detected; review/minify with a parser first")
 
     output: list[str] = []
@@ -36,7 +35,7 @@ def compact_runtime_js(source: str) -> str:
         ending = raw_line[len(line):]
 
         if not in_template:
-            trimmed = line.lstrip(" \\t")
+            trimmed = line.lstrip(" \t")
             if trimmed.startswith("//"):
                 continue
             if trimmed.startswith("/*") and trimmed.endswith("*/"):
@@ -52,16 +51,16 @@ def compact_runtime_js(source: str) -> str:
             if in_template:
                 if escaped:
                     escaped = False
-                elif char == "\\\\":
+                elif ord(char) == 92:
                     escaped = True
-                elif char == "`":
+                elif ord(char) == 96:
                     in_template = False
                 continue
 
             if quote is not None:
                 if escaped:
                     escaped = False
-                elif char == "\\\\":
+                elif ord(char) == 92:
                     escaped = True
                 elif char == quote:
                     quote = None
@@ -69,7 +68,7 @@ def compact_runtime_js(source: str) -> str:
 
             if char in ("'", '"'):
                 quote = char
-            elif char == "`":
+            elif ord(char) == 96:
                 in_template = True
 
     return "".join(output)
