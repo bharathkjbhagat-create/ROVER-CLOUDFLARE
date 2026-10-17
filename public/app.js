@@ -351,6 +351,7 @@ function connectRealtime(){
   }
 }
 function updateUI(input){
+  window.defenxLatestTelemetry = input && typeof input === "object" ? input : null;
   // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
   const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
   const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:Object.assign({},input&&input.target?input.target:{}, {lat:simTarget.lat,lon:simTarget.lon})};
