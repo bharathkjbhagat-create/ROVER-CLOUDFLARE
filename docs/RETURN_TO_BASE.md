@@ -2,7 +2,7 @@
 
 ## Status
 
-Design and dashboard scaffolding only. Physical autonomous movement is **disabled** until the selected controller, device protocol, sensor configuration, and field tests are complete. This document does not certify that the current rover hardware can navigate autonomously.
+Software route-preview controls are now included for dashboard testing: direct preview, a synthetic alternate route for a simulated obstacle, and clear preview. These are illustrative map overlays only, not road routing, live obstacle detection, or autonomous navigation. Physical movement remains disabled until a verified software command/acknowledgement path and telemetry exist. This document does not certify that the rover can navigate autonomously.
 
 ## Recommended architecture
 
@@ -13,6 +13,13 @@ Design and dashboard scaffolding only. Physical autonomous movement is **disable
 - **Obstacle sensing:** multi-direction ranging sensors appropriate to the environment plus camera-based object/scene detection. Camera inference is supplementary, not the sole collision-protection layer.
 - **Motor driver:** compatible with motor voltage and stall/startup current, with a hardware means to disable motor power safely.
 - **Communications:** authenticated, replay-resistant, time-bounded command protocol with request ID, expiry, explicit acknowledgement, and telemetry. Network loss must not leave a stale movement command active.
+
+## Software-only dashboard simulation
+
+- Select a base on the map and use Preview Route to draw a direct illustrative line from the dashboard rover marker to the selected base.
+- Use Simulate Blocked Route to draw a synthetic offset path that demonstrates the alternate-route UI concept; no obstacle is actually detected and no safe route is computed.
+- Use Clear Preview to remove the overlay.
+- These controls send no rover movement commands. The displayed rover marker can be a demo marker; do not treat this preview as a real route or live position.
 
 ## Return workflow
 
