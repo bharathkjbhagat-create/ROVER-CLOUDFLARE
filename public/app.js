@@ -196,6 +196,8 @@ function initMap(){
     rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
     hide("mapFallback");hide("mapFrame");
     mapReady=true;
+    map.on("click",handleBaseMapClick);
+    renderReturnBase();
     setText("conn","CONNECTED");
     setText("serverHeader","Server");
     setTimeout(()=>map.invalidateSize(),100);
@@ -703,6 +705,45 @@ function scheduleTelemetry(){
     : (document.hidden?8000:5000);
   setTimeout(async()=>{await loop();scheduleTelemetry()},delay);
 }
+let returnBaseMarker=null,returnBaseSelection=false,returnBase=null;
+try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon))returnBase=parsed;}}catch(_){}
+function renderReturnBase(){
+  if(!mapReady||!map)return;
+  if(returnBaseMarker){map.removeLayer(returnBaseMarker);returnBaseMarker=null;}
+  if(returnBase){const icon=L.divIcon({className:"returnBaseLabel",html:'<div class="returnBaseMarker">⌂</div><span>BASE</span>',iconSize:[42,42],iconAnchor:[21,21]});returnBaseMarker=L.marker([returnBase.lat,returnBase.lon],{icon,keyboard:true,title:"DEFENX Base"}).addTo(map).bindTooltip("RETURN BASE",{permanent:true,direction:"top",className:"returnBaseTooltip"});}
+  const label=returnBase?("BASE SET · "+returnBase.lat.toFixed(5)+", "+returnBase.lon.toFixed(5)):"BASE NOT SET";
+  setText("returnBaseStatus",label);
+}
+function beginBaseSelection(){
+  if(demoMode){addLog("DEMO","Base selection is disabled in the read-only demo");return;}
+  if(!mapReady||!map){addLog("BASE","Wait for the live map to load");return;}
+  returnBaseSelection=true;setText("returnBaseStatus","SELECT A BASE LOCATION ON THE MAP");
+  addLog("BASE","Tap the map to save the return base");
+}
+function handleBaseMapClick(e){
+  if(!returnBaseSelection||!e?.latlng)return;
+  returnBase={lat:Number(e.latlng.lat),lon:Number(e.latlng.lng),saved_at:new Date().toISOString()};
+  try{localStorage.setItem("defenx_return_base",JSON.stringify(returnBase));}catch(_){}
+  returnBaseSelection=false;renderReturnBase();addLog("BASE","Base location saved on this browser");
+}
+async function requestReturnToBase(){
+  if(demoMode){addLog("DEMO","Return-to-base is disabled in the read-only demo");return;}
+  if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return;}}
+  if(!returnBase){addLog("RETURN","Set the base first using SELECT BASE ON MAP");setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");return;}
+  // Fail closed: current firmware/controller capability is unknown. Do not issue
+  // a sequence of directional commands or claim autonomy from a dashboard click.
+  const telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
+  if(!telemetry||telemetry.gps_fix!==true||!Number.isFinite(Number(telemetry.lat))||!Number.isFinite(Number(telemetry.lon))){
+    addLog("RETURN BLOCKED","Fresh, valid rover GPS fix is required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VALID LIVE GPS REQUIRED");return;
+  }
+  if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true){
+    addLog("RETURN BLOCKED","Controller has not confirmed autonomous navigation and obstacle avoidance; rover was not commanded to move");setText("returnBaseStatus","RETURN BLOCKED · CONTROLLER CAPABILITY NOT VERIFIED");
+    alert("Return to Base is not started. The connected controller must explicitly report autonomous_navigation=true and obstacle_avoidance=true, with fresh GPS and obstacle telemetry. No movement command was sent.");return;
+  }
+  addLog("RETURN BLOCKED","A verified hardware return-to-base command endpoint is not yet configured; no movement command was sent");
+  setText("returnBaseStatus","RETURN BLOCKED · HARDWARE COMMAND ENDPOINT REQUIRED");
+}
+
 async function sendCommand(command){
   if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}
   if(!me){
@@ -1141,5 +1182,6 @@ if(document.readyState==="loading"){
 }else{
   bootDashboard();
 }
+document.addEventListener("click",function(e){if(e.target.closest("#selectReturnBaseBtn"))beginBaseSelection();if(e.target.closest("#returnToBaseBtn"))requestReturnToBase();});
 })();
 // Production stability bundle marker: shared Admin live-state synchronization + smooth client polling are live.
