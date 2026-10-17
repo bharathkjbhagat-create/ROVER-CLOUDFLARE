@@ -196,6 +196,8 @@ function initMap(){
     rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
     hide("mapFallback");hide("mapFrame");
     mapReady=true;
+    map.on("click",handleBaseMapClick);
+    renderReturnBase();
     setText("conn","CONNECTED");
     setText("serverHeader","Server");
     setTimeout(()=>map.invalidateSize(),100);
@@ -349,6 +351,7 @@ function connectRealtime(){
   }
 }
 function updateUI(input){
+  window.defenxLatestTelemetry = input && typeof input === "object" ? input : null;
   // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
   const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
   const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:Object.assign({},input&&input.target?input.target:{}, {lat:simTarget.lat,lon:simTarget.lon})};
@@ -703,6 +706,80 @@ function scheduleTelemetry(){
     : (document.hidden?8000:5000);
   setTimeout(async()=>{await loop();scheduleTelemetry()},delay);
 }
+let returnBaseMarker=null,returnBaseSelection=false,returnBase=null;
+let returnRouteLine=null,returnRouteMode="none";
+
+try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(parsed&&Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon)&&parsed.lat>=-90&&parsed.lat<=90&&parsed.lon>=-180&&parsed.lon<=180)returnBase=parsed;else localStorage.removeItem("defenx_return_base");}}catch(_){}
+function renderReturnBase(){
+  if(!mapReady||!map)return;
+  if(returnBaseMarker){map.removeLayer(returnBaseMarker);returnBaseMarker=null;}
+  if(returnBase){const icon=L.divIcon({className:"returnBaseLabel",html:'<div class="returnBaseMarker">⌂</div><span>BASE</span>',iconSize:[42,42],iconAnchor:[21,21]});returnBaseMarker=L.marker([returnBase.lat,returnBase.lon],{icon,keyboard:true,title:"DEFENX Base"}).addTo(map).bindTooltip("RETURN BASE",{permanent:true,direction:"top",className:"returnBaseTooltip"});}
+  const label=returnBase?("BASE SET · "+returnBase.lat.toFixed(5)+", "+returnBase.lon.toFixed(5)):"BASE NOT SET";
+  setText("returnBaseStatus",label);
+  if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;returnRouteMode="none";}
+}
+function previewReturnRoute(simulateObstacle=false){
+  if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
+  if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
+  // This is a visual software simulation only. It deliberately does not use
+  // randomized display coordinates as live rover location and sends no commands.
+  const origin=rover&&typeof rover.getLatLng==="function"?rover.getLatLng():null;
+  if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE");addLog("ROUTE","No map marker is available for the simulated rover");return;}
+  if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
+  const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
+  let points=[a,b],label="SIMULATION · DIRECT PREVIEW";
+  if(simulateObstacle){
+    const midLat=(a[0]+b[0])/2,midLon=(a[1]+b[1])/2;
+    const dLat=b[0]-a[0],dLon=b[1]-a[1],length=Math.max(Math.hypot(dLat,dLon),0.00001);
+    const offset=Math.min(0.003,Math.max(0.00035,length*0.18));
+    points=[a,[midLat-dLon/length*offset,midLon+dLat/length*offset],b];
+    label="SIMULATION · ALTERNATE ROUTE";
+  }
+  returnRouteLine=L.polyline(points,{color:simulateObstacle?"#f5b942":"#22d3a6",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
+  returnRouteMode=simulateObstacle?"alternate":"direct";
+  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
+  setText("returnBaseStatus",label+" · NOT NAVIGATION");
+  addLog("ROUTE",label+" rendered; no rover command sent");
+}
+function clearReturnRoutePreview(){
+  if(returnRouteLine&&map){map.removeLayer(returnRouteLine);returnRouteLine=null;}
+  returnRouteMode="none";
+  if(returnBase) setText("returnBaseStatus","BASE SET · "+returnBase.lat.toFixed(5)+", "+returnBase.lon.toFixed(5));
+  else setText("returnBaseStatus","BASE NOT SET");
+  addLog("ROUTE","Simulation preview cleared");
+}
+function beginBaseSelection(){
+  if(demoMode){addLog("DEMO","Base selection is disabled in the read-only demo");return;}
+  if(!mapReady||!map){addLog("BASE","Wait for the live map to load");return;}
+  returnBaseSelection=true;setText("returnBaseStatus","SELECT A BASE LOCATION ON THE MAP");
+  addLog("BASE","Tap the map to save the return base");
+}
+function handleBaseMapClick(e){
+  if(!returnBaseSelection||!e?.latlng)return;
+  const lat=Number(e.latlng.lat),lon=Number(e.latlng.lng);
+  if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180){setText("returnBaseStatus","INVALID BASE LOCATION · TRY AGAIN");addLog("BASE","Rejected invalid base coordinates");return;}
+  returnBase={lat,lon,saved_at:new Date().toISOString()};
+  try{localStorage.setItem("defenx_return_base",JSON.stringify(returnBase));}catch(_){}
+  returnBaseSelection=false;renderReturnBase();addLog("BASE","Base location saved on this browser");
+}
+async function requestReturnToBase(){
+  if(demoMode){addLog("DEMO","Return request is disabled in the read-only demo; route preview remains available on the authenticated dashboard");return;}
+  if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return;}}
+  if(!returnBase){addLog("RETURN","Set the base first using SELECT BASE ON MAP");setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");return;}
+  // Fail closed: current firmware/controller capability is unknown. Do not issue
+  // a sequence of directional commands or claim autonomy from a dashboard click.
+  const telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
+  if(!telemetry||telemetry.gps_fix!==true||!Number.isFinite(telemetry.lat)||telemetry.lat < -90||telemetry.lat > 90||!Number.isFinite(telemetry.lon)||telemetry.lon < -180||telemetry.lon > 180){
+    addLog("RETURN BLOCKED","Verified, valid live rover GPS coordinates are required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VERIFIED LIVE GPS REQUIRED");return;
+  }
+  if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true||telemetry.obstacle_sensor_healthy!==true||telemetry.safety_controller_healthy!==true){
+    addLog("RETURN BLOCKED","Autonomous navigation, obstacle-sensor health, and safety-controller health are not all confirmed; rover was not commanded to move");setText("returnBaseStatus","RETURN BLOCKED · SAFETY CAPABILITIES UNVERIFIED");
+    alert("Return to Base is not started. The connected controller must confirm autonomous navigation, obstacle avoidance, healthy obstacle sensing, and a healthy safety controller. No movement command was sent.");return;
+  }
+  addLog("RETURN BLOCKED","A verified hardware return-to-base command endpoint is not yet configured; no movement command was sent");
+  setText("returnBaseStatus","RETURN BLOCKED · HARDWARE COMMAND ENDPOINT REQUIRED");
+}
+
 async function sendCommand(command){
   if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}
   if(!me){
@@ -1141,5 +1218,6 @@ if(document.readyState==="loading"){
 }else{
   bootDashboard();
 }
+document.addEventListener("click",function(e){if(e.target.closest("#selectReturnBaseBtn"))beginBaseSelection();if(e.target.closest("#returnToBaseBtn"))requestReturnToBase();if(e.target.closest("#previewReturnRouteBtn"))previewReturnRoute(false);if(e.target.closest("#simulateObstacleRouteBtn"))previewReturnRoute(true);if(e.target.closest("#clearReturnRouteBtn"))clearReturnRoutePreview();});
 })();
 // Production stability bundle marker: shared Admin live-state synchronization + smooth client polling are live.
