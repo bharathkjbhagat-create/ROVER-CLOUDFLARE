@@ -370,7 +370,7 @@ function updateUI(input){
   const liveGps=(gpsSource==="LIVE_GPS"||gpsSource==="ROVER_DEVICE")&&Number.isFinite(gpsAccuracy);
   window.ROVER_GPS_SOURCE=gpsSource;
   setText("gps",liveGps?"LIVE":(d.gps_fix?"DEMO":"NO FIX"));
-  setText("gpsHeader",gpsSource==="ROVER_DEVICE"?"ROVER GPS LIVE":(liveGps?"GPS LIVE":"GPS"));
+  setText("gpsHeader",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS LIVE":(liveGps?"GPS LIVE":"GPS"));setText("gpsHeaderSub",liveGps?"Fix reported · ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION · NOT LIVE":"NO VERIFIED GPS FIX"));
   setText("gpsSignalText",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS • ±"+Math.round(gpsAccuracy)+" m":liveGps?"OPERATOR GPS • ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION • NOT REAL GPS":gpsQuality));
   setText("deviceGpsState",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER • ±"+Math.round(gpsAccuracy)+" m":(liveGps?"OPERATOR • ±"+Math.round(gpsAccuracy)+" m":(d.gps_fix?"DEMO":"SEARCHING")));
   setText("modeBadge",d.mode||"MANUAL");
@@ -413,7 +413,7 @@ function updateUI(input){
   const pill=$("targetAlert");if(pill){pill.textContent=detected?"DETECTED":"CLEAR";pill.classList.toggle("clear",!detected)}
   if(!detected)hide("targetHud");else show("targetHud");
   setText("topName",me?.display_name||"Admin");setText("topRole",me?.role==="admin"?"Administrator":"Operator");
-  setText("onlineUsers","4 Users Online");setText("onlineUsersSub","Admin + 3 Friends");
+  setText("onlineUsers","Presence unavailable");setText("onlineUsersSub","Live user count not reported");
   if(rover){rover.setLatLng([Number(d.lat),Number(d.lon)]);const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";}
   const tl=Number(t.lat),tn=Number(t.lon);
   if(map&&Number.isFinite(tl)&&Number.isFinite(tn)&&detected){
@@ -691,11 +691,11 @@ async function loop(){
     if(!r.ok)throw new Error(d.error);
     if(d&&d.sync_version)window.ROVER_SYNC_VERSION=d.sync_version;
     updateUI(d);
-    setText("conn",connectionText(d));
+    setText("conn",connectionText(d));setText("serverHeaderSub","Backend reachable");
   }catch(e){
     if(me){
       setText("conn",window.roverWS?.readyState===WebSocket.OPEN?"● ONLINE • REALTIME":"● RECONNECTING");
-    }else setText("conn","● OFFLINE");
+    }else setText("conn","● OFFLINE");setText("serverHeaderSub","Backend unavailable");
   }finally{telemetryBusy=false;}
 }
 function scheduleTelemetry(){
