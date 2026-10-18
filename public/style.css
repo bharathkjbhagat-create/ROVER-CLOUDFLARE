@@ -1375,3 +1375,205 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 
 /* Software-only Return to Base route preview controls */
 .routePreviewBtn{background:#102a39;border:1px solid #2b6074;color:#c8f3ff;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:800;letter-spacing:.02em}.routePreviewBtn:hover{border-color:#22d3a6}
+
+@media (min-width:901px){
+  /* Alarm popup: bottom-right so it never hides the header, clock or camera */
+  #targetAlarmPopup{top:auto!important;bottom:20px!important;right:20px!important;width:min(380px,calc(100vw - 40px))!important}
+
+  /* Sidebar: nothing gets squashed; promo image hides on short screens */
+  .sidebar{overflow-y:auto;overscroll-behavior:contain;gap:10px}
+  .sidebar>*{flex:none}
+  .sideLogout{margin-top:auto;height:44px;font-size:13px}
+  .navItem{height:clamp(38px,5.4vh,46px);font-size:13px;gap:11px;white-space:nowrap}
+  .sideTitle{font-size:11px!important}
+  @media (max-height:860px){.sidePromo{display:none}}
+
+  /* Readable type (many labels were 7-9px) */
+  .missionBar h1{font-size:28px!important}
+  .missionBar .eyebrow{font-size:11px!important;letter-spacing:1.4px}
+  .missionLive b{font-size:12px}.missionLive small{font-size:12px}
+  .cardHeader{height:46px}.cardHeader b{font-size:13px!important}
+  .mapHeader>div:first-child span{font-size:11px}
+  .mapTab{font-size:12px;padding:8px 12px}
+  .mapCoordsHud span{font-size:10px}.mapCoordsHud b{font-size:12px}
+  .mapPathLabel{font-size:10px}
+  .mapToolRail button{width:38px;height:38px}
+  .cameraFooter span{font-size:11px}
+  .cameraFooter button{width:36px;height:30px}
+  .deviceChips span,.deviceChips b{font-size:11px}
+  .deviceTag{font-size:11px}
+  .statusBlocks small{font-size:11px!important}.statusBlocks b{font-size:15px!important}
+  .coordsTiny>span{font-size:10px}.coordsTiny b{font-size:12px}.coordsTiny small{font-size:11px}
+  .storageBar>span{font-size:11px}
+  .targetData span{font-size:11px!important}
+  .recentItem b{font-size:11px}.recentItem span{font-size:12px}.recentItem time{font-size:10px}
+  .adminLogTable th,.adminLogTable td{font-size:11px;padding:8px 7px}
+  .viewAll{font-size:11px!important}
+  .modeRow button{font-size:11px;height:40px}
+  .drivePad small{font-size:10px}
+  .permissionNotice{font-size:11px}
+  .returnBaseStatus{font-size:11px}.returnBaseActions button{font-size:11px}
+  .returnBaseControls small{font-size:11px}
+  .quickGrid button b{font-size:12px}
+  .empty{font-size:12px}
+  footer{font-size:11px!important;gap:10px}
+  footer .footerRight{margin-left:auto}
+
+  /* Target marker on the map must not sit on top of the compass */
+  .mapTargetHud{right:106px;top:14px}
+  .mapCoordsHud,.mapPathLabel,.mapToolRail,.mapCompass{line-height:1.3}
+  .mapCoordsHud b{margin-top:3px}
+
+  /* Camera: controls sit above the bottom labels instead of covering them */
+  .camera360Controls{left:8px;right:8px;bottom:34px;width:auto;transform:none;justify-content:center;flex-wrap:wrap;white-space:normal;gap:4px}
+  .camera360Controls button{height:26px;padding:0 6px;font-size:10px!important}
+  .camera360Hint{display:none}.camera360Controls b{font-size:11px;min-width:34px}
+  .cameraSceneLabel{font-size:9px}
+  /* Whole 3D room visible instead of cropped (scaled to the viewport width) */
+  .cameraViewport{--room-zoom:.6}
+  .camera3DRoom{zoom:var(--room-zoom)}
+  .camera3DScene{perspective:calc(820px * var(--room-zoom))}
+
+  /* Control panel: drive pad left, modes + return-to-base right */
+  .controlCard{display:grid;grid-template-columns:minmax(250px,330px) minmax(0,1fr);grid-template-areas:"head head" "pad mode" "pad base" "note note";align-content:start}
+  .controlCard>.cardHeader{grid-area:head}
+  .controlCard>.drivePad{grid-area:pad;align-self:start}
+  .controlCard>.modeRow{grid-area:mode;padding:14px 14px 0 0}
+  .controlCard>.returnBaseControls{grid-area:base;margin:12px 14px 12px 0;align-self:start}
+  .controlCard>.permissionNotice{grid-area:note;margin:0 14px 14px}
+
+  /* Device card fills its row; photo stays fully visible */
+  .deviceCard{display:flex;flex-direction:column}
+  .deviceCard>.cardHeader,.deviceCard>.deviceMetrics,.deviceCard>.deviceChips{flex:none}
+  .deviceCard .deviceView{position:relative;flex:1 1 0;aspect-ratio:auto!important;height:auto!important;min-height:250px}
+  .deviceCard .deviceView img{position:absolute;inset:0}
+  .deviceChips{flex-wrap:wrap}
+  .deviceChips span{flex:1 1 auto;gap:8px;white-space:nowrap}
+
+  /* Bottom strip: quick actions + system status */
+  .bottomGrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:14px;align-items:stretch}
+  .bottomGrid>.card{margin-top:0}
+  .quickCard{display:flex;flex-direction:column}
+  .quickCard .quickGrid{flex:1;align-content:stretch}
+  .safetyStrip{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;padding:6px;align-content:center}
+  .safetyStrip>div{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-areas:"icon title" "icon state";column-gap:10px;row-gap:1px;align-items:center;align-content:center;padding:10px 12px;border-right:1px solid #14384b;border-bottom:1px solid #14384b}
+  .safetyStrip>div:nth-child(2n){border-right:0}
+  .safetyStrip>div:nth-last-child(-n+2){border-bottom:0}
+  .safetyStrip>div>.safetyIcon{grid-area:icon}
+  .safetyStrip>div>b{grid-area:title;font-size:13px}
+  .safetyStrip>div>small{grid-area:state;margin:0;font-size:11px;letter-spacing:.4px}
+  .safetyStrip .warningAlarmControl{grid-template-areas:"icon title" "icon state" "btns btns"}
+  .safetyStrip .warningButtonRow{grid-area:btns;margin-top:8px}
+  .warnBtn{font-size:11px;padding:7px 10px}
+}
+
+/* ---- Laptops and desktops: 1100px and wider ---- */
+@media (min-width:1100px){
+  .appShell{grid-template-columns:clamp(200px,14vw,236px) minmax(0,1fr)}
+  .dashboard{width:100%;max-width:1900px;margin-inline:auto;padding:18px clamp(16px,1.8vw,32px) 28px}
+  .dashboardGrid{display:grid;grid-template-columns:minmax(0,1fr) clamp(350px,29vw,470px);grid-template-areas:"map camera" "control device";gap:14px;align-items:stretch}
+  .rightStack{display:contents}
+  .dashboardGrid>.mapCard{grid-area:map;height:auto!important;align-self:stretch}
+  .dashboardGrid>.mapCard>.mapArea{min-height:clamp(380px,50vh,640px)!important}
+  .dashboardGrid .cameraCard{grid-area:camera;display:flex;flex-direction:column}
+  .dashboardGrid .cameraCard>.cardHeader,.dashboardGrid .cameraCard>.cameraFooter{flex:none}
+  .dashboardGrid .cameraCard .cameraViewport{flex:1 1 auto;height:auto!important;min-height:260px}
+  .dashboardGrid .controlCard{grid-area:control}
+  .dashboardGrid .deviceCard{grid-area:device}
+
+  /* Lower cards: 3 across, event log full width; 4 across on big screens */
+  .lowerGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
+  .lowerGrid>.adminLogCard{grid-column:1/-1}
+  .adminLogTable{height:190px}
+  .lowerGrid>.adminLogCard{min-height:0}
+
+}
+@media (min-width:1100px) and (max-width:1279px){
+  .bottomGrid{grid-template-columns:minmax(0,1fr)}
+  .quickCard .quickGrid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .safetyStrip{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .safetyStrip>div:nth-child(2n){border-right:1px solid #14384b}
+  .safetyStrip>div:nth-child(3n){border-right:0}
+  .safetyStrip>div:nth-last-child(-n+2){border-bottom:1px solid #14384b}
+  .safetyStrip>div:nth-last-child(-n+3){border-bottom:0}
+  .cameraViewport{--room-zoom:.53}
+}
+@media (min-width:1280px){
+  .bottomGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .quickCard .quickGrid{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+}
+@media (min-width:1280px) and (max-width:1479px){.cameraViewport{--room-zoom:.58}}
+@media (min-width:1480px) and (max-width:1679px){.cameraViewport{--room-zoom:.66}}
+@media (min-width:1680px){.cameraViewport{--room-zoom:.72}}
+@media (min-width:1600px){
+  .lowerGrid{grid-template-columns:1fr 1fr 1.15fr 1.7fr}
+  .lowerGrid>.adminLogCard{grid-column:auto}
+  .adminLogTable{height:200px}
+}
+
+/* ---- Small laptops / tablets in landscape: 901-1099px ---- */
+@media (min-width:901px) and (max-width:1099px){
+  .appShell{grid-template-columns:76px minmax(0,1fr)}
+  .sidebar{padding:12px 8px;align-items:stretch}
+  .sideTitle,.sidePromo{display:none}
+  .sideLogout span{display:none}.sideLogout{text-align:center;padding:0}
+  .navItem{justify-content:center;padding:0;gap:0;font-size:0}
+  .navItem span{font-size:22px;width:auto}
+  .dashboard{padding:16px 18px 26px}
+  .dashboardGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));grid-template-areas:"map map" "camera device" "control control";gap:14px;align-items:stretch}
+  .rightStack{display:contents}
+  .dashboardGrid>.mapCard{grid-area:map;height:auto!important}
+  .dashboardGrid>.mapCard>.mapArea{min-height:420px!important}
+  .dashboardGrid .cameraCard{grid-area:camera;display:flex;flex-direction:column}
+  .dashboardGrid .cameraCard>.cardHeader,.dashboardGrid .cameraCard>.cameraFooter{flex:none}
+  .dashboardGrid .cameraCard .cameraViewport{flex:1 1 auto;height:auto!important;min-height:280px;--room-zoom:.62}
+  .dashboardGrid .controlCard{grid-area:control}
+  .dashboardGrid .deviceCard{grid-area:device}
+  .lowerGrid{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:14px}
+  .lowerGrid>.adminLogCard{grid-column:1/-1}
+  .adminLogTable{height:230px}
+  .bottomGrid{grid-template-columns:minmax(0,1fr)}
+  .quickCard .quickGrid{grid-template-columns:repeat(6,minmax(0,1fr))!important}
+  .safetyStrip{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .safetyStrip>div:nth-child(2n){border-right:1px solid #14384b}
+  .safetyStrip>div:nth-child(3n){border-right:0}
+  .safetyStrip>div:nth-last-child(-n+2){border-bottom:1px solid #14384b}
+  .safetyStrip>div:nth-last-child(-n+3){border-bottom:0}
+}
+@media (min-width:901px) and (max-width:1479px){.camera360Controls b{display:none}}
+@media (min-width:901px) and (max-width:1099px){
+  .brandSub{display:none}
+  .topStatus .statusBlock:nth-child(n+3){display:none}
+  .profileTop{min-width:120px}
+  .lowerGrid>.recentCard{grid-column:1/-1;min-height:0}
+  .lowerGrid>.recentCard .recentList{height:150px}
+  .lowerGrid>.adminLogCard{min-height:0}
+  .adminLogTable{height:190px}
+}
+@media (min-width:901px) and (max-width:1279px){
+  .topbar{grid-template-columns:auto minmax(0,1fr) auto!important;gap:10px}
+  .topStatus{min-width:0;justify-content:center}
+  .statusBlock{padding:7px 10px;min-width:0}
+  .statusBlock .statusIcon{display:none}
+  .topActions{gap:6px}
+  .controlCard{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "pad" "mode" "base" "note"}
+  .controlCard>.drivePad{width:100%;max-width:380px;justify-self:center}
+  .controlCard>.modeRow{padding:4px 14px 0}
+  .controlCard>.returnBaseControls{margin:12px 14px}
+}
+/* Light theme: text colour variables were never overridden (white text on white) */
+body.light{--ui-text:#16313e;--ui-muted:#4d6773}
+body.light .topbar :where(.statusBlock b,.profileWords b),body.light .sidebar .navItem.active{color:inherit}
+body.light .sidebar .navItem.active,body.light .sidebar .navItem.active span{color:#fff!important}
+body.light .cardHeader{background:linear-gradient(90deg,#e4eef3,#f4f9fb);border-bottom-color:#c9d7df}
+body.light .mapReadout{background:#f1f7f9;border-top-color:#c9d7df}
+body.light .mapReadout>div{border-right-color:#c9d7df}
+body.light .statusBlocks>div,body.light .coordsTiny>span,body.light .deviceChips span,body.light .permissionNotice,body.light .returnBaseControls,body.light .deviceTag{background:#eef5f8;border-color:#c9d7df}
+body.light .deviceMetrics,body.light .deviceMetrics>div{border-color:#c9d7df}
+body.light .coordsTiny b,body.light .returnBaseStatus{color:#16313e}
+body.light .returnBaseControls small,body.light .permissionNotice,body.light .storageBar>span,body.light .coordsTiny small,body.light .deviceChips span{color:#3f5f6e}
+body.light .deviceChips b{color:#0a7f63}
+body.light .adminLogTable th{background:#e4eef3;color:#3f5f6e}body.light .adminLogTable td{color:#23404d}
+body.light .recentItem span{color:#23404d}
+body.light .safetyStrip>div{border-color:#c9d7df}
+body.light .deviceTag{color:#0a6f58}
