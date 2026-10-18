@@ -1,15 +1,15 @@
 <!doctype html><html lang="en"><head><script>(function(){try{if(new URLSearchParams(location.search).get("demo")==="1")return;var nav=performance.getEntriesByType("navigation")[0];if(nav&&nav.type==="reload"){document.documentElement.style.visibility="hidden";location.replace("/api/logout");}}catch(_){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261018-01"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"></head>
+<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261018-02"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"></head>
 <body>
 <header class="topbar">
   <div class="brandCluster">
     <div class="brandWords"><div class="brandName defenxBrandName">DEFENX</div><div class="brandSub">DEFENX - Intelligence in Motion.</div><button id="mobileMenuBtn" class="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Open navigation"><span></span><span></span><span></span></button></div>
   </div>
   <div class="topStatus">
-    <div class="statusBlock"><span class="statusDot"></span><div><b>LIVE TRACKING ACTIVE</b><small id="connStatus">● ONLINE</small></div></div>
-    <div class="statusBlock"><span class="statusIcon">👥</span><div><b id="onlineUsers">4 Users Online</b><small id="onlineUsersSub">Admin + 3 Friends</small></div></div>
-    <div class="statusBlock"><span class="statusIcon">⌁</span><div><b id="gpsHeader">GPS</b><small>Active</small></div></div>
-    <div class="statusBlock"><span class="statusIcon">☁</span><div><b id="serverHeader">Server</b><small>Online</small></div></div>
+    <div class="statusBlock"><span class="statusDot"></span><div><b>ROVER LINK STATUS</b><small id="connStatus">● CHECKING</small></div></div>
+    <div class="statusBlock"><span class="statusIcon">👥</span><div><b id="onlineUsers">Presence unavailable</b><small id="onlineUsersSub">Live user count not reported</small></div></div>
+    <div class="statusBlock"><span class="statusIcon">⌁</span><div><b id="gpsHeader">GPS</b><small id="gpsHeaderSub">Not verified</small></div></div>
+    <div class="statusBlock"><span class="statusIcon">☁</span><div><b id="serverHeader">Server</b><small id="serverHeaderSub">Checking connection</small></div></div>
   </div>
   <div class="topActions">
     <button type="button" id="profileBtn" class="profileTop" aria-label="Administrator"><span class="profileWords"><b id="topRole">Administrator</b></span></button>
@@ -267,4 +267,4 @@
 <div id="usersTab"><div class="panelTitle">CURRENT USERS — MODIFY / RESET ACCESS</div><div id="userTable" class="tablewrap"></div><div class="panelTitle">ADD FRIEND / USER</div><div class="formgrid"><input id="newUsername" placeholder="Login ID"><input id="newDisplayName" placeholder="Display name"><input id="newPassword" type="password" placeholder="Password (10+ chars)"><select id="newRole"><option value="user">USER</option><option value="admin">ADMIN</option></select></div><div class="checks"><label><input id="newControl" type="checkbox"> Allow rover control</label><label><input id="newManage" type="checkbox"> Allow adding/managing users</label></div><button type="button" id="createUserBtn">CREATE USER</button><div id="userMsg" class="formmsg"></div></div>
 <div id="auditTab" class="hidden"><div class="panelTitle">WHO LOGGED IN / WHAT THEY DID</div><div id="auditTable" class="tablewrap"></div></div></div></div>
 
-<script src="/app.js?v=20261010-alarm-status-02" defer></script></body></html>
+<script src="/app.js?v=20261018-status-01" defer></script></body></html>
