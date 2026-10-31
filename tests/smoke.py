@@ -82,6 +82,7 @@ assert "ROVER_DEVICE" in app_js
 
 ai_js = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
 assert "lite_mobilenet_v2" in ai_js
+assert 'deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE"' in app_js
 assert "cocoSsd.load" in ai_js
 assert '"person"' in ai_js
 assert '"motorcycle"' in ai_js
