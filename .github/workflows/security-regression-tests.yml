@@ -33,6 +33,8 @@ jobs:
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate JavaScript
         run: node --check public/app.js
+      - name: Validate browser AI vision JavaScript
+        run: node --check public/ai-vision.js
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Run backend smoke tests
