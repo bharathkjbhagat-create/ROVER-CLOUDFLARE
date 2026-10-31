@@ -157,6 +157,7 @@
       item.class === "person" || vehicles.has(item.class)
     );
 
+    lastPredictions = visible;
     visible.forEach(item => {
       const isHuman = item.class === "person";
       const x = item.bbox[0] * scale + offsetX;
@@ -224,10 +225,12 @@
     }
 
     try {
-      const dimensions = sourceSize(source);
-      checkReadable(source);
-      const predictions = await model.detect(source, 20, 0.5);
-      if (!running || paused || !source) return;
+      const activeSource = source;
+      const generation = sourceGeneration;
+      const dimensions = sourceSize(activeSource);
+      checkReadable(activeSource);
+      const predictions = await model.detect(activeSource, 20, 0.5);
+      if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
       const visible = drawDetections(predictions, dimensions.width, dimensions.height);
       publishCounts(visible);
       setState("active", visible.length
@@ -329,7 +332,10 @@
   });
 
   window.addEventListener("resize", () => {
-    if (running) drawDetections(lastPredictions, sourceSize(source).width, sourceSize(source).height);
+    if (running && source) {
+      const dimensions = sourceSize(source);
+      drawDetections(lastPredictions, dimensions.width, dimensions.height);
+    }
   });
 
   if (demoMode) {
