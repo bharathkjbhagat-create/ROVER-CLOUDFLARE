@@ -25,6 +25,7 @@ Run from the repository root with Python 3.12+ and dependencies installed:
 python -m pip install -e .
 python -m py_compile src/app.py src/worker.py
 node --check public/app.js
+node --check public/ai-vision.js
 python scripts/build_assets.py
 python scripts/check_performance_budget.py
 python tests/smoke.py
@@ -32,6 +33,10 @@ python -m unittest discover -s tests -p 'test_*.py'
 ```
 
 Do not merge authentication changes or deploy to production until the GitHub Actions checks pass and the deployed login/session flow has been verified.
+
+## Browser AI Vision
+
+The authenticated dashboard can run local human and vehicle detection on a direct rover MJPEG/image or video stream. It loads TensorFlow.js 4.22.0 and COCO-SSD 2.2.3 only after a readable live stream is available, using the lightweight MobileNet V2 model. It draws detections in the browser and does not upload camera frames or send AI results to the backend. Cross-origin camera streams must allow CORS; embedded iframe feeds cannot be analysed by the browser detector. Demo/simulated camera scenes are never treated as real detections.
 
 ## DEFENX Return to Base
 
