@@ -39,6 +39,8 @@ jobs:
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate frontend JavaScript
         run: node --check public/app.js
+      - name: Validate browser AI vision JavaScript
+        run: node --check public/ai-vision.js
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
       - name: Run authentication and security regression tests

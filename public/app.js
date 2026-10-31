@@ -354,7 +354,9 @@ function updateUI(input){
   window.defenxLatestTelemetry = input && typeof input === "object" ? input : null;
   // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
   const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
-  const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:Object.assign({},input&&input.target?input.target:{}, {lat:simTarget.lat,lon:simTarget.lon})};
+  const rawTarget=input&&input.target?input.target:{},deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE";
+  const safeTarget=Object.assign({},rawTarget,{type:deviceTarget?(rawTarget.type||"Object"):"Object",detected:deviceTarget&&rawTarget.detected===true,range_m:deviceTarget?(rawTarget.range_m||0):0,speed_kmh:deviceTarget?(rawTarget.speed_kmh||0):0,confidence:deviceTarget?(rawTarget.confidence||0):0,lat:simTarget.lat,lon:simTarget.lon});
+  const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:safeTarget};
   const gpsQuality=d.gps_fix?(Number(d.gps_sats||0)>=8?"Excellent":Number(d.gps_sats||0)>=5?"Good":"Fair"):"No Fix";
   setText("battery",Math.round(Number(d.battery||0))+"%");setText("deviceBattery",Math.round(Number(d.battery||0))+"%");
   setText("signal",Math.round(Number(d.signal||0))+"%");setText("signalDevice",Number(d.signal||0)>=70?"Strong":Number(d.signal||0)>=45?"Medium":"Weak");
@@ -395,8 +397,8 @@ function updateUI(input){
   const batteryPct=Math.max(0,Math.min(100,Number(d.battery||0)));const signalPct=Math.max(0,Math.min(100,Number(d.signal||0)));
   const batteryBar=$("batteryBar");if(batteryBar)batteryBar.style.width=batteryPct+"%";
   const signalBar=$("signalBar");if(signalBar)signalBar.style.width=signalPct+"%";
-  setText("person",d.ai?.person||0);setText("vehicle",d.ai?.vehicle||0);setText("object",d.ai?.object||0);setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence",Math.round((d.ai?.confidence||0)*100)+"%");
-  setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState",(d.target?.detected||d.ai?.confidence>0.5)?"DETECTING":"READY");
+  setText("person","0");setText("vehicle","0");setText("object","0");setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence","0%");
+  setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
   setText("missionObstacle",(d.obstacle_cm??"--")+" cm");setText("missionTracking",d.tracking===false?"PAUSED":"ACTIVE");setText("missionGeofence",d.geofence===false?"OFF":"ACTIVE");setText("missionNetwork",d.network||"ONLINE");setText("missionState",(Number(d.obstacle_cm||999)<45)?"WARNING":"READY");
   updateWarningControlUI(d);
   const t=d.target||{type:"Object",range_m:0,speed_kmh:0,heading:0,direction:"N",size_m:0,confidence:0,lat:Number(d.lat),lon:Number(d.lon),detected:false};
@@ -653,7 +655,7 @@ async function initRealCameraStream(){
       img.decoding="async";
       img.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
       img.onload=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      img.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","DEMO CAMERA VIEW • SIMULATION")};
+      img.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       img.src=d.url;
       media.replaceWith(img);
       media=img;
@@ -663,7 +665,7 @@ async function initRealCameraStream(){
       video.autoplay=true;video.muted=true;video.playsInline=true;video.controls=false;
       video.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
       video.onloadeddata=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      video.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","DEMO CAMERA VIEW • SIMULATION")};
+      video.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       video.src=d.url;
       media.replaceWith(video);
       media=video;

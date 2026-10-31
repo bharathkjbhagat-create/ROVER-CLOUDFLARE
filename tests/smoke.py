@@ -80,4 +80,13 @@ assert "updateWarningControlUI({obstacle_cm:d.obstacle_cm,target:{detected}})" i
 assert 'localStorage.setItem("rover_warning_display"' in app_js
 assert "ROVER_DEVICE" in app_js
 
+ai_js = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
+assert "lite_mobilenet_v2" in ai_js
+assert 'deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE"' in app_js
+assert "cocoSsd.load" in ai_js
+assert '"person"' in ai_js
+assert '"motorcycle"' in ai_js
+assert "defenx-ai-detection" in ai_js
+assert "navigator.mediaDevices.getUserMedia" not in ai_js
+
 print("DEFENX smoke tests: PASS")
