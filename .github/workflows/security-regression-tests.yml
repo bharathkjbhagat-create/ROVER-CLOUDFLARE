@@ -35,6 +35,8 @@ jobs:
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
+      - name: Validate full-screen monitor JavaScript
+        run: node --check public/monitor.js
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Run backend smoke tests

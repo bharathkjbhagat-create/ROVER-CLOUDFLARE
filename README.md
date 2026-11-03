@@ -26,6 +26,7 @@ python -m pip install -e .
 python -m py_compile src/app.py src/worker.py
 node --check public/app.js
 node --check public/ai-vision.js
+node --check public/monitor.js
 python scripts/build_assets.py
 python scripts/check_performance_budget.py
 python tests/smoke.py

@@ -8,7 +8,7 @@ Software route-preview controls are now included for dashboard testing: direct p
 
 - **Website / Cloudflare control centre:** authenticated operator selects a base on the map, requests return, cancels, and views acknowledged state. The website is not the real-time motor controller.
 - **Onboard navigation computer:** recommended Raspberry Pi-class computer for route planning, localization fusion, and camera inference. Select final model only after measuring camera workload, power budget, heat, and cost.
-- **Independent safety controller:** a dedicated hardware safety layer supervises motor outputs, sensor freshness, speed limits, watchdog, and emergency stop. Navigation software cannot override its stop state.
+- **Independent safety controller:** ESP32-class microcontroller supervises motor outputs, sensor freshness, speed limits, watchdog, and emergency stop. Navigation software cannot override its stop state.
 - **Localization:** GNSS/GPS plus wheel encoders and IMU; use GNSS accuracy/fix age and consistency checks. GPS coordinates alone do not prove traversability or precise docking.
 - **Obstacle sensing:** multi-direction ranging sensors appropriate to the environment plus camera-based object/scene detection. Camera inference is supplementary, not the sole collision-protection layer.
 - **Motor driver:** compatible with motor voltage and stall/startup current, with a hardware means to disable motor power safely.
