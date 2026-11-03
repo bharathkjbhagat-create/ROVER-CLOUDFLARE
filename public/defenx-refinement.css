@@ -265,3 +265,62 @@ footer { color: #788b91 !important; }
 @media (max-width:520px) {
   .deviceCard .statusBlocks { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
 }
+
+/* CAMERA-FIRST DASHBOARD: make the camera the dominant workspace panel. */
+@media (min-width: 901px) {
+  .dashboardGrid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, .9fr) !important;
+    grid-template-areas:
+      "camera camera"
+      "map control"
+      "map device" !important;
+    align-items: start !important;
+    gap: 14px !important;
+  }
+  .dashboardGrid > .mapCard { grid-area: map !important; }
+  .dashboardGrid > .rightStack { display: contents !important; }
+  .dashboardGrid .cameraCard { grid-area: camera !important; min-height: 0 !important; }
+  .dashboardGrid .controlCard { grid-area: control !important; }
+  .dashboardGrid .deviceCard { grid-area: device !important; }
+  .dashboardGrid .cameraCard .cameraViewport {
+    height: min(68vh, 720px) !important;
+    min-height: 520px !important;
+    max-height: 720px !important;
+    flex: none !important;
+    margin: 12px !important;
+  }
+  .dashboardGrid .cameraCard .camera3DScene,
+  .dashboardGrid .cameraCard .streetViewFeed {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+@media (max-width: 900px) {
+  .dashboardGrid { display: flex !important; flex-direction: column !important; }
+  .dashboardGrid > .mapCard,
+  .dashboardGrid > .rightStack { width: 100% !important; }
+  .dashboardGrid > .rightStack { display: flex !important; flex-direction: column !important; }
+  .dashboardGrid .cameraCard { order: -1 !important; width: 100% !important; }
+  .dashboardGrid .cameraCard .cameraViewport {
+    height: clamp(340px, 68vw, 560px) !important;
+    min-height: 340px !important;
+    max-height: 560px !important;
+  }
+  .dashboardGrid .cameraCard .camera3DScene,
+  .dashboardGrid .cameraCard .streetViewFeed {
+    position: absolute !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+  }
+}
+@media (max-width: 520px) {
+  .dashboardGrid .cameraCard .cameraViewport {
+    height: 72vw !important;
+    min-height: 300px !important;
+    max-height: 430px !important;
+  }
+}
