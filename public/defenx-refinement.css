@@ -187,3 +187,81 @@ footer { color: #788b91 !important; }
   html { scroll-behavior: auto; }
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* DEFENX approved dashboard layout — compact device/control, dominant camera, clean surfaces */
+@media (min-width:1100px) {
+  .dashboardGrid {
+    grid-template-columns:minmax(0,1.45fr) minmax(390px,.9fr) !important;
+    grid-template-areas:"map camera" "control device" !important;
+    gap:12px !important;
+  }
+  .dashboardGrid .cameraCard { min-height:560px !important; }
+  .dashboardGrid .cameraCard .cameraViewport {
+    min-height:390px !important;
+    height:390px !important;
+    flex:1 1 390px !important;
+  }
+  .dashboardGrid .controlCard { min-height:0 !important; }
+  .dashboardGrid .deviceCard { min-height:0 !important; }
+}
+@media (min-width:901px) and (max-width:1099px) {
+  .dashboardGrid { grid-template-areas:"map map" "camera device" "control control" !important; }
+  .dashboardGrid .cameraCard .cameraViewport { min-height:340px !important; }
+}
+.cameraCard, .controlCard, .deviceCard, .statusCard {
+  background:#0c151d !important;
+  background-image:none !important;
+  backdrop-filter:none !important;
+}
+.cameraCard::before,.cameraCard::after,.controlCard::before,.controlCard::after,
+.cameraViewport::before,.cameraViewport::after {
+  background-image:none !important;
+  animation:none !important;
+}
+.cameraViewport { background:#05090d !important; }
+.camera3DScene { background:#080e13 !important; }
+.camera3DRoom { filter:none !important; }
+.controlCard .cardHeader,.cameraCard .cardHeader {
+  background:#0c151d !important;
+}
+.controlCard .drivePad { gap:5px !important; padding:8px 10px 5px !important; }
+.controlCard .drivePad button { height:48px !important; box-shadow:none !important; }
+.controlCard .modeRow { padding:6px 10px !important; gap:5px !important; }
+.controlCard .returnBaseControls { margin:7px 10px !important; padding:8px !important; }
+.controlCard .returnBaseControls small { line-height:1.35 !important; }
+.controlCard .permissionNotice { margin:0 10px 10px !important; padding:7px !important; }
+.deviceCard .cardHeader > b { font-size:11px !important; letter-spacing:.08em !important; }
+.deviceCard .deviceView { height:112px !important; min-height:112px !important; flex:none !important; }
+.deviceCard .deviceView img { height:100% !important; object-fit:contain !important; }
+.deviceCard .deviceMetrics { padding:6px 10px !important; gap:6px !important; }
+.deviceCard .deviceChips { padding:0 10px 8px !important; gap:5px !important; }
+.deviceCard .deviceChips span { padding:6px 7px !important; font-size:8px !important; }
+.deviceCard .statusCard {
+  margin:0 8px 8px !important;
+  min-height:0 !important;
+  border:1px solid rgba(107,130,139,.22) !important;
+  border-radius:9px !important;
+  box-shadow:none !important;
+}
+.deviceCard .statusCard .cardHeader { min-height:30px !important; padding:6px 9px !important; }
+.deviceCard .statusCard .cardHeader > b { font-size:9px !important; }
+.deviceCard .statusBlocks { display:grid !important; grid-template-columns:repeat(4,minmax(0,1fr)) !important; gap:4px !important; padding:6px !important; }
+.deviceCard .statusBlocks > div { min-height:0 !important; padding:5px !important; display:grid !important; grid-template-columns:auto 1fr !important; gap:2px 4px !important; }
+.deviceCard .statusBlocks .statusGlyph { display:none !important; }
+.deviceCard .statusBlocks small { font-size:7px !important; }
+.deviceCard .statusBlocks b { font-size:10px !important; }
+.deviceCard .storageBar { margin:0 8px 6px !important; }
+.deviceCard .coordsTiny { padding:0 8px 7px !important; gap:4px !important; }
+.deviceCard .coordsTiny > span { padding:4px 5px !important; font-size:7px !important; }
+.deviceCard .coordsTiny small { font-size:7px !important; }
+#onlineUsers { display:none !important; }
+@media (max-width:900px) {
+  .cameraCard .cameraViewport { height:58vw !important; min-height:260px !important; max-height:440px !important; }
+  .controlCard .drivePad { max-width:310px !important; margin:auto !important; }
+  .controlCard .drivePad button { height:46px !important; }
+  .deviceCard .deviceView { height:105px !important; min-height:105px !important; }
+  .deviceCard .statusBlocks { grid-template-columns:repeat(4,minmax(0,1fr)) !important; }
+}
+@media (max-width:520px) {
+  .deviceCard .statusBlocks { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+}
