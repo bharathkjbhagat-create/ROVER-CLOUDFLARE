@@ -29,6 +29,8 @@ jobs:
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript syntax
         run: node --check public/ai-vision.js
+      - name: Validate full-screen monitor JavaScript syntax
+        run: node --check public/monitor.js
       - name: Validate Python Worker syntax
         run: python -m py_compile src/app.py src/worker.py
       - name: Install uv
