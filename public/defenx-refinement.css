@@ -1,0 +1,189 @@
+/* DEFENX interface refinement — visual-only layer; preserves existing behaviour. */
+:root {
+  --bg: #070d13;
+  --card: #0d1720;
+  --line: #243744;
+  --text: #e8eef2;
+  --muted: #91a0aa;
+  --accent: #a8bd8c;
+  --danger: #d66d68;
+  --defenx-brass: #b8a477;
+  --defenx-panel: rgba(13, 23, 32, .96);
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background:
+    radial-gradient(ellipse at 82% 0%, rgba(121, 143, 111, .10), transparent 32rem),
+    radial-gradient(ellipse at 5% 38%, rgba(66, 91, 105, .12), transparent 35rem),
+    #070d13;
+  color: var(--text);
+  letter-spacing: .01em;
+}
+
+.topbar {
+  background: rgba(7, 13, 19, .96) !important;
+  border-bottom: 1px solid rgba(184, 164, 119, .26) !important;
+  box-shadow: 0 8px 28px rgba(0,0,0,.22);
+  backdrop-filter: blur(18px);
+}
+.brandName, .defenxBrandName {
+  color: #f0f2ed;
+  letter-spacing: .18em !important;
+  text-shadow: 0 0 22px rgba(184,164,119,.13);
+}
+.brandSub { color: #9ba79d !important; letter-spacing: .07em; }
+.topStatus .statusBlock { border-left-color: rgba(184,164,119,.18) !important; }
+.topStatus .statusBlock b { color: #cbd3d4 !important; letter-spacing: .09em; }
+.topStatus .statusBlock small { color: #93a2a8 !important; }
+.statusDot, .livePulse { background: #a8bd8c !important; box-shadow: 0 0 12px rgba(168,189,140,.45) !important; }
+
+.sidebar {
+  background: linear-gradient(180deg, #0b141c, #080f15) !important;
+  border-right: 1px solid rgba(184,164,119,.20) !important;
+}
+.sideTitle, .eyebrow { color: #b8a477 !important; letter-spacing: .16em !important; }
+.navItem {
+  color: #aeb9bd !important;
+  border: 1px solid transparent !important;
+  border-radius: 9px !important;
+  transition: background .18s ease, border-color .18s ease, color .18s ease;
+}
+.navItem:hover, .navItem.active {
+  color: #f0f2ed !important;
+  background: linear-gradient(100deg, rgba(168,189,140,.15), rgba(168,189,140,.035)) !important;
+  border-color: rgba(168,189,140,.23) !important;
+}
+.navItem.active span { color: #c6d4aa !important; }
+.sidePromo {
+  border-color: rgba(184,164,119,.25) !important;
+  background: linear-gradient(145deg, #111e27, #0a1219) !important;
+}
+.sidePromo b { color: #e8ece7 !important; letter-spacing: .18em; }
+.sidePromo span { color: #91a09f !important; }
+
+.dashboard { background: transparent !important; }
+.missionBar {
+  border-bottom: 1px solid rgba(184,164,119,.18) !important;
+  padding-bottom: 16px !important;
+}
+.missionBar h1 { color: #f0f2ed !important; letter-spacing: -.035em; }
+.missionLive {
+  border: 1px solid rgba(168,189,140,.24) !important;
+  background: rgba(13,23,32,.78) !important;
+  border-radius: 10px !important;
+}
+.card {
+  background: linear-gradient(155deg, rgba(16,27,37,.98), var(--defenx-panel)) !important;
+  border: 1px solid rgba(107,130,139,.27) !important;
+  border-radius: 13px !important;
+  box-shadow: 0 12px 32px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.025) !important;
+  backdrop-filter: blur(12px);
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.card:hover {
+  border-color: rgba(168,189,140,.34) !important;
+  box-shadow: 0 14px 36px rgba(0,0,0,.27), inset 0 1px 0 rgba(255,255,255,.035) !important;
+}
+.cardHeader {
+  background: linear-gradient(90deg, rgba(184,164,119,.065), transparent 72%) !important;
+  border-bottom: 1px solid rgba(107,130,139,.20) !important;
+}
+.cardHeader > b { color: #e3e9e8 !important; letter-spacing: .105em; }
+.cardHeader > span { color: #96a5a9 !important; }
+
+.mapArea { border-color: rgba(107,130,139,.22) !important; }
+.mapCoordsHud, .mapTargetHud, .mapCompass, .mapToolRail {
+  border-color: rgba(184,164,119,.28) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,.24);
+}
+.mapCoordsHud span, .mapPathLabel { color: #c2b48e !important; }
+.mapReadout { background: #0a141c !important; border-top-color: rgba(184,164,119,.2) !important; }
+.mapReadout > div { border-right-color: rgba(107,130,139,.2) !important; }
+.mapReadout span, .deviceMetrics span, .targetData span { color: #91a0a8 !important; }
+.mapReadout b, .deviceMetrics b, .targetData b { color: #e6ece9 !important; }
+
+.cameraViewport { background: #080f15 !important; border-color: rgba(107,130,139,.22) !important; }
+.cameraOverlayTop, .cameraOverlayBottom { color: #c8d1cb !important; }
+.cameraFooter { border-top-color: rgba(107,130,139,.2) !important; }
+.cameraFooter > span { color: #94a1a5 !important; }
+.aiVisionBar { background: #0a141b !important; border-top-color: rgba(168,189,140,.2) !important; }
+.aiVisionLead b { color: #e1e8e3 !important; }
+.aiVisionNote { color: #89999d !important; }
+
+button, .mapTab {
+  border-color: rgba(117,139,145,.34) !important;
+  background-color: #15232c;
+  color: #e4ebe8;
+  border-radius: 8px;
+  transition: background .16s ease, border-color .16s ease, transform .16s ease;
+}
+button:hover:not(:disabled) {
+  border-color: rgba(168,189,140,.68) !important;
+  background-color: #1a2b33;
+}
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline: 2px solid #c0d39d !important;
+  outline-offset: 3px;
+}
+.mapTab.active, .modeBtn.active {
+  background: rgba(168,189,140,.16) !important;
+  border-color: rgba(168,189,140,.56) !important;
+  color: #eaf1df !important;
+}
+.control.stop { background: #382126 !important; border-color: #88515a !important; }
+.control.forward, .control.reverse, .control.left, .control.right {
+  background: #14232a !important;
+  border-color: rgba(168,189,140,.3) !important;
+}
+.commandChip, .greenPill, .onlineLabel { letter-spacing: .08em; }
+
+.statusBlocks > div, .coordsTiny > span, .deviceChips span,
+.permissionNotice, .returnBaseControls {
+  background: rgba(7,15,21,.62) !important;
+  border-color: rgba(107,130,139,.24) !important;
+}
+.statusBlocks small, .coordsTiny small, .returnBaseControls small { color: #8f9fa4 !important; }
+.statusBlocks b, .coordsTiny b, .deviceChips b { color: #dfe7e3 !important; }
+.targetTrackLine { opacity: .48; }
+.recentItem { border-bottom-color: rgba(107,130,139,.18) !important; }
+.adminLogTable th { background: #111f28 !important; color: #b7c1bd !important; }
+.adminLogTable td { color: #d2dcda !important; }
+.safetyStrip { border-color: rgba(107,130,139,.24) !important; }
+.safetyStrip > div { border-color: rgba(107,130,139,.18) !important; }
+.safetyStrip b { color: #dce5e0 !important; }
+.safetyStrip small { color: #94a39f !important; }
+
+/* The toggle duplicated the adjacent explicit ON and OFF controls. */
+#warningToggleBtn { display: none !important; }
+/* Keep secondary shortcuts available, but collapsed until the operator needs them. */
+.foldCard { border-color: rgba(107,130,139,.2) !important; }
+.foldCard > summary { color: #aab8b3 !important; letter-spacing: .12em; }
+
+.modalbox {
+  background: #0d1821 !important;
+  border-color: rgba(184,164,119,.3) !important;
+  box-shadow: 0 24px 70px rgba(0,0,0,.5) !important;
+}
+.modalhead { border-bottom-color: rgba(107,130,139,.2) !important; }
+.modalbox input, .modalbox select, .modalbox textarea {
+  background: #081119 !important;
+  border-color: rgba(107,130,139,.35) !important;
+  color: #e5ece8 !important;
+}
+footer { color: #788b91 !important; }
+
+@media (max-width: 700px) {
+  .topbar { backdrop-filter: blur(14px); }
+  .dashboard { padding-left: 12px !important; padding-right: 12px !important; }
+  .missionBar { align-items: flex-start; gap: 10px; }
+  .missionBar h1 { font-size: clamp(23px, 6vw, 30px); }
+  .card { border-radius: 11px !important; }
+  .mapReadout { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .mapReadout > div:nth-child(2) { border-right: 0; }
+  .mapReadout > div:nth-child(-n+2) { border-bottom: 1px solid rgba(107,130,139,.18); }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
