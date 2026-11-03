@@ -1,5 +1,5 @@
 <!doctype html><html lang="en"><head><script>(function(){try{if(new URLSearchParams(location.search).get("demo")==="1")return;var nav=performance.getEntriesByType("navigation")[0];if(nav&&nav.type==="reload"){document.documentElement.style.visibility="hidden";location.replace("/api/logout");}}catch(_){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261031-ai-01"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"></head>
+<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261031-ai-01"><link rel="stylesheet" href="/monitor.css?v=20261103-01"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"></head>
 <body>
 <header class="topbar">
   <div class="brandCluster">
@@ -109,8 +109,9 @@
 
       <div class="rightStack">
         <section id="liveCamera" class="card cameraCard">
-          <div class="cardHeader"><b>LIVE CAMERA VIEW</b><span class="liveBadge"><i></i> LIVE</span></div>
+          <div class="cardHeader"><b>LIVE CAMERA VIEW</b><span class="mvHeadRight"><span class="liveBadge mvOff"><i></i> CHECKING</span><button type="button" id="viewFullBtn" class="mvViewFull" title="Open full-screen monitor" aria-label="View full-screen monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>VIEW FULL</button></span></div>
           <div class="cameraViewport" id="cameraViewport">
+            <div id="camPlaceholder" class="camPlaceholder" hidden><span id="camPlaceholderMsg">Checking camera…</span><button type="button" id="camPlaceholderRetry">Reconnect</button></div>
             <div class="camera3DScene" id="camera3DScene" aria-label="Temporary 3D room camera view">
   <div class="camera3DRoom" id="camera3DRoom">
     <div class="roomPanel roomBack">
@@ -235,7 +236,7 @@
       </section>
     </section>
 
-    <section class="quickCard card">
+    <details class="foldCard"><summary>QUICK ACTIONS</summary><section class="quickCard card">
       <div class="cardHeader"><b>QUICK ACTIONS</b><span>Command shortcuts</span></div>
       <div class="quickGrid">
         <button type="button" id="liveTrackBtn"><span>⌖</span><b>Live Track</b></button>
@@ -245,7 +246,7 @@
         <button type="button" id="nightModeBtn"><span>◐</span><b>Night Mode</b></button>
         <button type="button" id="screenShotBtn"><span>▣</span><b>Screenshot</b></button>
       </div>
-    </section>
+    </section></details>
 
     <section class="card safetyStrip">
       <div><span class="safetyIcon">✓</span><b>GPS Tracking</b><small>ACTIVE</small></div>
@@ -268,4 +269,4 @@
 <div id="usersTab"><div class="panelTitle">CURRENT USERS — MODIFY / RESET ACCESS</div><div id="userTable" class="tablewrap"></div><div class="panelTitle">ADD FRIEND / USER</div><div class="formgrid"><input id="newUsername" placeholder="Login ID"><input id="newDisplayName" placeholder="Display name"><input id="newPassword" type="password" placeholder="Password (10+ chars)"><select id="newRole"><option value="user">USER</option><option value="admin">ADMIN</option></select></div><div class="checks"><label><input id="newControl" type="checkbox"> Allow rover control</label><label><input id="newManage" type="checkbox"> Allow adding/managing users</label></div><button type="button" id="createUserBtn">CREATE USER</button><div id="userMsg" class="formmsg"></div></div>
 <div id="auditTab" class="hidden"><div class="panelTitle">WHO LOGGED IN / WHAT THEY DID</div><div id="auditTable" class="tablewrap"></div></div></div></div>
 
-<script src="/app.js?v=20261031-ai-01" defer></script><script src="/ai-vision.js?v=20261031-01" defer></script></body></html>
+<script src="/app.js?v=20261031-ai-01" defer></script><script src="/ai-vision.js?v=20261031-01" defer></script><script src="/monitor.js?v=20261103-01" defer></script></body></html>
