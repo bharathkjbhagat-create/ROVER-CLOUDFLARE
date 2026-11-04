@@ -1592,3 +1592,18 @@ body.light .deviceTag{color:#0a6f58}
 .aiVisionBar button{min-height:28px;padding:0 9px;border:1px solid #2a8872;border-radius:6px;background:#0d2923;color:#bafbe4;font-size:8px;font-weight:900;letter-spacing:.4px}.aiVisionBar button:disabled{opacity:.45;cursor:not-allowed}
 .aiVisionNote{grid-column:1/-1;color:#698692;font-size:7px;line-height:1.3}
 @media(max-width:480px){.aiVisionBar{grid-template-columns:minmax(0,1fr) auto;gap:8px}.aiVisionCounts{grid-column:1;grid-row:2}.aiVisionBar button{grid-column:2;grid-row:1/3}.aiVisionNote{grid-column:1/-1}}
+
+
+/* Dedicated settings panel */
+.settingsIntro{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.5}
+.settingsRows{display:grid;gap:8px}
+.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.settingsRow>div{min-width:0}
+.settingsRow b{display:block;color:var(--text);font-size:12px}
+.settingsRow small{display:block;margin-top:4px;color:var(--muted);font-size:10px;line-height:1.45}
+.settingsRow button{flex:0 0 auto;min-width:145px;max-width:48%;margin:0;padding:8px 10px;font-size:9px;line-height:1.35;white-space:normal}
+.settingsBox .formmsg{margin:10px 0 0}
+.cameraFooter #camActionStatus{flex:1 1 100%;min-height:13px;font-size:9px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.cameraFooter #camRecordBtn.active{font-weight:900;animation:cameraRecordPulse 1.1s ease-in-out infinite}
+@keyframes cameraRecordPulse{50%{opacity:.55}}
+@media(max-width:560px){.settingsRow{align-items:flex-start;flex-direction:column}.settingsRow button{max-width:none;width:100%}.cameraFooter #camActionStatus{font-size:8px}}
