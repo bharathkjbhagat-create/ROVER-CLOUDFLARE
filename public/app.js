@@ -385,8 +385,8 @@ function updateUI(input){
     range_m:demoMode?(rawTarget.range_m||0):(deviceTarget?(rawTarget.range_m||0):0),
     speed_kmh:demoMode?(rawTarget.speed_kmh||0):(deviceTarget?(rawTarget.speed_kmh||0):0),
     confidence:demoMode?(rawTarget.confidence||0):(deviceTarget?(rawTarget.confidence||0):0),
-    lat:(demoMode&&simTarget)?simTarget.lat:(deviceTarget&&targetHasCoordinates?Number(rawTarget.lat):null),
-    lon:(demoMode&&simTarget)?simTarget.lon:(deviceTarget&&targetHasCoordinates?Number(rawTarget.lon):null)
+    lat:(demoMode&&simTarget)?simTarget.lat:(deviceTarget&&hasVerifiedRoverGps&&targetHasCoordinates?Number(rawTarget.lat):null),
+    lon:(demoMode&&simTarget)?simTarget.lon:(deviceTarget&&hasVerifiedRoverGps&&targetHasCoordinates?Number(rawTarget.lon):null)
   });
   const trustedTrack=!demoMode&&incoming.gps_source==="ROVER_DEVICE"&&Array.isArray(incoming.track)
     ?incoming.track.filter(p=>p&&validCoordinatePair(p.lat,p.lon)).slice(-500).map(p=>({lat:Number(p.lat),lon:Number(p.lon)}))
