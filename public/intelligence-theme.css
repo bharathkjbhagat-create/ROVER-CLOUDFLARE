@@ -1,0 +1,83 @@
+/* DEFENX Intelligence Command Centre — visual system refresh.
+   Presentation-only overrides: preserve existing DOM, API hooks and control IDs. */
+:root{
+  --dx-bg:#070d14;--dx-panel:#0d1722;--dx-panel-2:#111e2b;--dx-line:#263747;
+  --dx-text:#e7edf2;--dx-muted:#8b9baa;--dx-green:#76c99a;--dx-green-strong:#39b879;
+  --dx-blue:#82a9c7;--dx-red:#d86c72;--dx-radius:13px;
+}
+html,body{background:var(--dx-bg);color:var(--dx-text);font-family:Inter,"Segoe UI",Arial,sans-serif}
+body{background:radial-gradient(ellipse at 78% 0%,#142536 0,transparent 34%),linear-gradient(145deg,#070d14,#0a111a 55%,#070d14)}
+button{font-family:inherit;letter-spacing:.01em}
+.topbar{min-height:68px;background:rgba(8,16,25,.97);border-bottom:1px solid #293b4b;box-shadow:0 8px 28px #0005;backdrop-filter:blur(12px)}
+.brandName,.defenxBrandName{font-size:23px;letter-spacing:3.2px;font-weight:850;color:#edf3f6}
+.brandSub{color:#91b6a2;letter-spacing:.9px;font-size:9px}
+.topStatus .statusBlock{border-left:1px solid #253746;padding-left:13px}
+.topStatus .statusBlock b{font-size:8px;letter-spacing:1.1px;color:#aebdca}
+.topStatus .statusBlock small{font-size:10px;color:#d2dce4}
+.statusDot,.livePulse{background:var(--dx-green-strong);box-shadow:0 0 9px #39b87955}
+.sidebar{background:#09121c;border-right:1px solid #263747;box-shadow:8px 0 25px #0002}
+.sideTitle,.eyebrow{color:#91a7b7;letter-spacing:1.7px;font-size:9px;font-weight:800}
+.navItem{border:1px solid transparent;border-radius:8px;color:#aebdca;background:transparent;font-size:11px;font-weight:650;transition:background .18s,border-color .18s}
+.navItem:hover{background:#142332;border-color:#2c4051}
+.navItem.active{background:linear-gradient(90deg,#19382d,#13271f);border-color:#345b48;color:#d9f1e3;box-shadow:inset 3px 0 #72c895}
+.navItem.active span{color:#8ed3a8}
+.sidePromo{border:1px solid #2b3e4b;border-radius:11px;background:linear-gradient(145deg,#132332,#0b1721);overflow:hidden}
+.sidePromo b{color:#e5edf2;letter-spacing:2px}
+.sidePromo span{color:#91a5b4}
+.dashboard{background:transparent}
+.missionBar{padding:18px 20px 16px;border:1px solid #263747;border-radius:12px;background:linear-gradient(110deg,#101d29,#0b151f 68%,#122131);box-shadow:0 8px 24px #0003}
+.missionBar h1{font-size:23px;letter-spacing:.2px;font-weight:720;color:#edf2f5}
+.missionLive{border:1px solid #315340;background:#10251c;border-radius:8px;padding:8px 12px;color:#c6e7d1}
+.missionLive b{font-size:9px;letter-spacing:1.2px}
+.card{background:linear-gradient(155deg,#111d29,#0c1620 78%);border:1px solid #2a3c4b;border-radius:var(--dx-radius);box-shadow:0 10px 28px #0003;transition:border-color .2s,transform .2s}
+.card:hover{border-color:#496052;transform:translateY(-1px)}
+.cardHeader{min-height:46px;padding:12px 15px;border-bottom:1px solid #263746}
+.cardHeader>b{font-size:10px;letter-spacing:1.35px;color:#dbe4ea}
+.cardHeader>span{color:#9aabba;font-size:10px}
+.mapArea{background:#0a121a}
+.mapCoordsHud,.mapTargetHud,.mapCompass,.mapPathLabel{background:rgba(8,17,25,.9);border:1px solid #3a5149;box-shadow:0 5px 16px #0005;backdrop-filter:blur(8px)}
+.mapCoordsHud span,.mapPathLabel{color:#9ab5a6;letter-spacing:1px}
+.mapCoordsHud b,.mapTargetHud strong{color:#e4eee8}
+.mapReadout{background:#0c1721;border-top:1px solid #263746}
+.mapReadout>div{border-right:1px solid #263746}
+.mapReadout span{color:#8fa1af;font-size:9px;letter-spacing:.6px}
+.mapReadout b{color:#e0e9ee;font:650 12px "SFMono-Regular",Consolas,monospace}
+.cameraViewport{background:#03070b;border:1px solid #293b49;border-radius:8px}
+.cameraOverlayTop,.cameraOverlayBottom{font-family:"SFMono-Regular",Consolas,monospace;letter-spacing:.6px}
+.cameraOverlayTop{background:#08131dcc;color:#dce7ec;border:1px solid #304252}
+.cameraFooter{background:#0c1721;border-top:1px solid #263746}
+.cameraFooter>span{color:#91a1ad;font-size:9px}
+.aiVisionBar{background:#102018;border:1px solid #345743;border-radius:8px}
+.aiVisionLead b{color:#d5eadb;letter-spacing:1px}
+button,.mapTab{border-radius:7px}
+button:not(.navItem):not(.mobileMenuBtn){border-color:#344b5c}
+button:hover:not(:disabled){filter:brightness(1.1)}
+.mapTab{background:#111e29;color:#aebdca;border:1px solid #2d4050}
+.mapTab.active,.modeBtn.active{background:#1a3b2c;color:#e1f2e6;border-color:#4b795b;box-shadow:none}
+.control.forward,.control.reverse,.control.left,.control.right{background:#172a35;border:1px solid #3a5261;color:#dce7ec}
+.control.stop{background:#4a2227;border:1px solid #81464b;color:#ffe5e6}
+.greenPill,.onlineLabel{background:#153425;color:#c8ead4;border:1px solid #3b6b4c}
+.modalbox{background:#101c27;border:1px solid #354959;border-radius:13px;box-shadow:0 24px 70px #0009}
+.modalhead{border-bottom:1px solid #293b49;padding-bottom:10px}
+.modalbox input,.modalbox select,.modalbox textarea{background:#09141e;border:1px solid #344a5b;color:#e4edf2;border-radius:7px}
+.adminLogTable th{color:#9aabba;background:#101d28}
+.adminLogTable td{color:#d5dfe6;border-color:#273846}
+footer{color:#718493;letter-spacing:.3px}
+.mobileNavPanel{background:#0b1721;border:1px solid #304454}
+@media(max-width:900px){
+ .topStatus{gap:8px}.topStatus .statusBlock{padding-left:8px}
+ .missionBar{padding:14px}
+ .card:hover{transform:none}
+}
+@media(max-width:700px){
+ .topbar{background:#09131d;border-bottom:1px solid #2b3d4b}
+ .topStatus{background:#0c1823;border:1px solid #273b4b;border-radius:8px;padding:6px}
+ .dashboard{padding:10px}
+ .missionBar{border-radius:10px}
+ .missionBar h1{font-size:20px}
+ .card{border-radius:10px}
+ .cardHeader{padding:10px 12px}
+ .mapReadout{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .mapReadout>div{padding:8px}
+}
+@media(prefers-reduced-motion:reduce){.card,.navItem{transition:none}}
