@@ -621,12 +621,14 @@ async function pollLoginAlerts(){
   }catch(_){} finally { loginAlertBusy=false; }
 }
 async function enableBrowserAlerts(){
-  if(!("Notification" in window)){setText("alertStatus","This browser does not expose browser notifications. In-app alerts remain active.");return}
+  const note=$("settingsNote");
+  const showResult=message=>{setText("alertStatus",message);if(note)note.textContent=message;};
+  if(!("Notification" in window)){showResult("This browser does not expose browser notifications. In-app alerts remain active.");return;}
   try{
     const p=await Notification.requestPermission();
-    if(p==="granted"){setText("alertStatus","Browser login alerts ENABLED on this device.");recordActivity("BROWSER_ALERTS_ENABLED","Browser notifications enabled")}
-    else setText("alertStatus","Browser notification permission was not granted. In-app alerts remain active.");
-  }catch(_){setText("alertStatus","Could not enable browser notifications. In-app alerts remain active.")}
+    if(p==="granted"){showResult("Browser login alerts are enabled on this device.");recordActivity("BROWSER_ALERTS_ENABLED","Browser notifications enabled");}
+    else showResult("Browser notification permission was not granted. In-app alerts remain active.");
+  }catch(_){showResult("Could not enable browser notifications. In-app alerts remain active.");}
 }
 function updatePermissionUI(){
   const control=!!me&&!demoMode;
@@ -1179,7 +1181,7 @@ function bindUI(){
   $("settingsThemeBtn")?.addEventListener("click",toggleTheme);
   $("settingsSoundBtn")?.addEventListener("click",toggleNotificationSound);
   $("settingsWarningBtn")?.addEventListener("click",toggleWarningDisplay);
-  $("settingsCameraReconnectBtn")?.addEventListener("click",()=>{if(window.ROVER_MONITOR?.reconnect){window.ROVER_MONITOR.reconnect();setCameraActionStatus("Camera reconnect requested.");}else setCameraActionStatus("Camera monitor is not ready yet.");});
+  $("settingsCameraReconnectBtn")?.addEventListener("click",()=>{const note=$("settingsNote");if(window.ROVER_MONITOR?.reconnect){window.ROVER_MONITOR.reconnect();if(note)note.textContent="Camera reconnect requested. Check the camera status on the dashboard.";setCameraActionStatus("Camera reconnect requested.");}else{if(note)note.textContent="Camera monitor is not ready yet.";setCameraActionStatus("Camera monitor is not ready yet.");}});
   $("settingsBrowserAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
   $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
   $("devicesTabBtn")?.addEventListener("click",loadDevices);
