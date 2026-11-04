@@ -155,7 +155,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .safetyStrip small { color: #94a39f !important; }
 
 /* The toggle duplicated the adjacent explicit ON and OFF controls. */
-#warningToggleBtn { display: none !important; }
+/* Warning toggle is interactive and must remain visible. */
 /* Keep secondary shortcuts available, but collapsed until the operator needs them. */
 .foldCard { border-color: rgba(107,130,139,.2) !important; }
 .foldCard > summary { color: #aab8b3 !important; letter-spacing: .12em; }
