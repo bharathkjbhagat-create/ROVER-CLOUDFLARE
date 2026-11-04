@@ -960,6 +960,14 @@ def cached_static(filename, mimetype):
 def app_js():
     return cached_static("app.js", "application/javascript")
 
+@app.get("/road-detail-overlay.js")
+def road_detail_overlay_js():
+    return cached_static("road-detail-overlay.js", "application/javascript")
+
+@app.get("/camera-target-overlay.js")
+def camera_target_overlay_js():
+    return cached_static("camera-target-overlay.js", "application/javascript")
+
 @app.get("/style.css")
 def style_css():
     return cached_static("style.css", "text/css")
