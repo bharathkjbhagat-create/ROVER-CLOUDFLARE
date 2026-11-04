@@ -27,6 +27,11 @@ jobs:
         run: python scripts/check_performance_budget.py
       - name: Validate frontend JavaScript syntax
         run: node --check public/app.js
+
+      - name: Validate detailed map overlay JavaScript
+        run: node --check public/road-detail-overlay.js
+      - name: Validate camera target overlay JavaScript
+        run: node --check public/camera-target-overlay.js
       - name: Validate browser AI vision JavaScript syntax
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript syntax
