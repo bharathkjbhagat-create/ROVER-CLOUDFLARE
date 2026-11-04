@@ -367,6 +367,12 @@ function isFreshRoverGps(telemetry,maxAgeSeconds=30,maxAccuracyM=100){
   const age=Date.now()/1000-epoch;
   return telemetry.gps_accuracy_m!==null&&telemetry.gps_accuracy_m!==undefined&&String(telemetry.gps_accuracy_m).trim()!==""&&Number.isFinite(accuracy)&&accuracy>=0&&accuracy<=maxAccuracyM&&Number.isFinite(epoch)&&epoch>0&&age>=-5&&age<=maxAgeSeconds;
 }
+function renderTrackLine(){
+  if(map&&trackPts.length>1){
+    if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);
+    else trackLine.setLatLngs(trackPts);
+  }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
+}
 function updateUI(input){
   const incoming=input&&typeof input==="object"?input:{};
   window.defenxLatestTelemetry=incoming;
@@ -473,12 +479,6 @@ function updateUI(input){
       if(!targetLine)targetLine=L.polyline(pts,{color:"#ff4858",weight:2,dashArray:"7 6",opacity:.95}).addTo(map);else targetLine.setLatLngs(pts);
     }
   }else{if(targetMarker&&map){map.removeLayer(targetMarker);targetMarker=null}if(targetLine&&map){map.removeLayer(targetLine);targetLine=null}}
-function renderTrackLine(){
-  if(map&&trackPts.length>1){
-    if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);
-    else trackLine.setLatLngs(trackPts);
-  }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
-}
   lastTelemetryTrack=(d.track||[]).map(x=>[Number(x.lat),Number(x.lon)]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])&&p[0]>=-90&&p[0]<=90&&p[1]>=-180&&p[1]<=180);
   if(liveTracking)trackPts=lastTelemetryTrack.slice();
   renderTrackLine();
