@@ -59,6 +59,8 @@ jobs:
           test -f public/monitor.js
           test -f public/login.html
           test -f public/app.js
+          test -f public/road-detail-overlay.js
+          test -f public/camera-target-overlay.js
           test -f public/style.css
           test -f public/manifest.webmanifest
           test -f public/sw.js
