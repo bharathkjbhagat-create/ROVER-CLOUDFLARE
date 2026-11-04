@@ -9,7 +9,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],lastTelemetryTrack=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,cameraRecorder=null,cameraRecordingFrame=0,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailOverlay=null;
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],lastTelemetryTrack=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailOverlay=null;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
@@ -1016,108 +1016,21 @@ function scrollToSection(id){
 }
 async function captureScreen(){
   addLog("SCREENSHOT","Full-screen screenshot requested");
-  if(!navigator.mediaDevices?.getDisplayMedia){setCameraActionStatus("Screen capture is not supported by this browser.");return;}
-  let stream=null;
-  try{
-    stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
-    const video=document.createElement("video");video.srcObject=stream;video.muted=true;video.playsInline=true;await video.play();
-    await new Promise(resolve=>{if(video.readyState>=2)return resolve();video.addEventListener("loadeddata",resolve,{once:true});});
-    const canvas=document.createElement("canvas");canvas.width=video.videoWidth||window.innerWidth;canvas.height=video.videoHeight||window.innerHeight;
-    const context=canvas.getContext("2d");if(!context)throw new Error("Canvas capture is unavailable.");
-    context.drawImage(video,0,0,canvas.width,canvas.height);
-    const blob=await new Promise(resolve=>canvas.toBlob(resolve,"image/png"));
-    if(!blob)throw new Error("The browser could not create the screenshot.");
-    downloadCameraBlob(blob,"DEFENX-dashboard-"+Date.now()+".png");
-    setCameraActionStatus("Dashboard screenshot saved.");
-    recordActivity("DASHBOARD_SCREENSHOT","Dashboard screenshot saved");
-  }catch(error){setCameraActionStatus(error?.name==="NotAllowedError"?"Screen capture was cancelled.":(error?.message||"Dashboard screenshot failed."));}
-  finally{if(stream)stream.getTracks().forEach(track=>track.stop());}
+  if(navigator.mediaDevices?.getDisplayMedia){
+    try{
+      const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
+      const video=document.createElement("video");video.srcObject=stream;video.muted=true;await video.play();
+      await new Promise(res=>setTimeout(res,250));
+      const canvas=document.createElement("canvas");canvas.width=video.videoWidth||window.innerWidth*2;canvas.height=video.videoHeight||window.innerHeight*2;
+      canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height);
+      stream.getTracks().forEach(t=>t.stop());
+      canvas.toBlob(blob=>{if(!blob)return;const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ROVER-01-dashboard-"+Date.now()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},"image/png");
+      return;
+    }catch(_){}
+  }
+  window.print();
 }
 function setCameraActionStatus(message){const el=$("camActionStatus");if(el)el.textContent=message;}
-function getLiveCameraFrame(){
-  if(demoMode)throw new Error("Camera capture is disabled in demo mode.");
-  const media=$("roverRealCamera");
-  if(!media||!realCameraActive)throw new Error("No authenticated live rover camera frame is available.");
-  if(media.tagName==="IFRAME")throw new Error("This embedded camera type does not expose frames for capture.");
-  const width=media.tagName==="VIDEO"?media.videoWidth:media.naturalWidth;
-  const height=media.tagName==="VIDEO"?media.videoHeight:media.naturalHeight;
-  if(!width||!height)throw new Error("The live camera has not produced a frame yet.");
-  return {media,width,height};
-}
-function downloadCameraBlob(blob,filename){
-  const url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();
-  setTimeout(()=>URL.revokeObjectURL(url),30000);
-}
-async function captureCameraFrame(){
-  try{
-    const {media,width,height}=getLiveCameraFrame();
-    const canvas=document.createElement("canvas");canvas.width=width;canvas.height=height;
-    const context=canvas.getContext("2d");if(!context)throw new Error("Canvas capture is unavailable.");
-    context.drawImage(media,0,0,width,height);
-    const blob=await new Promise((resolve,reject)=>{try{canvas.toBlob(result=>result?resolve(result):reject(new Error("The browser could not create the camera image.")),"image/png");}catch(error){reject(error);}});
-    downloadCameraBlob(blob,"DEFENX-ROVER-01-camera-"+new Date().toISOString().replace(/[:.]/g,"-")+".png");
-    setCameraActionStatus("Camera frame saved.");
-    addLog("CAMERA","Live rover camera frame saved");
-    recordActivity("CAMERA_SNAPSHOT","Live rover camera frame saved");
-  }catch(error){
-    const message=error?.name==="SecurityError"?"Camera server must allow CORS for browser-side snapshots.":(error?.message||"Camera snapshot failed.");
-    setCameraActionStatus(message);addLog("CAMERA",message);
-  }
-}
-function updateCameraRecordButton(){
-  const button=$("camRecordBtn");if(!button)return;
-  button.textContent=recording?"■":"●";button.title=recording?"Stop camera recording":"Start camera recording";
-  button.setAttribute("aria-label",button.title);button.setAttribute("aria-pressed",String(recording));button.classList.toggle("active",recording);
-}
-function toggleCameraRecording(){
-  if(cameraRecorder&&cameraRecorder.state==="recording"){cameraRecorder.stop();return;}
-  let stream=null;
-  try{
-    if(typeof MediaRecorder==="undefined")throw new Error("Video recording is not supported by this browser.");
-    if(!HTMLCanvasElement.prototype.captureStream)throw new Error("Canvas video recording is not supported by this browser.");
-    const {media,width,height}=getLiveCameraFrame();
-    const scale=Math.min(1,1920/Math.max(width,height));
-    const canvas=document.createElement("canvas");canvas.width=Math.max(1,Math.round(width*scale));canvas.height=Math.max(1,Math.round(height*scale));
-    const context=canvas.getContext("2d");if(!context)throw new Error("Canvas recording is unavailable.");
-    context.drawImage(media,0,0,canvas.width,canvas.height);
-    stream=canvas.captureStream(15);
-    const types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"];
-    const mimeType=types.find(type=>MediaRecorder.isTypeSupported&&MediaRecorder.isTypeSupported(type));
-    const recorder=new MediaRecorder(stream,mimeType?{mimeType,videoBitsPerSecond:1800000}:{videoBitsPerSecond:1800000});
-    const chunks=[];cameraRecorder=recorder;recording=true;updateCameraRecordButton();
-    recorder.ondataavailable=event=>{if(event.data&&event.data.size)chunks.push(event.data);};
-    recorder.onerror=()=>{setCameraActionStatus("Camera recording encountered a browser or stream error.");try{if(recorder.state!=="inactive")recorder.stop();}catch(_){}};
-    recorder.onstop=()=>{
-      if(cameraRecordingFrame)cancelAnimationFrame(cameraRecordingFrame);cameraRecordingFrame=0;
-      stream.getTracks().forEach(track=>track.stop());
-      const blob=chunks.length?new Blob(chunks,{type:recorder.mimeType||"video/webm"}):null;
-      cameraRecorder=null;recording=false;updateCameraRecordButton();
-      if(blob&&blob.size){downloadCameraBlob(blob,"DEFENX-ROVER-01-recording-"+new Date().toISOString().replace(/[:.]/g,"-")+".webm");setCameraActionStatus("Camera recording saved.");addLog("CAMERA","Live camera recording saved");recordActivity("CAMERA_RECORDING_SAVED","Live camera recording saved");}
-      else{setCameraActionStatus("No camera video data was recorded.");addLog("CAMERA","Recording ended without video data");}
-    };
-    recorder.start(1000);
-    let lastFrameAt=0;
-    const drawFrame=timestamp=>{
-      if(cameraRecorder!==recorder||recorder.state!=="recording")return;
-      if(timestamp-lastFrameAt>=66){
-        try{
-          if(!media.isConnected||!realCameraActive)throw new Error("Live camera disconnected. Recording stopped.");
-          context.drawImage(media,0,0,canvas.width,canvas.height);lastFrameAt=timestamp;
-        }catch(error){setCameraActionStatus(error?.message||"Could not read the live camera frame.");try{recorder.stop();}catch(_){}return;}
-      }
-      cameraRecordingFrame=requestAnimationFrame(drawFrame);
-    };
-    cameraRecordingFrame=requestAnimationFrame(drawFrame);
-    setCameraActionStatus("Recording live rover camera…");addLog("CAMERA","Live rover camera recording started");
-    recordActivity("CAMERA_RECORDING_STARTED","Live rover camera recording started");
-  }catch(error){
-    if(stream)stream.getTracks().forEach(track=>track.stop());
-    recording=false;cameraRecorder=null;updateCameraRecordButton();
-    const message=error?.name==="SecurityError"?"Camera server must allow CORS for browser-side recording.":(error?.message||"Camera recording could not start.");
-    setCameraActionStatus(message);addLog("CAMERA",message);
-  }
-}
 function toggleNightMode(){
   const on=document.body.classList.toggle("night-mode");
   const b=$("nightModeBtn");if(b)b.classList.toggle("active",on);
@@ -1257,7 +1170,8 @@ function bindUI(){
   document.querySelectorAll(".mapTab").forEach(b=>b.addEventListener("click",()=>setMapMode(b.dataset.mapmode)));
   $("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
   updateLiveTrackButton();
-  $("camShotBtn")?.addEventListener("click",captureCameraFrame);$("camRecordBtn")?.addEventListener("click",toggleCameraRecording);updateCameraRecordButton();
+  window.DEFENX_CAMERA_ACTIONS?.bind();
+  window.addEventListener("defenx-camera-action",event=>{const detail=event.detail||{};if(detail.action){addLog("CAMERA",detail.details||detail.action);recordActivity(detail.action,detail.details||"Camera action");}});
   $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(!el)return;if(el.requestFullscreen)el.requestFullscreen().catch(()=>setCameraActionStatus("The browser blocked full-screen mode."));else setCameraActionStatus("Full-screen mode is not supported by this browser.");});
   $("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");loadAudit()}else scrollToSection("eventLogSection")});
   $("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[data-user]");if(b)userAction(b)});
