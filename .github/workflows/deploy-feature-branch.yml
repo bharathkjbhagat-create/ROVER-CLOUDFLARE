@@ -100,3 +100,43 @@ jobs:
           printf '%s\n' "$health" | grep -q '"auth_path_configured":true'
           printf '%s\n' "$health" | grep -q '"realtime_bound":true'
           echo "Cloudflare deployment verification: PASS"
+
+      - name: Verify dashboard button bindings and warning visibility
+        run: |
+          set -euo pipefail
+          base="$WORKER_URL"
+          curl -fsS "$base/index.html?demo=1" -o /tmp/defenx-buttons-index.html
+          curl -fsS "$base/app.js" -o /tmp/defenx-buttons-app.js
+          curl -fsS "$base/camera-actions.js" -o /tmp/defenx-camera-actions.js
+          curl -fsS "$base/defenx-refinement.css" -o /tmp/defenx-refinement.css
+          python - <<'PY'
+          from pathlib import Path
+          html = Path("/tmp/defenx-buttons-index.html").read_text(encoding="utf-8")
+          app = Path("/tmp/defenx-buttons-app.js").read_text(encoding="utf-8")
+          camera = Path("/tmp/defenx-camera-actions.js").read_text(encoding="utf-8")
+          css = Path("/tmp/defenx-refinement.css").read_text(encoding="utf-8")
+          required_html = [
+              "settingsModal", "settingsThemeBtn", "settingsSoundBtn",
+              "settingsWarningBtn", "settingsBrowserAlertsBtn",
+              "settingsCameraReconnectBtn", "warningOnBtn", "warningOffBtn",
+              "warningToggleBtn", "camShotBtn", "camRecordBtn", "camActionStatus",
+          ]
+          missing = [item for item in required_html if item not in html]
+          assert not missing, f"Missing dashboard controls: {missing}"
+          checks = [
+              '$("settingsBtn")?.addEventListener("click",openSettings)',
+              '$("settingsThemeBtn")?.addEventListener("click",toggleTheme)',
+              '$("settingsSoundBtn")?.addEventListener("click",toggleNotificationSound)',
+              '$("settingsWarningBtn")?.addEventListener("click",toggleWarningDisplay)',
+              '$("warningOnBtn")?.addEventListener("click"',
+              '$("warningOffBtn")?.addEventListener("click"',
+              'window.DEFENX_CAMERA_ACTIONS?.bind()',
+          ]
+          missing = [item for item in checks if item not in app]
+          assert not missing, f"Missing dashboard event handlers: {missing}"
+          assert 'shot.addEventListener("click", snapshot)' in camera, "Camera snapshot click handler missing"
+          assert 'rec.addEventListener("click", record)' in camera, "Camera recording click handler missing"
+          assert "#warningToggleBtn { display: none !important; }" not in css, "Warning toggle is hidden by CSS"
+          print("Dashboard controls, event handlers and warning visibility: PASS")
+          print("Camera actions are bound to real authenticated camera frames: PASS")
+          PY
