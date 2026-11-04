@@ -363,13 +363,19 @@ function validCoordinatePair(lat,lon){
   const a=Number(lat),b=Number(lon);
   return Number.isFinite(a)&&Number.isFinite(b)&&a>=-90&&a<=90&&b>=-180&&b<=180;
 }
+function isFreshRoverGps(telemetry,maxAgeSeconds=30,maxAccuracyM=100){
+  if(!telemetry||telemetry.gps_source!=="ROVER_DEVICE"||telemetry.gps_fix!==true||telemetry.device_online===false||!validCoordinatePair(telemetry.lat,telemetry.lon))return false;
+  const accuracy=Number(telemetry.gps_accuracy_m),epoch=Number(telemetry.gps_last_epoch);
+  const age=Date.now()/1000-epoch;
+  return telemetry.gps_accuracy_m!==null&&telemetry.gps_accuracy_m!==undefined&&String(telemetry.gps_accuracy_m).trim()!==""&&Number.isFinite(accuracy)&&accuracy>=0&&accuracy<=maxAccuracyM&&Number.isFinite(epoch)&&epoch>0&&age>=-5&&age<=maxAgeSeconds;
+}
 function updateUI(input){
   const incoming=input&&typeof input==="object"?input:{};
   window.defenxLatestTelemetry=incoming;
   const simPoint=demoMode?randomDemoPoint():null;
   const simTarget=demoMode?randomDemoPoint():null;
   const incomingAccuracy=Number(incoming.gps_accuracy_m);
-  const hasVerifiedRoverGps=!demoMode&&incoming.gps_source==="ROVER_DEVICE"&&incoming.gps_fix===true&&validCoordinatePair(incoming.lat,incoming.lon)&&incoming.gps_accuracy_m!==null&&incoming.gps_accuracy_m!==undefined&&String(incoming.gps_accuracy_m).trim()!==""&&Number.isFinite(incomingAccuracy)&&incomingAccuracy>=0&&incomingAccuracy<=100;
+  const hasVerifiedRoverGps=!demoMode&&isFreshRoverGps(incoming,30,100);
   const rawTarget=incoming.target&&typeof incoming.target==="object"?incoming.target:{};
   const deviceTarget=String(incoming.target_source||"")==="ROVER_DEVICE";
   const targetHasCoordinates=validCoordinatePair(rawTarget.lat,rawTarget.lon);
@@ -388,7 +394,7 @@ function updateUI(input){
   const position=demoMode?simPoint:(hasVerifiedRoverGps?{lat:Number(incoming.lat),lon:Number(incoming.lon)}:null);
   const d={...incoming,lat:position?position.lat:null,lon:position?position.lon:null,gps_fix:hasVerifiedRoverGps,gps_sats:hasVerifiedRoverGps?Number(incoming.gps_sats||0):0,gps_source:demoMode?"SIMULATION":(hasVerifiedRoverGps?"ROVER_DEVICE":"NO_FIX"),gps_accuracy_m:hasVerifiedRoverGps?incomingAccuracy:null,track:demoMode?[]:trustedTrack,target:safeTarget};
   window.ROVER_POSITION_VERIFIED=hasVerifiedRoverGps;
-  window.ROVER_LATEST_ROVER_POSITION=hasVerifiedRoverGps?{lat:Number(incoming.lat),lon:Number(incoming.lon),accuracy_m:incomingAccuracy,updated:incoming.updated||null}:null;
+  window.ROVER_LATEST_ROVER_POSITION=hasVerifiedRoverGps?{lat:Number(incoming.lat),lon:Number(incoming.lon),accuracy_m:incomingAccuracy,gps_last_epoch:Number(incoming.gps_last_epoch),updated:incoming.updated||null}:null;
   const gpsQuality=d.gps_fix?(Number(d.gps_sats||0)>=8?"Excellent":Number(d.gps_sats||0)>=5?"Good":"Fair"):"No Fix";
   setText("battery",Math.round(Number(d.battery||0))+"%");setText("deviceBattery",Math.round(Number(d.battery||0))+"%");
   setText("signal",Math.round(Number(d.signal||0))+"%");setText("signalDevice",Number(d.signal||0)>=70?"Strong":Number(d.signal||0)>=45?"Medium":"Weak");
@@ -431,7 +437,7 @@ function updateUI(input){
   const batteryBar=$("batteryBar");if(batteryBar)batteryBar.style.width=batteryPct+"%";
   const signalBar=$("signalBar");if(signalBar)signalBar.style.width=signalPct+"%";
   setText("person","0");setText("vehicle","0");setText("object","0");setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence","0%");
-  setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
+  setText("deviceOnline",d.device_online===false?"● OFFLINE":"● ONLINE");setText("deviceGpsState",liveGps?"LOCKED":(demoMode?"SIMULATED":"SEARCHING"));setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
   setText("missionObstacle",(d.obstacle_cm??"--")+" cm");setText("missionTracking",d.tracking===false?"PAUSED":"ACTIVE");setText("missionGeofence",d.geofence===false?"OFF":"ACTIVE");setText("missionNetwork",d.network||"ONLINE");setText("missionState",(Number(d.obstacle_cm||999)<45)?"WARNING":"READY");
   updateWarningControlUI(d);
   const t=d.target||{type:"Object",range_m:0,speed_kmh:0,heading:0,direction:"N",size_m:0,confidence:0,lat:Number(d.lat),lon:Number(d.lon),detected:false};
@@ -767,8 +773,9 @@ async function previewReturnRoute(simulateObstacle=false){
   if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
   // Route preview starts only from a verified device GPS fix, never a simulated marker.
+  const latestTelemetry=window.defenxLatestTelemetry;
   const livePosition=window.ROVER_LATEST_ROVER_POSITION;
-  const origin=window.ROVER_POSITION_VERIFIED===true&&livePosition&&validCoordinatePair(livePosition.lat,livePosition.lon)?L.latLng(Number(livePosition.lat),Number(livePosition.lon)):null;
+  const origin=isFreshRoverGps(latestTelemetry,10,25)&&window.ROVER_POSITION_VERIFIED===true&&livePosition&&validCoordinatePair(livePosition.lat,livePosition.lon)?L.latLng(Number(livePosition.lat),Number(livePosition.lon)):null;
   if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE · VERIFIED ROVER GPS REQUIRED");addLog("ROUTE","Road route preview requires a verified live rover GPS fix");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
@@ -832,7 +839,7 @@ async function requestReturnToBase(){
   // Fail closed: current firmware/controller capability is unknown. Do not issue
   // a sequence of directional commands or claim autonomy from a dashboard click.
   const telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
-  if(!telemetry||telemetry.gps_source!=="ROVER_DEVICE"||telemetry.gps_fix!==true||!validCoordinatePair(telemetry.lat,telemetry.lon)||!Number.isFinite(Number(telemetry.gps_accuracy_m))||Number(telemetry.gps_accuracy_m)>25){
+  if(!isFreshRoverGps(telemetry,10,25)){
     addLog("RETURN BLOCKED","Verified, valid live rover GPS coordinates are required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VERIFIED LIVE GPS REQUIRED");return;
   }
   if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true||telemetry.obstacle_sensor_healthy!==true||telemetry.safety_controller_healthy!==true){
