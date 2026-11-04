@@ -48,6 +48,11 @@ class MapNavigationRegressionTests(unittest.TestCase):
         self.assertIn("age<=maxAgeSeconds", self.app)
         self.assertIn("isFreshRoverGps(incoming,30,100)", self.app)
 
+    def test_target_coordinates_and_recorded_track_need_verified_gps(self):
+        self.assertIn("deviceTarget&&hasVerifiedRoverGps&&targetHasCoordinates", self.app)
+        server = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        self.assertIn("accuracy = _finite_number(state.get(\"gps_accuracy_m\"), None, 0, 100)", server)
+        self.assertIn("distance_m < 0.75", server)
     def test_route_preview_and_return_precheck_require_precise_fresh_gps(self):
         self.assertIn("isFreshRoverGps(latestTelemetry,10,25)", self.app)
         self.assertIn("isFreshRoverGps(telemetry,10,25)", self.app)
