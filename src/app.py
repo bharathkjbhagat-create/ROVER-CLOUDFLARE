@@ -890,7 +890,8 @@ def add_track():
     with lock:
         source = str(state.get("gps_source") or "")
         epoch = _finite_number(state.get("gps_last_epoch"), 0)
-        if source not in {"ROVER_DEVICE", "LIVE_GPS"} or not state.get("gps_fix") or not epoch or time.time() - epoch > 30:
+        accuracy = _finite_number(state.get("gps_accuracy_m"), None, 0, 100)
+        if source not in {"ROVER_DEVICE", "LIVE_GPS"} or not state.get("gps_fix") or not epoch or time.time() - epoch > 30 or accuracy is None:
             return
         lat = _finite_number(state.get("lat"), None, -90, 90)
         lon = _finite_number(state.get("lon"), None, -180, 180)
