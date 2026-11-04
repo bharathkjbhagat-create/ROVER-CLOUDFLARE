@@ -18,6 +18,7 @@
   }
   function sourceFrame() {
     if (demo) throw new Error("Live camera capture is disabled in demo mode.");
+    if (window.DEFENX_CAMERA_STREAM_ACTIVE !== true) throw new Error("The authenticated rover camera stream is not live.");
     var el = document.getElementById("roverRealCamera");
     if (!el) throw new Error("No authenticated rover camera stream is connected.");
     if (el.tagName === "IFRAME") throw new Error("This embedded camera does not expose frames for capture.");
@@ -122,7 +123,7 @@
         if (recorder !== activeRecorder || activeRecorder.state !== "recording") return;
         if (timestamp - lastFrame >= 66) {
           try {
-            if (!frame.element.isConnected) throw new Error("Live camera disconnected. Recording stopped.");
+            if (!frame.element.isConnected || window.DEFENX_CAMERA_STREAM_ACTIVE !== true) throw new Error("Live camera disconnected. Recording stopped.");
             context.drawImage(frame.element, 0, 0, canvas.width, canvas.height);
             lastFrame = timestamp;
           } catch (error) {
