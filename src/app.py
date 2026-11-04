@@ -888,7 +888,23 @@ def _asset_response(filename, mimetype=None):
 
 def add_track():
     with lock:
-        track.append({"lat": state["lat"], "lon": state["lon"], "t": state["updated"]})
+        source = str(state.get("gps_source") or "")
+        epoch = _finite_number(state.get("gps_last_epoch"), 0)
+        if source not in {"ROVER_DEVICE", "LIVE_GPS"} or not state.get("gps_fix") or not epoch or time.time() - epoch > 30:
+            return
+        lat = _finite_number(state.get("lat"), None, -90, 90)
+        lon = _finite_number(state.get("lon"), None, -180, 180)
+        if lat is None or lon is None:
+            return
+        if track:
+            previous = track[-1]
+            lat_delta = math.radians(lat - float(previous["lat"]))
+            lon_delta = math.radians(lon - float(previous["lon"]))
+            mean_lat = math.radians((lat + float(previous["lat"])) / 2)
+            distance_m = 6371000 * math.hypot(lat_delta, math.cos(mean_lat) * lon_delta)
+            if distance_m < 0.75:
+                return
+        track.append({"lat": lat, "lon": lon, "t": state["updated"]})
         if len(track) > 1000:
             del track[:200]
 
@@ -1882,8 +1898,7 @@ def device_telemetry():
             state["lat"] = lat
             state["lon"] = lon
             state["gps_fix"] = True
-            if accuracy is not None:
-                state["gps_accuracy_m"] = round(accuracy, 1)
+            state["gps_accuracy_m"] = round(accuracy, 1) if accuracy is not None else None
             state["gps_source"] = "ROVER_DEVICE"
             state["gps_last_epoch"] = time.time()
             state["gps_source_id"] = str(data.get("source_id") or "ROVER-01")[:120]
