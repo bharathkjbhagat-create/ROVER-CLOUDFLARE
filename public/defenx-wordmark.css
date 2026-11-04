@@ -1,0 +1,52 @@
+/* DEFENX wordmark refinement — isolated from dashboard layout and controls. */
+.defenxBrandName {
+  display: inline-flex !important;
+  align-items: baseline;
+  white-space: nowrap;
+  font-family: "Arial", "Trebuchet MS", sans-serif !important;
+  font-size: clamp(19px, 2vw, 25px) !important;
+  font-weight: 950 !important;
+  letter-spacing: .19em !important;
+  line-height: 1 !important;
+  color: #f0f2ed !important;
+  text-shadow: 0 0 18px rgba(240, 242, 237, .10) !important;
+}
+.defenxBrandX {
+  position: relative;
+  display: inline-block;
+  margin-left: .015em;
+  padding: 0 .035em;
+  font-family: "Arial Black", "Trebuchet MS", sans-serif !important;
+  font-style: italic;
+  font-weight: 1000;
+  letter-spacing: .035em;
+  line-height: .92;
+  background: linear-gradient(135deg, #e0c58c 8%, #b8a477 48%, #a8bd8c 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 7px rgba(184, 164, 119, .28));
+  transform: skewX(-9deg);
+}
+.defenxBrandX::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 7%;
+  bottom: -5px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #b8a477, #a8bd8c);
+  opacity: .9;
+}
+@media (max-width: 650px) {
+  .defenxBrandName {
+    font-size: 21px !important;
+    letter-spacing: .14em !important;
+  }
+  .defenxBrandX::after { bottom: -4px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .defenxBrandX { transform: none; }
+}
