@@ -46,6 +46,7 @@ jobs:
           node --check public/monitor.js
           node --check public/road-detail-overlay.js
           node --check public/camera-target-overlay.js
+          node --check public/camera-actions.js
 
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
@@ -55,7 +56,7 @@ jobs:
       - name: Verify required assets
         run: |
           set -e
-          for file in public/index.html public/login.html public/app.js public/monitor.js public/monitor.css public/road-detail-overlay.js public/camera-target-overlay.js public/style.css public/manifest.webmanifest public/sw.js public/rover-device.webp public/rover-left.webp; do
+          for file in public/index.html public/login.html public/app.js public/monitor.js public/monitor.css public/road-detail-overlay.js public/camera-target-overlay.js public/camera-actions.js public/style.css public/manifest.webmanifest public/sw.js public/rover-device.webp public/rover-left.webp; do
             test -f "$file" || { echo "Missing required asset: $file"; exit 1; }
           done
 
@@ -90,6 +91,7 @@ jobs:
           check_path /monitor.css 200
           check_path /road-detail-overlay.js 200
           check_path /camera-target-overlay.js 200
+          check_path /camera-actions.js 200
           check_path /rover-device.webp 200
           check_path /rover-left.webp 200
           health="$(curl -A 'Mozilla/5.0 (DEFENX deploy verification)' -fsS "$WORKER_URL/api/health")"
