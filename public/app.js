@@ -479,6 +479,7 @@ function updateUI(input){
   if(map&&trackPts.length>1){if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);else trackLine.setLatLngs(trackPts)}
   else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
   addSample(d);
+  window.dispatchEvent(new CustomEvent("defenx-telemetry",{detail:d}));
 }
 function updateCompass(heading){
   const compass=$("mapCompass");

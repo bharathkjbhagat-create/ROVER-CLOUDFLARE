@@ -249,6 +249,8 @@ def _realtime_call(method, *args):
 def _shared_state_payload(version, source="system"):
     with lock:
         snapshot = json.loads(json.dumps(state))
+        # Carry a bounded, provenance-tagged GPS history through the Durable Object.
+        snapshot["track"] = json.loads(json.dumps(track[-120:]))
     snapshot["sync_version"] = str(version)
     snapshot["sync_source"] = source
     snapshot["sync_at"] = datetime.now(timezone.utc).isoformat()
@@ -291,6 +293,8 @@ def apply_shared_live_state(snapshot):
         for key in state.keys():
             if key in snapshot:
                 state[key] = snapshot[key]
+        if isinstance(snapshot.get("track"), list):
+            track[:] = snapshot["track"][-120:]
         state["updated"] = snapshot.get("updated", state.get("updated"))
     return True
 
@@ -886,16 +890,34 @@ def _asset_response(filename, mimetype=None):
     return send_from_directory(BASE_DIR, filename, mimetype=mimetype)
 
 
-def add_track():
+def add_track(source=None):
+    """Append a timestamped track sample with explicit source provenance.
+
+    Device and live-GPS points are accepted only when their fix is fresh and
+    accuracy is known (<=100 m). Other telemetry may be retained as history,
+    but the monitor never treats it as verified rover movement.
+    """
     with lock:
-        source = str(state.get("gps_source") or "")
-        epoch = _finite_number(state.get("gps_last_epoch"), 0)
-        accuracy = _finite_number(state.get("gps_accuracy_m"), None, 0, 100)
-        if source not in {"ROVER_DEVICE", "LIVE_GPS"} or not state.get("gps_fix") or not epoch or time.time() - epoch > 30 or accuracy is None:
-            return
+        sample_source = str(source or state.get("gps_source") or "UNKNOWN")
+        if sample_source in {"ROVER_DEVICE", "LIVE_GPS"}:
+            epoch = _finite_number(state.get("gps_last_epoch"), 0)
+            accuracy = _finite_number(state.get("gps_accuracy_m"), None, 0, 100)
+            age = time.time() - epoch if epoch else float("inf")
+            if (
+                str(state.get("gps_source") or "") != sample_source
+                or state.get("gps_fix") is not True
+                or not epoch
+                or age < -5
+                or age > 30
+                or accuracy is None
+            ):
+                return
+        else:
+            accuracy = _finite_number(state.get("gps_accuracy_m"), None, 0, 10000)
+
         lat = _finite_number(state.get("lat"), None, -90, 90)
         lon = _finite_number(state.get("lon"), None, -180, 180)
-        if lat is None or lon is None:
+        if lat is None or lon is None or (lat == 0 and lon == 0):
             return
         if track:
             previous = track[-1]
@@ -905,9 +927,15 @@ def add_track():
             distance_m = 6371000 * math.hypot(lat_delta, math.cos(mean_lat) * lon_delta)
             if distance_m < 0.75:
                 return
-        track.append({"lat": lat, "lon": lon, "t": state["updated"]})
-        if len(track) > 1000:
-            del track[:200]
+        track.append({
+            "lat": lat,
+            "lon": lon,
+            "t": state.get("updated") or datetime.now(timezone.utc).isoformat(),
+            "source": sample_source,
+            "accuracy_m": accuracy,
+        })
+        if len(track) > 2000:
+            del track[:500]
 
 @app.get("/")
 @app.get("/index.html")
@@ -1942,7 +1970,7 @@ def device_telemetry():
         state["last_seen_at"] = state["updated"]
         state["device_online"] = True
         state["signal_lost_at"] = None
-    add_track()
+    add_track("ROVER_DEVICE")
     snapshot = write_shared_live_state("rover-device")
     return jsonify({"ok": True, "telemetry": snapshot or None})
 
@@ -1963,7 +1991,7 @@ def ingest():
         state["last_seen_at"] = state["updated"]
         state["device_online"] = True
         state["signal_lost_at"] = None
-    add_track()
+    add_track("AUTHENTICATED_TELEMETRY")
     snapshot = write_shared_live_state("telemetry")
     return jsonify({"ok": True, "telemetry": snapshot or None})
 
@@ -2020,7 +2048,7 @@ def gps_ingest():
         state["device_online"] = True
         state["signal_lost_at"] = None
 
-    add_track()
+    add_track("LIVE_GPS")
     shared = write_shared_live_state("gps")
     return jsonify({"ok": True, "telemetry": shared or None, "gps_source": "LIVE_GPS", "accuracy_m": round(accuracy, 1)})
 
@@ -2119,7 +2147,7 @@ def simulate():
         state["last_seen_at"] = state["updated"]
         state["device_online"] = True
         state["signal_lost_at"] = None
-    add_track()
+    add_track("SIMULATION")
     snapshot = write_shared_live_state(f"simulation:{u.get('username','unknown')}")
     # Simulation ticks are system telemetry, not user actions. Do not flood
     # the shared Admin event log with one entry every few seconds.

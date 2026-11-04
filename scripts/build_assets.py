@@ -80,7 +80,16 @@ for variable, output in ASSETS.items():
     pattern = rf'window\.{re.escape(variable)}="data:image/webp;base64,([^"]+)"'
     match = re.search(pattern, source)
     if not match:
-        raise SystemExit(f"Missing embedded WebP data URI: window.{variable}")
+        # A previous build has already externalized this image. Validate and
+        # reuse the generated asset so local/CI builds are idempotent.
+        external = re.search(rf'window\.{re.escape(variable)}="/{re.escape(output.name)}"', source)
+        if not external or not output.is_file():
+            raise SystemExit(f"Missing embedded or external WebP asset: window.{variable}")
+        data = output.read_bytes()
+        if not data.startswith(b"RIFF") or data[8:12] != b"WEBP":
+            raise SystemExit(f"External asset is not a valid WebP file: {output.name}")
+        print(f"Reused {output.relative_to(ROOT)} ({len(data)} bytes)")
+        continue
 
     try:
         data = base64.b64decode(match.group(1), validate=True)
