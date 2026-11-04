@@ -720,7 +720,7 @@ function renderReturnBase(){
   setText("returnBaseStatus",label);
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;returnRouteMode="none";}
 }
-function previewReturnRoute(simulateObstacle=false){
+async function previewReturnRoute(simulateObstacle=false){
   if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
   // This is a visual software simulation only. It deliberately does not use
