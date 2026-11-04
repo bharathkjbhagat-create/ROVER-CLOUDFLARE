@@ -729,19 +729,37 @@ function previewReturnRoute(simulateObstacle=false){
   if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE");addLog("ROUTE","No map marker is available for the simulated rover");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
-  let points=[a,b],label="SIMULATION · DIRECT PREVIEW";
+  let points=[a,b],label="DIRECT LINE · NOT ROAD ROUTING";
   if(simulateObstacle){
     const midLat=(a[0]+b[0])/2,midLon=(a[1]+b[1])/2;
     const dLat=b[0]-a[0],dLon=b[1]-a[1],length=Math.max(Math.hypot(dLat,dLon),0.00001);
     const offset=Math.min(0.003,Math.max(0.00035,length*0.18));
     points=[a,[midLat-dLon/length*offset,midLon+dLat/length*offset],b];
-    label="SIMULATION · ALTERNATE ROUTE";
+    label="SYNTHETIC OBSTACLE DEMO";
+  }else{
+    try{
+      const url="https://router.project-osrm.org/route/v1/driving/"+encodeURIComponent(origin.lng+","+origin.lat+";"+returnBase.lon+","+returnBase.lat)+"?overview=full&geometries=geojson&steps=true";
+      const response=await fetch(url,{headers:{"Accept":"application/json"},signal:AbortSignal.timeout(10000)});
+      if(!response.ok)throw new Error("Routing service HTTP "+response.status);
+      const data=await response.json();
+      const coordinates=data?.routes?.[0]?.geometry?.coordinates;
+      if(data?.code!=="Ok"||!Array.isArray(coordinates)||coordinates.length<2)throw new Error("No road route returned");
+      points=coordinates.map(p=>[Number(p[1]),Number(p[0])]);
+      if(points.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))throw new Error("Invalid route geometry");
+      label="ROAD ROUTE PREVIEW · OSRM";
+      const route=data.routes[0];
+      addLog("ROUTE","Road route preview received · "+(Number(route.distance)/1000).toFixed(2)+" km · "+Math.round(Number(route.duration)/60)+" min estimated");
+    }catch(err){
+      setText("returnBaseStatus","ROAD ROUTE UNAVAILABLE · NO MOVEMENT");
+      addLog("ROUTE","Road routing unavailable: "+String(err?.message||err)+"; direct-line navigation is not substituted");
+      return;
+    }
   }
   returnRouteLine=L.polyline(points,{color:simulateObstacle?"#f5b942":"#22d3a6",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
-  returnRouteMode=simulateObstacle?"alternate":"direct";
-  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
-  setText("returnBaseStatus",label+" · NOT NAVIGATION");
-  addLog("ROUTE",label+" rendered; no rover command sent");
+  returnRouteMode=simulateObstacle?"synthetic-demo":"road-preview";
+  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:18});
+  setText("returnBaseStatus",label+" · PREVIEW ONLY");
+  addLog("ROUTE",label+" displayed on the active map layer; no rover command sent");
 }
 function clearReturnRoutePreview(){
   if(returnRouteLine&&map){map.removeLayer(returnRouteLine);returnRouteLine=null;}
