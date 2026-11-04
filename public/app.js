@@ -9,7 +9,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailLayer=null,roadDetailAbortController=null,roadDetailTimer=null,roadDetailLastRequestAt=0,roadDetailCache=new Map(),roadDetailRequestKey="";
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailOverlay=null;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
@@ -188,8 +188,6 @@ function initMap(){
     satelliteLayer=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Imagery © Esri"});
     terrainLayer=L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap contributors"});
     satelliteLayer.addTo(map);
-    roadDetailLayer=L.featureGroup().addTo(map);
-    map.attributionControl?.addAttribution("Road detail data © OpenStreetMap contributors");
     satelliteOn=true;
     document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode==="satellite"));
     setText("mapMode","Satellite");
@@ -201,10 +199,11 @@ function initMap(){
     hide("mapFallback");hide("mapFrame");
     mapReady=true;
     map.on("click",handleBaseMapClick);
-    map.on("moveend zoomend",scheduleDetailedRoadRefresh);
+    roadDetailOverlay=window.DEFENX_ROAD_DETAILS?.attach(map,L,esc,addLog)||null;
+    map.on("moveend zoomend",()=>roadDetailOverlay?.refresh());
     renderReturnBase();
     if(window.defenxLatestTelemetry)updateUI(window.defenxLatestTelemetry);
-    scheduleDetailedRoadRefresh();
+    roadDetailOverlay?.refresh();
     setText("conn","CONNECTED");
     setText("serverHeader","Server");
     setTimeout(()=>map.invalidateSize(),100);
@@ -212,139 +211,6 @@ function initMap(){
   }catch(err){
     show("mapFallback");
     setText("conn","DEGRADED");
-  }
-}
-
-function roadDetailStyle(tags){
-  const highway=String(tags.highway||"road").toLowerCase();
-  const styles={
-    motorway:{color:"#ff6d72",weight:4.5,opacity:.95},
-    motorway_link:{color:"#ff8588",weight:3.2,opacity:.9},
-    trunk:{color:"#ff9958",weight:4.1,opacity:.95},
-    trunk_link:{color:"#ffb06e",weight:3,opacity:.9},
-    primary:{color:"#ffd166",weight:3.7,opacity:.94},
-    primary_link:{color:"#ffdf8e",weight:2.8,opacity:.9},
-    secondary:{color:"#6de0d2",weight:3.2,opacity:.92},
-    secondary_link:{color:"#91e9df",weight:2.5,opacity:.88},
-    tertiary:{color:"#a9d5ff",weight:2.8,opacity:.9},
-    tertiary_link:{color:"#c2e1ff",weight:2.3,opacity:.86},
-    unclassified:{color:"#c8edc2",weight:2.6,opacity:.9},
-    residential:{color:"#c8edc2",weight:2.6,opacity:.9},
-    living_street:{color:"#b6e4a8",weight:2.8,opacity:.92},
-    service:{color:"#d6c7ff",weight:2.4,opacity:.9},
-    track:{color:"#e7c27a",weight:2.2,opacity:.88,dashArray:"6 5"},
-    path:{color:"#d6d9e0",weight:1.8,opacity:.82,dashArray:"3 5"},
-    footway:{color:"#c5cbd3",weight:1.7,opacity:.78,dashArray:"2 5"},
-    pedestrian:{color:"#c5cbd3",weight:1.8,opacity:.8,dashArray:"2 5"},
-    cycleway:{color:"#8cc8ef",weight:1.8,opacity:.82,dashArray:"4 5"},
-    bridleway:{color:"#c4ad8d",weight:1.7,opacity:.78,dashArray:"3 5"},
-    steps:{color:"#ffbd70",weight:1.8,opacity:.8,dashArray:"2 5"}
-  };
-  const style=Object.assign({color:"#e5c77f",weight:2.2,opacity:.82,dashArray:"5 5"},styles[highway]||{});
-  const access=String(tags.motor_vehicle||tags.vehicle||tags.access||"").toLowerCase();
-  if(access==="no"||access==="private"){
-    style.color="#ff6878";
-    style.dashArray="3 6";
-  }
-  return style;
-}
-function renderDetailedRoads(elements){
-  if(!roadDetailLayer||!map)return;
-  roadDetailLayer.clearLayers();
-  let drawn=0;
-  (Array.isArray(elements)?elements:[]).forEach(way=>{
-    if(!way||way.type!=="way"||!way.tags||!way.tags.highway||!Array.isArray(way.geometry))return;
-    const points=way.geometry.map(p=>[Number(p.lat),Number(p.lon)]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])&&p[0]>=-90&&p[0]<=90&&p[1]>=-180&&p[1]<=180);
-    if(points.length<2)return;
-    const tags=way.tags;
-    const highway=String(tags.highway).toLowerCase();
-    const style=roadDetailStyle(tags);
-    const line=L.polyline(points,style).addTo(roadDetailLayer);
-    const roadName=tags.name||tags.ref||tags["name:en"]||"Unnamed mapped way";
-    const access=tags.motor_vehicle||tags.vehicle||tags.access||"Not specified";
-    const surface=tags.surface||"Not mapped";
-    const width=tags.width||tags.est_width||"Not mapped";
-    const lanes=tags.lanes||"Not mapped";
-    const service=tags.service?(" · "+String(tags.service).replace(/_/g," ")):"";
-    const footOnly=["footway","pedestrian","steps","cycleway","bridleway"].includes(highway);
-    const restricted=["no","private"].includes(String(access).toLowerCase());
-    const warning=restricted
-      ?"Access tags indicate restricted/private use. Do not route through this way."
-      :footOnly
-        ?"Mapped as a pedestrian/cycle path. It is not classified as a rover vehicle road."
-        :"Mapped road geometry does not confirm width, clearance, surface condition or physical passability.";
-    const popup="<div><b>"+esc(roadName)+"</b><br>Class: "+esc(highway.replace(/_/g," ")+service)+"<br>Mapped width: "+esc(width)+"<br>Lanes: "+esc(lanes)+"<br>Surface: "+esc(surface)+"<br>Access: "+esc(access)+"<br><small>"+esc(warning)+"</small></div>";
-    line.bindPopup(popup);
-    drawn++;
-  });
-  return drawn;
-}
-function scheduleDetailedRoadRefresh(){
-  if(!mapReady||!map||!roadDetailLayer)return;
-  if(roadDetailTimer)clearTimeout(roadDetailTimer);
-  roadDetailTimer=setTimeout(()=>{loadDetailedRoads().catch(()=>{});},900);
-}
-async function loadDetailedRoads(){
-  if(!mapReady||!map||!roadDetailLayer)return;
-  if(map.getZoom()<15){
-    roadDetailLayer.clearLayers();
-    return;
-  }
-  const center=map.getCenter();
-  const bounds=map.getBounds();
-  const halfLat=Math.min(Math.max((bounds.getNorth()-bounds.getSouth())/2,0.003),0.008);
-  const halfLon=Math.min(Math.max((bounds.getEast()-bounds.getWest())/2,0.003),0.008);
-  const south=Math.max(-85,center.lat-halfLat),north=Math.min(85,center.lat+halfLat);
-  const west=Math.max(-180,center.lng-halfLon),east=Math.min(180,center.lng+halfLon);
-  const bbox=[south.toFixed(5),west.toFixed(5),north.toFixed(5),east.toFixed(5)];
-  const key=bbox.map(v=>Number(v).toFixed(3)).join(",");
-  const cached=roadDetailCache.get(key);
-  if(cached&&Date.now()-cached.at<15*60*1000){
-    renderDetailedRoads(cached.elements);
-    return;
-  }
-  if(roadDetailRequestKey===key&&roadDetailAbortController)return;
-  const wait=45000-(Date.now()-roadDetailLastRequestAt);
-  if(wait>0){
-    if(roadDetailTimer)clearTimeout(roadDetailTimer);
-    roadDetailTimer=setTimeout(()=>{roadDetailTimer=null;loadDetailedRoads().catch(()=>{});},wait);
-    return;
-  }
-  if(roadDetailAbortController){
-    try{roadDetailAbortController.abort();}catch(_){}
-  }
-  const controller=new AbortController();
-  roadDetailAbortController=controller;
-  roadDetailRequestKey=key;
-  roadDetailLastRequestAt=Date.now();
-  try{sessionStorage.setItem("defenx_road_query_at",String(roadDetailLastRequestAt));}catch(_){}
-  const query='[out:json][timeout:12];way["highway"]('+bbox.join(",")+');out tags geom;';
-  const timeout=setTimeout(()=>controller.abort(),13000);
-  try{
-    const response=await fetch("https://overpass-api.de/api/interpreter",{
-      method:"POST",
-      headers:{"Accept":"application/json","Content-Type":"application/x-www-form-urlencoded; charset=UTF-8"},
-      body:"data="+encodeURIComponent(query),
-      signal:controller.signal
-    });
-    if(!response.ok)throw new Error("Road detail service HTTP "+response.status);
-    const data=await response.json();
-    if(!Array.isArray(data?.elements))throw new Error("Road detail response was invalid");
-    if(controller.signal.aborted)return;
-    const current=map.getCenter();
-    if(Math.abs(current.lat-center.lat)>halfLat*0.75||Math.abs(current.lng-center.lng)>halfLon*0.75){
-      scheduleDetailedRoadRefresh();
-      return;
-    }
-    roadDetailCache.set(key,{at:Date.now(),elements:data.elements});
-    if(roadDetailCache.size>16)roadDetailCache.delete(roadDetailCache.keys().next().value);
-    const count=renderDetailedRoads(data.elements);
-    if(count===0)addLog("MAP","No mapped road details returned for this zoomed area");
-  }catch(err){
-    if(!controller.signal.aborted)addLog("MAP","Detailed road overlay unavailable; base map remains available");
-  }finally{
-    clearTimeout(timeout);
-    if(roadDetailAbortController===controller)roadDetailAbortController=null;
   }
 }
 
