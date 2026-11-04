@@ -11,6 +11,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
 let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],lastTelemetryTrack=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailOverlay=null;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
+window.DEFENX_CAMERA_STREAM_ACTIVE=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
 let notificationSoundEnabled=localStorage.getItem("rover_notification_sound")!=="off";
@@ -435,7 +436,7 @@ function updateUI(input){
   if(realCameraActive&&d.camera===false){
     const media=$("roverRealCamera");if(media){media.pause?.();media.src="";}
     if($("camera3DScene"))$("camera3DScene").style.display="";
-    realCameraActive=false;
+    realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;
   }
   const batteryPct=Math.max(0,Math.min(100,Number(d.battery||0)));const signalPct=Math.max(0,Math.min(100,Number(d.signal||0)));
   const batteryBar=$("batteryBar");if(batteryBar)batteryBar.style.width=batteryPct+"%";
@@ -701,15 +702,15 @@ async function initRealCameraStream(){
       frame.style.cssText="display:block;width:100%;height:100%;border:0;background:#02070b;position:absolute;inset:0;z-index:4";
       media.replaceWith(frame);
       media=frame;
-      realCameraActive=true;
+      realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;
     }else if(mediaType==="mjpeg"||mediaType==="image"){
       const img=document.createElement("img");
       img.id="roverRealCamera";
       img.alt="ROVER-01 live camera";
       img.decoding="async";
       img.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
-      img.onload=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      img.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
+      img.onload=()=>{realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
+      img.onerror=()=>{realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       img.src=d.url;
       media.replaceWith(img);
       media=img;
@@ -718,15 +719,15 @@ async function initRealCameraStream(){
       video.id="roverRealCamera";
       video.autoplay=true;video.muted=true;video.playsInline=true;video.controls=false;
       video.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
-      video.onloadeddata=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      video.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
+      video.onloadeddata=()=>{realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
+      video.onerror=()=>{realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       video.src=d.url;
       media.replaceWith(video);
       media=video;
       video.play().catch(()=>{});
     }
   }catch(_){
-    realCameraActive=false;
+    realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;
   }
 }
 
