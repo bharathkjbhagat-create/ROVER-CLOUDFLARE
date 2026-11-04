@@ -123,4 +123,6 @@ body.mvReal .camera3DScene,body.mvReal .cameraSceneLabel,body.mvReal .cameraTarg
 .routeTools{margin:6px 0 0}
 .routeTools>summary{cursor:pointer;font-size:9px;font-weight:900;letter-spacing:1px;color:var(--muted);padding:4px 0}
 .routeTools .routePreviewBtn{margin:4px 4px 0 0}
-#warningOnBtn,#warningOffBtn{display:none!important}
+
+.mv-layer-btn{width:auto!important;min-width:48px;padding:0 5px!important;display:flex!important;align-items:center;justify-content:center;gap:3px;font:800 8px ui-monospace,monospace;letter-spacing:.3px}
+.mv-layer-btn svg{width:15px;height:15px}

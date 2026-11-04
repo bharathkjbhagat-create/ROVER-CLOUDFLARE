@@ -39,6 +39,11 @@ jobs:
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate frontend JavaScript
         run: node --check public/app.js
+
+      - name: Validate detailed map overlay JavaScript
+        run: node --check public/road-detail-overlay.js
+      - name: Validate camera target overlay JavaScript
+        run: node --check public/camera-target-overlay.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript
@@ -54,6 +59,8 @@ jobs:
           test -f public/monitor.js
           test -f public/login.html
           test -f public/app.js
+          test -f public/road-detail-overlay.js
+          test -f public/camera-target-overlay.js
           test -f public/style.css
           test -f public/manifest.webmanifest
           test -f public/sw.js
@@ -183,6 +190,8 @@ jobs:
           check_path /api/health 200
           check_path /rover-device.webp 200
           check_path /rover-left.webp 200
+          check_path /road-detail-overlay.js 200
+          check_path /camera-target-overlay.js 200
           health="$(curl -A 'Mozilla/5.0 (DEFENX smoke test)' -sS "$base/api/health")"
           printf '%s\n' "$health" | grep -q '"ok":true'
           printf '%s\n' "$health" | grep -q '"session_configured":true'

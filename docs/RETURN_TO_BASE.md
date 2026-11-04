@@ -2,7 +2,7 @@
 
 ## Status
 
-Software route-preview controls are now included for dashboard testing: direct preview, a synthetic alternate route for a simulated obstacle, and clear preview. These are illustrative map overlays only, not road routing, live obstacle detection, or autonomous navigation. Physical movement remains disabled until a verified software command/acknowledgement path and telemetry exist. This document does not certify that the rover can navigate autonomously.
+The dashboard now includes a detailed OpenStreetMap road overlay, road-network route preview, and clear-preview controls. The overlay is a map-data aid, not a sensor or a guarantee that a narrow lane is physically traversable. The synthetic blocked-route display remains a visual demonstration only. Physical movement remains disabled until a verified software command/acknowledgement path and onboard safety telemetry exist. This document does not certify autonomous navigation.
 
 ## Recommended architecture
 
@@ -16,10 +16,11 @@ Software route-preview controls are now included for dashboard testing: direct p
 
 ## Software-only dashboard simulation
 
-- Select a base on the map and use Preview Route to draw a direct illustrative line from the dashboard rover marker to the selected base.
-- Use Simulate Blocked Route to draw a synthetic offset path that demonstrates the alternate-route UI concept; no obstacle is actually detected and no safe route is computed.
-- Use Clear Preview to remove the overlay.
-- These controls send no rover movement commands. The displayed rover marker can be a demo marker; do not treat this preview as a real route or live position.
+- Zoom the map to street level (zoom 15 or closer) to request mapped highway geometry for the visible area. The overlay includes major roads, residential streets, service roads, living streets, tracks, paths and pedestrian/cycle ways. It remains geographically aligned above the street, satellite, terrain and hybrid base layers.
+- Select a base on the map. Preview Route requests a road-network route from a fresh, verified rover-device GPS fix. It is a visual preview only and sends no movement command.
+- Use Simulate Blocked Route only to demonstrate a synthetic offset line; it does not detect an obstacle or calculate a safe detour. Use Clear Preview to remove the route overlay.
+- The authenticated dashboard does not place a rover marker at a simulated coordinate. It displays a rover marker and track only from valid, recent `ROVER_DEVICE` GPS telemetry. Missing or stale GPS is shown as unavailable.
+- A mapped width, lane count, access or surface field may be absent. Missing values are shown as “Not mapped”; they are never guessed. A mapped road does not prove the rover physically fits or has permission to enter.
 
 ## Return workflow
 
@@ -66,3 +67,23 @@ These field names are a proposed contract, not fields known to exist in current 
 - Cancel and local emergency stop work independently of cloud connectivity.
 - Arrival is verified physically, motors are stopped, and the dashboard/audit log reflect device-confirmed status.
 - Automated tests/build and supervised field tests pass before the draft PR is merged or deployed.
+
+
+## Precision mapping and cross-layer consistency
+
+- The dashboard uses separate street, Esri World Imagery satellite, and OpenTopoMap terrain tile sources. Road vectors are a separate OpenStreetMap overlay; they do not modify or refresh satellite photographs.
+- At zoom level 15 and closer, `public/road-detail-overlay.js` requests nearby OSM highway geometry from the public Overpass API. The overlay differentiates road classes and displays mapped name, width, lane count, surface and access tags when available. It is rendered as a geographic Leaflet layer above all existing map types, so its coordinates remain aligned when switching map style.
+- The overlay caches viewed areas in the browser for 15 minutes and rate-limits new public Overpass requests to at most one every five minutes per browser session. Public Overpass instances can be overloaded; production should use a maintained commercial service or a self-hosted instance with regional extracts and update controls. Do not treat this public endpoint as a guaranteed navigation dependency.
+- Road preview requests GeoJSON driving geometry from the public OSRM demo service. It is an on-demand preview only. When routing is unavailable, the app reports the failure and never substitutes a straight-line path. A production routing engine must use a rover-appropriate vehicle profile and verified map data.
+- The authenticated rover marker requires device-reported `ROVER_DEVICE` GPS, a valid coordinate pair, reported accuracy at or below 100 m, a positive `gps_last_epoch`, and a GPS timestamp no more than 30 seconds old. Road preview and Return-to-Base prechecks apply a stricter limit of 25 m accuracy and 10 seconds GPS age. Target markers are also hidden when that rover GPS fix is no longer verified. The travelled track only records fresh GPS points with accuracy at or below 100 m and ignores duplicate samples less than 0.75 m apart; a telemetry packet without a new accuracy measurement clears any previously stored accuracy.
+- Pedestrian and cycle-only way classes are marked as such; mapped `access=no` or `private` ways are visually warned. These tags may still be missing or out of date. OSM geometry does not prove actual road width, legal permission, overhead clearance, turning space, surface condition, slope, or rover traversability. Onboard sensors and a measured rover envelope remain mandatory.
+- Offline road extracts, offline tile storage, offline route planning, and local autonomous navigation are not implemented by this change. Satellite imagery is not live video; imagery freshness can only be shown when the imagery provider exposes trustworthy acquisition metadata.
+
+## Production requirements before autonomous Return-to-Base
+
+1. Select and operate a production routing service or self-host a routing engine with a suitable vehicle profile; do not depend on the public OSRM demo endpoint.
+2. Add a maintained map-data ingestion/update strategy and regional offline extracts with licensing/attribution checks.
+3. Define rover width, length, ground clearance, turning radius, maximum slope, permitted surfaces, and access policy; reject routes when required attributes are unknown.
+4. Implement onboard localization (GNSS + IMU + wheel odometry as available), sensor health checks, obstacle sensing, and independent motor safety controller.
+5. Implement authenticated device command/acknowledgement and state-machine endpoints. Until these are verified, Return-to-Base must remain blocked and preview-only.
+6. Test with recorded routes and simulation, then motors disconnected, wheels raised, and finally a controlled low-speed test area.

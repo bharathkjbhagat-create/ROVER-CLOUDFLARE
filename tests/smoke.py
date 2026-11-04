@@ -69,6 +69,21 @@ resp = client.post(
     },
 )
 assert resp.status_code == 200, resp.get_data(as_text=True)
+assert rover_app.state["gps_source"] == "ROVER_DEVICE"
+assert rover_app.state["gps_accuracy_m"] == 2.4
+assert rover_app.state["gps_last_epoch"] > 0
+tracked_points = len(rover_app.track)
+
+# A fresh position without a new accuracy measurement must clear the old accuracy
+# and must not append a misleading point to the travelled route.
+resp = client.post(
+    "/api/device/telemetry",
+    headers={"X-Rover-Device-Token":"priority6-test-device-token"},
+    json={"lat":12.97170,"lon":77.59470},
+)
+assert resp.status_code == 200, resp.get_data(as_text=True)
+assert rover_app.state["gps_accuracy_m"] is None
+assert len(rover_app.track) == tracked_points
 
 app_js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
 assert "/api/camera-config" in app_js
@@ -82,7 +97,7 @@ assert "ROVER_DEVICE" in app_js
 
 ai_js = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
 assert "lite_mobilenet_v2" in ai_js
-assert 'deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE"' in app_js
+assert 'deviceTarget=String(incoming.target_source||"")==="ROVER_DEVICE"' in app_js
 assert "cocoSsd.load" in ai_js
 assert '"person"' in ai_js
 assert '"motorcycle"' in ai_js

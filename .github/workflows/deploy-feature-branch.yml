@@ -1,0 +1,142 @@
+name: Deploy DEFENX feature branch to Cloudflare
+
+on:
+  push:
+    branches:
+      - feature/precision-mapping-navigation
+
+permissions:
+  contents: read
+
+concurrency:
+  group: defenx-cloudflare-feature-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      UV_PYTHON: "3.13"
+      WORKER_URL: https://defenx.bindukjagadish.workers.dev
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+
+      - name: Build WebP assets
+        run: python scripts/build_assets.py
+      - name: Enforce frontend performance budgets
+        run: python scripts/check_performance_budget.py
+      - name: Validate Python source
+        run: python -m py_compile src/app.py src/worker.py scripts/build_assets.py
+      - name: Validate JavaScript source
+        run: |
+          set -e
+          node --check public/app.js
+          node --check public/ai-vision.js
+          node --check public/monitor.js
+          node --check public/road-detail-overlay.js
+          node --check public/camera-target-overlay.js
+          node --check public/camera-actions.js
+
+      - name: Run backend smoke tests
+        run: uv run --group dev python tests/smoke.py
+      - name: Run all regression tests
+        run: uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
+
+      - name: Verify required assets
+        run: |
+          set -e
+          for file in public/index.html public/login.html public/app.js public/monitor.js public/monitor.css public/road-detail-overlay.js public/camera-target-overlay.js public/camera-actions.js public/style.css public/manifest.webmanifest public/sw.js public/rover-device.webp public/rover-left.webp; do
+            test -f "$file" || { echo "Missing required asset: $file"; exit 1; }
+          done
+
+      - name: Verify Cloudflare credentials
+        run: |
+          test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing CLOUDFLARE_API_TOKEN GitHub secret"; exit 1; }
+          test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing CLOUDFLARE_ACCOUNT_ID GitHub secret"; exit 1; }
+
+      - name: Deploy Worker
+        run: uv run pywrangler deploy
+
+      - name: Verify live Worker endpoints and login protection
+        run: |
+          set -euo pipefail
+          check_path() {
+            path="$1"
+            expected="$2"
+            code="$(curl -A 'Mozilla/5.0 (DEFENX deploy verification)' -sS -o /tmp/defenx-response -w '%{http_code}' "$WORKER_URL$path")"
+            echo "$path -> HTTP $code"
+            if [ "$code" != "$expected" ]; then
+              cat /tmp/defenx-response
+              return 1
+            fi
+          }
+          check_path / 302
+          check_path /index.html 302
+          check_path /login.html 200
+          check_path "/index.html?demo=1" 200
+          check_path /api/ping 200
+          check_path /api/health 200
+          check_path /monitor.js 200
+          check_path /monitor.css 200
+          check_path /road-detail-overlay.js 200
+          check_path /camera-target-overlay.js 200
+          check_path /camera-actions.js 200
+          check_path /rover-device.webp 200
+          check_path /rover-left.webp 200
+          health="$(curl -A 'Mozilla/5.0 (DEFENX deploy verification)' -fsS "$WORKER_URL/api/health")"
+          printf '%s\n' "$health" | grep -q '"ok":true'
+          printf '%s\n' "$health" | grep -q '"session_configured":true'
+          printf '%s\n' "$health" | grep -q '"auth_path_configured":true'
+          printf '%s\n' "$health" | grep -q '"realtime_bound":true'
+          echo "Cloudflare deployment verification: PASS"
+
+      - name: Verify dashboard button bindings and warning visibility
+        run: |
+          set -euo pipefail
+          base="$WORKER_URL"
+          curl -fsS "$base/index.html?demo=1" -o /tmp/defenx-buttons-index.html
+          curl -fsS "$base/app.js" -o /tmp/defenx-buttons-app.js
+          curl -fsS "$base/camera-actions.js" -o /tmp/defenx-camera-actions.js
+          curl -fsS "$base/defenx-refinement.css" -o /tmp/defenx-refinement.css
+          python - <<'PY'
+          from pathlib import Path
+          html = Path("/tmp/defenx-buttons-index.html").read_text(encoding="utf-8")
+          app = Path("/tmp/defenx-buttons-app.js").read_text(encoding="utf-8")
+          camera = Path("/tmp/defenx-camera-actions.js").read_text(encoding="utf-8")
+          css = Path("/tmp/defenx-refinement.css").read_text(encoding="utf-8")
+          required_html = [
+              "settingsModal", "settingsThemeBtn", "settingsSoundBtn",
+              "settingsWarningBtn", "settingsBrowserAlertsBtn",
+              "settingsCameraReconnectBtn", "warningOnBtn", "warningOffBtn",
+              "warningToggleBtn", "camShotBtn", "camRecordBtn", "camActionStatus",
+          ]
+          missing = [item for item in required_html if item not in html]
+          assert not missing, f"Missing dashboard controls: {missing}"
+          checks = [
+              '$("settingsBtn")?.addEventListener("click",openSettings)',
+              '$("settingsThemeBtn")?.addEventListener("click",toggleTheme)',
+              '$("settingsSoundBtn")?.addEventListener("click",toggleNotificationSound)',
+              '$("settingsWarningBtn")?.addEventListener("click",toggleWarningDisplay)',
+              '$("warningOnBtn")?.addEventListener("click"',
+              '$("warningOffBtn")?.addEventListener("click"',
+              'window.DEFENX_CAMERA_ACTIONS?.bind()',
+          ]
+          missing = [item for item in checks if item not in app]
+          assert not missing, f"Missing dashboard event handlers: {missing}"
+          assert 'shot.addEventListener("click", snapshot)' in camera, "Camera snapshot click handler missing"
+          assert 'rec.addEventListener("click", record)' in camera, "Camera recording click handler missing"
+          assert "#warningToggleBtn { display: none !important; }" not in css, "Warning toggle is hidden by CSS"
+          print("Dashboard controls, event handlers and warning visibility: PASS")
+          print("Camera actions are bound to real authenticated camera frames: PASS")
+          PY

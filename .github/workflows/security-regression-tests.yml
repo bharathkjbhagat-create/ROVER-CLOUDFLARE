@@ -32,7 +32,14 @@ jobs:
       - name: Validate Python source
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate JavaScript
-        run: node --check public/app.js
+        run: |
+          node --check public/app.js
+          node --check public/camera-actions.js
+
+      - name: Validate detailed map overlay JavaScript
+        run: node --check public/road-detail-overlay.js
+      - name: Validate camera target overlay JavaScript
+        run: node --check public/camera-target-overlay.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript

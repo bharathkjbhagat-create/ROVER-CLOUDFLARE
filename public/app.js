@@ -9,8 +9,9 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="";
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],lastTelemetryTrack=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",roadDetailOverlay=null;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
+window.DEFENX_CAMERA_STREAM_ACTIVE=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
 let notificationSoundEnabled=localStorage.getItem("rover_notification_sound")!=="off";
@@ -62,16 +63,12 @@ function syncTargetAlarm(detected,t){
   targetDetectedState=now;
 }
 function updateWarningControlUI(d){
-  const button=$("warningToggleBtn");
+  const button=$("warningToggleBtn"),onButton=$("warningOnBtn"),offButton=$("warningOffBtn");
   const state=$("alarmStateText");
   const active=!!warningDisplayEnabled;
-  if(button){
-    button.textContent=active?"TURN WARNING OFF":"TURN WARNING ON";
-    button.setAttribute("aria-pressed",String(active));
-    button.style.borderColor=active?"#f0b44c":"#52c6a8";
-    button.style.background=active?"#38280d":"#10332d";
-    button.style.color=active?"#ffe1a0":"#baf7e5";
-  }
+  if(button){button.textContent="TOGGLE WARNING";button.setAttribute("aria-pressed",String(active));}
+  if(onButton){onButton.disabled=active;onButton.setAttribute("aria-pressed",String(active));}
+  if(offButton){offButton.disabled=!active;offButton.setAttribute("aria-pressed",String(!active));}
   const sensorWarning=Number(d?.obstacle_cm??999)<45||!!d?.target?.detected;
   if(state)state.textContent=active?(sensorWarning?"ON • WARNING":"ON • ARMED"):"OFF • DISPLAY MUTED";
 }
@@ -81,6 +78,7 @@ function setWarningDisplay(enabled){
   if(!warningDisplayEnabled)stopTargetAlarm();
   else if(targetDetectedState)startTargetAlarm(lastTargetAlarmData);
   updateWarningControlUI({obstacle_cm:999,target:{detected:targetDetectedState}});
+  updateSettingsUI();
   setText("conn",me?"● ONLINE • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"):"● DEMO • WARNING DISPLAY "+(warningDisplayEnabled?"ON":"OFF"));
 }
 function toggleWarningDisplay(){setWarningDisplay(!warningDisplayEnabled);}
@@ -132,6 +130,7 @@ function toggleNotificationSound(){
   localStorage.setItem("rover_notification_sound",notificationSoundEnabled?"on":"off");
   if(notificationSoundEnabled){initNotificationAudio();playNotificationSound()}
   updateNotificationSoundUI();
+  updateSettingsUI();
   setText("alertStatus",notificationSoundEnabled?"Notification sound ENABLED.":"Notification sound MUTED.");
 }
 const demoCenter=[12.9716,77.5946];
@@ -192,12 +191,18 @@ function initMap(){
     document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode==="satellite"));
     setText("mapMode","Satellite");
     geofence=L.circle(demoCenter,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
-    const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
-    rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
+    if(demoMode){
+      const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
+      rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01 · SIMULATION",{permanent:true,direction:"top",className:"roverTooltip"});
+    }
     hide("mapFallback");hide("mapFrame");
     mapReady=true;
     map.on("click",handleBaseMapClick);
+    roadDetailOverlay=window.DEFENX_ROAD_DETAILS?.attach(map,L,esc,addLog)||null;
+    map.on("moveend zoomend",()=>roadDetailOverlay?.refresh());
     renderReturnBase();
+    if(window.defenxLatestTelemetry)updateUI(window.defenxLatestTelemetry);
+    roadDetailOverlay?.refresh();
     setText("conn","CONNECTED");
     setText("serverHeader","Server");
     setTimeout(()=>map.invalidateSize(),100);
@@ -207,6 +212,7 @@ function initMap(){
     setText("conn","DEGRADED");
   }
 }
+
 function setMapMode(mode){
   if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
   [streetLayer,satelliteLayer,terrainLayer].forEach(layer=>{if(layer&&map.hasLayer(layer))map.removeLayer(layer)});
@@ -226,7 +232,8 @@ function toggleSatellite(){
 }
 function centerRover(){
   if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
-  if(rover)map.setView(rover.getLatLng(),16);else map.setView(demoCenter,16);
+  if(!rover){addLog("MAP","No verified rover GPS position is available to center");return}
+  map.setView(rover.getLatLng(),16);
   recordActivity("MAP_CENTER","Centered map on ROVER-01");
 }
 function fitTrack(){
@@ -350,31 +357,68 @@ function connectRealtime(){
     }
   }
 }
+function validCoordinatePair(lat,lon){
+  if(lat===null||lat===undefined||lon===null||lon===undefined||String(lat).trim()===""||String(lon).trim()==="")return false;
+  const a=Number(lat),b=Number(lon);
+  return Number.isFinite(a)&&Number.isFinite(b)&&a>=-90&&a<=90&&b>=-180&&b<=180;
+}
+function isFreshRoverGps(telemetry,maxAgeSeconds=30,maxAccuracyM=100){
+  if(!telemetry||telemetry.gps_source!=="ROVER_DEVICE"||telemetry.gps_fix!==true||telemetry.device_online===false||!validCoordinatePair(telemetry.lat,telemetry.lon))return false;
+  const accuracy=Number(telemetry.gps_accuracy_m),epoch=Number(telemetry.gps_last_epoch);
+  const age=Date.now()/1000-epoch;
+  return telemetry.gps_accuracy_m!==null&&telemetry.gps_accuracy_m!==undefined&&String(telemetry.gps_accuracy_m).trim()!==""&&Number.isFinite(accuracy)&&accuracy>=0&&accuracy<=maxAccuracyM&&Number.isFinite(epoch)&&epoch>0&&age>=-5&&age<=maxAgeSeconds;
+}
+function renderTrackLine(){
+  if(map&&trackPts.length>1){
+    if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);
+    else trackLine.setLatLngs(trackPts);
+  }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
+}
 function updateUI(input){
-  window.defenxLatestTelemetry = input && typeof input === "object" ? input : null;
-  // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
-  const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
-  const rawTarget=input&&input.target?input.target:{},deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE";
-  const safeTarget=Object.assign({},rawTarget,{type:deviceTarget?(rawTarget.type||"Object"):"Object",detected:deviceTarget&&rawTarget.detected===true,range_m:deviceTarget?(rawTarget.range_m||0):0,speed_kmh:deviceTarget?(rawTarget.speed_kmh||0):0,confidence:deviceTarget?(rawTarget.confidence||0):0,lat:simTarget.lat,lon:simTarget.lon});
-  const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:safeTarget};
+  const incoming=input&&typeof input==="object"?input:{};
+  window.defenxLatestTelemetry=incoming;
+  const simPoint=demoMode?randomDemoPoint():null;
+  const simTarget=demoMode?randomDemoPoint():null;
+  const incomingAccuracy=Number(incoming.gps_accuracy_m);
+  const hasVerifiedRoverGps=!demoMode&&isFreshRoverGps(incoming,30,100);
+  const rawTarget=incoming.target&&typeof incoming.target==="object"?incoming.target:{};
+  const deviceTarget=String(incoming.target_source||"")==="ROVER_DEVICE";
+  const targetHasCoordinates=validCoordinatePair(rawTarget.lat,rawTarget.lon);
+  const safeTarget=Object.assign({},rawTarget,{
+    type:demoMode?(rawTarget.type||"Object"):(deviceTarget?(rawTarget.type||"Object"):"Object"),
+    detected:demoMode?rawTarget.detected===true:(deviceTarget&&rawTarget.detected===true),
+    range_m:demoMode?(rawTarget.range_m||0):(deviceTarget?(rawTarget.range_m||0):0),
+    speed_kmh:demoMode?(rawTarget.speed_kmh||0):(deviceTarget?(rawTarget.speed_kmh||0):0),
+    confidence:demoMode?(rawTarget.confidence||0):(deviceTarget?(rawTarget.confidence||0):0),
+    lat:(demoMode&&simTarget)?simTarget.lat:(deviceTarget&&hasVerifiedRoverGps&&targetHasCoordinates?Number(rawTarget.lat):null),
+    lon:(demoMode&&simTarget)?simTarget.lon:(deviceTarget&&hasVerifiedRoverGps&&targetHasCoordinates?Number(rawTarget.lon):null)
+  });
+  const trustedTrack=!demoMode&&incoming.gps_source==="ROVER_DEVICE"&&Array.isArray(incoming.track)
+    ?incoming.track.filter(p=>p&&validCoordinatePair(p.lat,p.lon)).slice(-500).map(p=>({lat:Number(p.lat),lon:Number(p.lon)}))
+    :[];
+  const position=demoMode?simPoint:(hasVerifiedRoverGps?{lat:Number(incoming.lat),lon:Number(incoming.lon)}:null);
+  const d={...incoming,lat:position?position.lat:null,lon:position?position.lon:null,gps_fix:hasVerifiedRoverGps,gps_sats:hasVerifiedRoverGps?Number(incoming.gps_sats||0):0,gps_source:demoMode?"SIMULATION":(hasVerifiedRoverGps?"ROVER_DEVICE":"NO_FIX"),gps_accuracy_m:hasVerifiedRoverGps?incomingAccuracy:null,track:demoMode?[]:trustedTrack,target:safeTarget};
+  window.ROVER_POSITION_VERIFIED=hasVerifiedRoverGps;
+  window.ROVER_LATEST_ROVER_POSITION=hasVerifiedRoverGps?{lat:Number(incoming.lat),lon:Number(incoming.lon),accuracy_m:incomingAccuracy,gps_last_epoch:Number(incoming.gps_last_epoch),updated:incoming.updated||null}:null;
   const gpsQuality=d.gps_fix?(Number(d.gps_sats||0)>=8?"Excellent":Number(d.gps_sats||0)>=5?"Good":"Fair"):"No Fix";
   setText("battery",Math.round(Number(d.battery||0))+"%");setText("deviceBattery",Math.round(Number(d.battery||0))+"%");
   setText("signal",Math.round(Number(d.signal||0))+"%");setText("signalDevice",Number(d.signal||0)>=70?"Strong":Number(d.signal||0)>=45?"Medium":"Weak");
   setText("gps",d.gps_fix?"Good":"No Fix");setText("gpsHeader",d.gps_fix?"GPS":"GPS");setText("sats",(d.gps_sats??"--")+" sats");
   const speed=Number(d.speed_kmh||0),heading=((Number(d.heading||0)%360)+360)%360;
   setText("speed",speed.toFixed(1)+" km/h");setText("heading","Heading "+Math.round(heading)+"°");updateCompass(heading);
-  setText("lat",Number(d.lat).toFixed(6));setText("lon",Number(d.lon).toFixed(6));setText("updated",new Date(d.updated).toLocaleTimeString());
+  const hasDisplayCoordinates=validCoordinatePair(d.lat,d.lon);
+  setText("lat",hasDisplayCoordinates?Number(d.lat).toFixed(6):"--");setText("lon",hasDisplayCoordinates?Number(d.lon).toFixed(6):"--");setText("updated",new Date(d.updated).toLocaleTimeString());
   setText("deviceOnline",d.device_online===false?"● OFFLINE":"● ONLINE");
   setLastKnownLoss(d.last_known_loss||null);
-  setText("mapCoords",Number(d.lat).toFixed(4)+"° N  "+Number(d.lon).toFixed(4)+"° E");
-  const gpsSource=String(d.gps_source||"SIMULATION");
+  setText("mapCoords",hasDisplayCoordinates?Number(d.lat).toFixed(5)+"°  "+Number(d.lon).toFixed(5)+"°":"ROVER GPS POSITION UNAVAILABLE");
+  const gpsSource=String(d.gps_source||"NO_FIX");
   const gpsAccuracy=Number(d.gps_accuracy_m);
-  const liveGps=(gpsSource==="LIVE_GPS"||gpsSource==="ROVER_DEVICE")&&Number.isFinite(gpsAccuracy);
+  const liveGps=hasVerifiedRoverGps;
   window.ROVER_GPS_SOURCE=gpsSource;
-  setText("gps",liveGps?"LIVE":(d.gps_fix?"DEMO":"NO FIX"));
-  setText("gpsHeader",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS LIVE":(liveGps?"GPS LIVE":"GPS"));setText("gpsHeaderSub",liveGps?"Fix reported · ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION · NOT LIVE":"NO VERIFIED GPS FIX"));
-  setText("gpsSignalText",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS • ±"+Math.round(gpsAccuracy)+" m":liveGps?"OPERATOR GPS • ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION • NOT REAL GPS":gpsQuality));
-  setText("deviceGpsState",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER • ±"+Math.round(gpsAccuracy)+" m":(liveGps?"OPERATOR • ±"+Math.round(gpsAccuracy)+" m":(d.gps_fix?"DEMO":"SEARCHING")));
+  setText("gps",liveGps?"LIVE":(demoMode?"DEMO":"NO FIX"));
+  setText("gpsHeader",liveGps?"ROVER GPS LIVE":"GPS");setText("gpsHeaderSub",liveGps?"Fix reported · ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION · NOT LIVE":"NO VERIFIED GPS FIX"));
+  setText("gpsSignalText",liveGps?"ROVER GPS • ±"+Math.round(gpsAccuracy)+" m":(demoMode?"SIMULATION • NOT REAL GPS":"NO VERIFIED ROVER GPS FIX"));
+  setText("deviceGpsState",liveGps?"ROVER • ±"+Math.round(gpsAccuracy)+" m":(demoMode?"SIMULATED":"SEARCHING"));
   setText("modeBadge",d.mode||"MANUAL");
   const liveCommand=String(d.last_command||"STOP").toUpperCase();
   setText("cmd",liveCommand);
@@ -392,13 +436,13 @@ function updateUI(input){
   if(realCameraActive&&d.camera===false){
     const media=$("roverRealCamera");if(media){media.pause?.();media.src="";}
     if($("camera3DScene"))$("camera3DScene").style.display="";
-    realCameraActive=false;
+    realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;
   }
   const batteryPct=Math.max(0,Math.min(100,Number(d.battery||0)));const signalPct=Math.max(0,Math.min(100,Number(d.signal||0)));
   const batteryBar=$("batteryBar");if(batteryBar)batteryBar.style.width=batteryPct+"%";
   const signalBar=$("signalBar");if(signalBar)signalBar.style.width=signalPct+"%";
   setText("person","0");setText("vehicle","0");setText("object","0");setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence","0%");
-  setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
+  setText("deviceOnline",d.device_online===false?"● OFFLINE":"● ONLINE");setText("deviceGpsState",liveGps?"LOCKED":(demoMode?"SIMULATED":"SEARCHING"));setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
   setText("missionObstacle",(d.obstacle_cm??"--")+" cm");setText("missionTracking",d.tracking===false?"PAUSED":"ACTIVE");setText("missionGeofence",d.geofence===false?"OFF":"ACTIVE");setText("missionNetwork",d.network||"ONLINE");setText("missionState",(Number(d.obstacle_cm||999)<45)?"WARNING":"READY");
   updateWarningControlUI(d);
   const t=d.target||{type:"Object",range_m:0,speed_kmh:0,heading:0,direction:"N",size_m:0,confidence:0,lat:Number(d.lat),lon:Number(d.lon),detected:false};
@@ -416,9 +460,18 @@ function updateUI(input){
   if(!detected)hide("targetHud");else show("targetHud");
   setText("topName",me?.display_name||"Admin");setText("topRole",me?.role==="admin"?"Administrator":"Operator");
   setText("onlineUsers","Presence unavailable");setText("onlineUsersSub","Live user count not reported");
-  if(rover){rover.setLatLng([Number(d.lat),Number(d.lon)]);const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";}
+  if(map&&hasDisplayCoordinates){
+    if(!rover){
+      const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
+      rover=L.marker([Number(d.lat),Number(d.lon)],{icon:roverIcon}).addTo(map).bindTooltip(demoMode?"ROVER-01 · SIMULATION":"ROVER-01 · VERIFIED GPS",{permanent:true,direction:"top",className:"roverTooltip"});
+      if(!demoMode)map.setView([Number(d.lat),Number(d.lon)],16);
+    }else rover.setLatLng([Number(d.lat),Number(d.lon)]);
+    const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";
+  }else if(map&&!demoMode&&rover){
+    map.removeLayer(rover);rover=null;
+  }
   const tl=Number(t.lat),tn=Number(t.lon);
-  if(map&&Number.isFinite(tl)&&Number.isFinite(tn)&&detected){
+  if(map&&validCoordinatePair(t.lat,t.lon)&&detected){
     const targetIcon=L.divIcon({className:"targetMarkerLabel",html:'<div class="targetMapMarker">◎</div><span>TARGET</span>',iconSize:[46,46],iconAnchor:[23,23]});
     if(!targetMarker)targetMarker=L.marker([tl,tn],{icon:targetIcon}).addTo(map);else targetMarker.setLatLng([tl,tn]);
     if(rover){
@@ -427,9 +480,11 @@ function updateUI(input){
       if(!targetLine)targetLine=L.polyline(pts,{color:"#ff4858",weight:2,dashArray:"7 6",opacity:.95}).addTo(map);else targetLine.setLatLngs(pts);
     }
   }else{if(targetMarker&&map){map.removeLayer(targetMarker);targetMarker=null}if(targetLine&&map){map.removeLayer(targetLine);targetLine=null}}
-  trackPts=(d.track||[]).map(x=>[x.lat,x.lon]);
-  if(map&&trackPts.length>1){if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);else trackLine.setLatLngs(trackPts)}
+  lastTelemetryTrack=(d.track||[]).map(x=>[Number(x.lat),Number(x.lon)]).filter(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])&&p[0]>=-90&&p[0]<=90&&p[1]>=-180&&p[1]<=180);
+  if(liveTracking)trackPts=lastTelemetryTrack.slice();
+  renderTrackLine();
   addSample(d);
+  window.dispatchEvent(new CustomEvent("defenx-telemetry",{detail:d}));
 }
 function updateCompass(heading){
   const compass=$("mapCompass");
@@ -566,12 +621,14 @@ async function pollLoginAlerts(){
   }catch(_){} finally { loginAlertBusy=false; }
 }
 async function enableBrowserAlerts(){
-  if(!("Notification" in window)){setText("alertStatus","This browser does not expose browser notifications. In-app alerts remain active.");return}
+  const note=$("settingsNote");
+  const showResult=message=>{setText("alertStatus",message);if(note)note.textContent=message;};
+  if(!("Notification" in window)){showResult("This browser does not expose browser notifications. In-app alerts remain active.");return;}
   try{
     const p=await Notification.requestPermission();
-    if(p==="granted"){setText("alertStatus","Browser login alerts ENABLED on this device.");recordActivity("BROWSER_ALERTS_ENABLED","Browser notifications enabled")}
-    else setText("alertStatus","Browser notification permission was not granted. In-app alerts remain active.");
-  }catch(_){setText("alertStatus","Could not enable browser notifications. In-app alerts remain active.")}
+    if(p==="granted"){showResult("Browser login alerts are enabled on this device.");recordActivity("BROWSER_ALERTS_ENABLED","Browser notifications enabled");}
+    else showResult("Browser notification permission was not granted. In-app alerts remain active.");
+  }catch(_){showResult("Could not enable browser notifications. In-app alerts remain active.");}
 }
 function updatePermissionUI(){
   const control=!!me&&!demoMode;
@@ -647,15 +704,15 @@ async function initRealCameraStream(){
       frame.style.cssText="display:block;width:100%;height:100%;border:0;background:#02070b;position:absolute;inset:0;z-index:4";
       media.replaceWith(frame);
       media=frame;
-      realCameraActive=true;
+      realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;
     }else if(mediaType==="mjpeg"||mediaType==="image"){
       const img=document.createElement("img");
       img.id="roverRealCamera";
       img.alt="ROVER-01 live camera";
       img.decoding="async";
       img.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
-      img.onload=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      img.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
+      img.onload=()=>{realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
+      img.onerror=()=>{realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       img.src=d.url;
       media.replaceWith(img);
       media=img;
@@ -664,15 +721,15 @@ async function initRealCameraStream(){
       video.id="roverRealCamera";
       video.autoplay=true;video.muted=true;video.playsInline=true;video.controls=false;
       video.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
-      video.onloadeddata=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
-      video.onerror=()=>{realCameraActive=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
+      video.onloadeddata=()=>{realCameraActive=true;window.DEFENX_CAMERA_STREAM_ACTIVE=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
+      video.onerror=()=>{realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;if(scene)scene.style.display="block";setText("cameraSceneLabel","CAMERA STREAM ERROR • SIMULATION VIEW")};
       video.src=d.url;
       media.replaceWith(video);
       media=video;
       video.play().catch(()=>{});
     }
   }catch(_){
-    realCameraActive=false;
+    realCameraActive=false;window.DEFENX_CAMERA_STREAM_ACTIVE=false;
   }
 }
 
@@ -720,28 +777,47 @@ function renderReturnBase(){
   setText("returnBaseStatus",label);
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;returnRouteMode="none";}
 }
-function previewReturnRoute(simulateObstacle=false){
+async function previewReturnRoute(simulateObstacle=false){
   if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
-  // This is a visual software simulation only. It deliberately does not use
-  // randomized display coordinates as live rover location and sends no commands.
-  const origin=rover&&typeof rover.getLatLng==="function"?rover.getLatLng():null;
-  if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE");addLog("ROUTE","No map marker is available for the simulated rover");return;}
+  // Route preview starts only from a verified device GPS fix, never a simulated marker.
+  const latestTelemetry=window.defenxLatestTelemetry;
+  const livePosition=window.ROVER_LATEST_ROVER_POSITION;
+  const origin=isFreshRoverGps(latestTelemetry,10,25)&&window.ROVER_POSITION_VERIFIED===true&&livePosition&&validCoordinatePair(livePosition.lat,livePosition.lon)?L.latLng(Number(livePosition.lat),Number(livePosition.lon)):null;
+  if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE · VERIFIED ROVER GPS REQUIRED");addLog("ROUTE","Road route preview requires a verified live rover GPS fix");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
-  let points=[a,b],label="SIMULATION · DIRECT PREVIEW";
+  let points=[a,b],label="DIRECT LINE · NOT ROAD ROUTING";
   if(simulateObstacle){
     const midLat=(a[0]+b[0])/2,midLon=(a[1]+b[1])/2;
     const dLat=b[0]-a[0],dLon=b[1]-a[1],length=Math.max(Math.hypot(dLat,dLon),0.00001);
     const offset=Math.min(0.003,Math.max(0.00035,length*0.18));
     points=[a,[midLat-dLon/length*offset,midLon+dLat/length*offset],b];
-    label="SIMULATION · ALTERNATE ROUTE";
+    label="SYNTHETIC OBSTACLE DEMO";
+  }else{
+    try{
+      const url="https://router.project-osrm.org/route/v1/driving/"+encodeURIComponent(origin.lng+","+origin.lat+";"+returnBase.lon+","+returnBase.lat)+"?overview=full&geometries=geojson&steps=true";
+      const response=await fetch(url,{headers:{"Accept":"application/json"},signal:AbortSignal.timeout(10000)});
+      if(!response.ok)throw new Error("Routing service HTTP "+response.status);
+      const data=await response.json();
+      const coordinates=data?.routes?.[0]?.geometry?.coordinates;
+      if(data?.code!=="Ok"||!Array.isArray(coordinates)||coordinates.length<2)throw new Error("No road route returned");
+      points=coordinates.map(p=>[Number(p[1]),Number(p[0])]);
+      if(points.some(p=>!Number.isFinite(p[0])||!Number.isFinite(p[1])))throw new Error("Invalid route geometry");
+      label="ROAD ROUTE PREVIEW · OSRM";
+      const route=data.routes[0];
+      addLog("ROUTE","Road route preview received · "+(Number(route.distance)/1000).toFixed(2)+" km · "+Math.round(Number(route.duration)/60)+" min estimated");
+    }catch(err){
+      setText("returnBaseStatus","ROAD ROUTE UNAVAILABLE · NO MOVEMENT");
+      addLog("ROUTE","Road routing unavailable: "+String(err?.message||err)+"; direct-line navigation is not substituted");
+      return;
+    }
   }
   returnRouteLine=L.polyline(points,{color:simulateObstacle?"#f5b942":"#22d3a6",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
-  returnRouteMode=simulateObstacle?"alternate":"direct";
-  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
-  setText("returnBaseStatus",label+" · NOT NAVIGATION");
-  addLog("ROUTE",label+" rendered; no rover command sent");
+  returnRouteMode=simulateObstacle?"synthetic-demo":"road-preview";
+  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:18});
+  setText("returnBaseStatus",label+" · PREVIEW ONLY");
+  addLog("ROUTE",label+" displayed on the active map layer; no rover command sent");
 }
 function clearReturnRoutePreview(){
   if(returnRouteLine&&map){map.removeLayer(returnRouteLine);returnRouteLine=null;}
@@ -771,7 +847,7 @@ async function requestReturnToBase(){
   // Fail closed: current firmware/controller capability is unknown. Do not issue
   // a sequence of directional commands or claim autonomy from a dashboard click.
   const telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
-  if(!telemetry||telemetry.gps_fix!==true||!Number.isFinite(telemetry.lat)||telemetry.lat < -90||telemetry.lat > 90||!Number.isFinite(telemetry.lon)||telemetry.lon < -180||telemetry.lon > 180){
+  if(!isFreshRoverGps(telemetry,10,25)){
     addLog("RETURN BLOCKED","Verified, valid live rover GPS coordinates are required before return can start");setText("returnBaseStatus","RETURN BLOCKED · VERIFIED LIVE GPS REQUIRED");return;
   }
   if(telemetry.autonomous_navigation!==true||telemetry.obstacle_avoidance!==true||telemetry.obstacle_sensor_healthy!==true||telemetry.safety_controller_healthy!==true){
@@ -910,8 +986,21 @@ function toggleTheme(){
   localStorage.setItem("rover_theme",light?"light":"dark");
   applyTheme();
   initMobileNav();
+  updateSettingsUI();
   addLog("UI",light?"Light theme enabled":"Dark theme enabled");
   recordActivity("THEME_CHANGED",light?"Light theme enabled":"Dark theme enabled");
+}
+function updateSettingsUI(){
+  const light=document.body.classList.contains("light");
+  const theme=$("settingsThemeBtn"),sound=$("settingsSoundBtn"),warning=$("settingsWarningBtn");
+  if(theme){theme.textContent=light?"LIGHT • SWITCH TO DARK":"DARK • SWITCH TO LIGHT";theme.setAttribute("aria-pressed",String(light));}
+  if(sound){sound.textContent=notificationSoundEnabled?"SOUND ON • MUTE":"SOUND MUTED • TURN ON";sound.setAttribute("aria-pressed",String(notificationSoundEnabled));}
+  if(warning){warning.textContent=warningDisplayEnabled?"WARNINGS ON • MUTE DISPLAY":"WARNINGS MUTED • TURN ON";warning.setAttribute("aria-pressed",String(warningDisplayEnabled));}
+}
+function openSettings(){
+  updateSettingsUI();
+  openModal("settingsModal");
+  recordActivity("SETTINGS_OPENED","System settings opened");
 }
 
 
@@ -929,7 +1018,7 @@ function scrollToSection(id){
   const el=$(id);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
 }
 async function captureScreen(){
-  addLog("CAMERA","Screenshot action requested");
+  addLog("SCREENSHOT","Full-screen screenshot requested");
   if(navigator.mediaDevices?.getDisplayMedia){
     try{
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
@@ -944,15 +1033,27 @@ async function captureScreen(){
   }
   window.print();
 }
+function setCameraActionStatus(message){const el=$("camActionStatus");if(el)el.textContent=message;}
 function toggleNightMode(){
   const on=document.body.classList.toggle("night-mode");
   const b=$("nightModeBtn");if(b)b.classList.toggle("active",on);
   addLog("UI",on?"Night mode enabled":"Night mode disabled");recordActivity("NIGHT_MODE",on?"Night mode enabled":"Night mode disabled");
 }
+function updateLiveTrackButton(){
+  const b=$("liveTrackBtn");if(!b)return;
+  const label=b.querySelector("b");
+  if(label)label.textContent=liveTracking?"Pause Track":"Resume Track";
+  b.classList.toggle("active",liveTracking);
+  b.setAttribute("aria-pressed",String(liveTracking));
+  b.title=liveTracking?"Pause the displayed map trail; GPS reporting continues":"Resume the displayed map trail";
+}
 function setLiveTracking(){
   liveTracking=!liveTracking;
-  const b=$("liveTrackBtn");if(b)b.classList.toggle("active",liveTracking);
-  addLog("TRACK",liveTracking?"Live tracking active":"Live tracking paused");
+  if(liveTracking){trackPts=lastTelemetryTrack.slice();renderTrackLine();}
+  updateLiveTrackButton();
+  addLog("TRACK",liveTracking?"Map trail display resumed":"Map trail display paused");
+  recordActivity("MAP_TRAIL_DISPLAY",liveTracking?"Map trail display resumed":"Map trail display paused");
+  window.dispatchEvent(new CustomEvent("defenx-track-display",{detail:{enabled:liveTracking}}));
 }
 function cycleMode(){
   const modes=["MANUAL","ASSISTED","AUTO-DEMO"];const current=$("modeBadge")?.textContent||"MANUAL";const i=Math.max(0,modes.indexOf(current));setMode(modes[(i+1)%modes.length]);
@@ -985,80 +1086,6 @@ function initMobileNav(){
       panel.setAttribute("aria-hidden",String(!open));btn.setAttribute("aria-expanded",String(open));
     });
   }
-}
-
-function initCameraObstacleSimulation(room){
-  if(!room||room.dataset.obstaclesBound==="1")return;
-  room.dataset.obstaclesBound="1";
-  const style=document.createElement("style");
-  style.dataset.dynamicObstacleStyle="1";
-  style.textContent=`
-    .camObstacleLayer{position:absolute;inset:0;z-index:7;pointer-events:none;transform-style:preserve-3d}
-    .camObstacle{position:absolute;left:50%;bottom:78px;width:58px;height:118px;opacity:0;transform:translate3d(-50%,18px,0) scale(.72);transition:opacity .42s ease,transform .6s cubic-bezier(.2,.75,.2,1),filter .25s ease;filter:drop-shadow(0 10px 7px rgba(0,0,0,.48));transform-origin:50% 100%;will-change:opacity,transform}
-    .camObstacle.isVisible{opacity:1;transform:translate3d(-50%,0,var(--obstacle-z,60px)) scale(var(--obstacle-scale,1))}
-    .camObstacleTag{position:absolute;left:50%;top:-19px;transform:translateX(-50%);padding:3px 6px;border:1px solid rgba(255,91,105,.75);border-radius:4px;background:rgba(45,7,13,.88);color:#ffb3ba;font:800 6px/1 ui-monospace,monospace;letter-spacing:.7px;white-space:nowrap}
-    .camHuman .camHead{position:absolute;left:21px;top:0;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,#c3d5dc,#6e8791);border:1px solid #d8edf2;box-shadow:0 0 9px rgba(164,222,235,.18)}
-    .camHuman .camBody{position:absolute;left:15px;top:17px;width:28px;height:47px;border-radius:10px 10px 7px 7px;background:linear-gradient(160deg,#2d6f7d,#123440 72%);border:1px solid #52bfd0}
-    .camHuman .camArm{position:absolute;top:23px;width:8px;height:39px;border-radius:7px;background:#275562;border:1px solid #4a8998}
-    .camHuman .camArm.left{left:7px;transform:rotate(12deg)}.camHuman .camArm.right{right:7px;transform:rotate(-12deg)}
-    .camHuman .camLeg{position:absolute;top:61px;width:10px;height:39px;border-radius:5px;background:#142b34;border:1px solid #416370}
-    .camHuman .camLeg.left{left:15px}.camHuman .camLeg.right{right:15px}
-    .camHuman .camBeacon{position:absolute;left:25px;top:35px;width:8px;height:8px;border-radius:50%;background:#ff4f63;box-shadow:0 0 12px rgba(255,79,99,.75);animation:camObstaclePulse 1.2s ease-in-out infinite}
-    .camCrate{width:72px;height:66px;bottom:78px}.camCrate .camCrateBody{position:absolute;inset:8px 2px 0;border:2px solid #5a8190;border-radius:4px;background:linear-gradient(160deg,#24434e,#0d222c)}.camCrate .camCrateBody:before,.camCrate .camCrateBody:after{content:"";position:absolute;left:13px;right:13px;top:50%;height:2px;background:#4a7180}.camCrate .camCrateBody:after{left:50%;top:13px;bottom:13px;width:2px;height:auto}
-    .camBarrier{width:88px;height:86px;bottom:76px}.camBarrier .camBarrierBody{position:absolute;left:8px;right:8px;bottom:12px;height:24px;border:2px solid #8a6f34;border-radius:4px;background:repeating-linear-gradient(135deg,#b18a34 0 9px,#2f2b20 9px 18px);box-shadow:0 5px 0 #101a1e}.camBarrier i{position:absolute;bottom:0;width:7px;height:67px;background:linear-gradient(90deg,#1c2d34,#4e666d);border:1px solid #6d858c}.camBarrier i.left{left:17px}.camBarrier i.right{right:17px}
-    @keyframes camObstaclePulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
-    .cameraObstacleState{position:absolute;left:10px;bottom:10px;z-index:11;padding:4px 7px;border:1px solid rgba(69,179,197,.45);border-radius:4px;background:rgba(3,12,18,.76);color:#79bfd0;font:800 7px/1 ui-monospace,monospace;letter-spacing:.8px;pointer-events:none}.cameraObstacleState.targeting{border-color:rgba(255,81,96,.65);color:#ff9ea8}
-    .cameraTargetFocus{outline:2px solid rgba(255,71,87,.9);outline-offset:3px;filter:drop-shadow(0 0 12px rgba(255,71,87,.45)) drop-shadow(0 10px 7px rgba(0,0,0,.48))!important}
-  `;
-  document.head.appendChild(style);
-  const layer=document.createElement("div");layer.className="camObstacleLayer";layer.setAttribute("aria-hidden","true");room.appendChild(layer);
-  const state=document.createElement("div");state.className="cameraObstacleState";state.textContent="AI VISION • CLEAR";room.appendChild(state);
-  const positions=[{left:"28%",bottom:92,z:115,scale:.88},{left:"48%",bottom:76,z:170,scale:1.08},{left:"69%",bottom:96,z:95,scale:.77}];
-  const slots=positions.map(p=>{const el=document.createElement("div");el.className="camObstacle";layer.appendChild(el);return{p,el,active:false,type:null}});
-  const setCameraFocus=slot=>{
-    slots.forEach(s=>s.el.classList.remove("cameraTargetFocus"));
-    const active=slot&&slot.active?slot:null;
-    if(active)active.el.classList.add("cameraTargetFocus");
-    const box=document.querySelector(".camTargetBox");
-    const viewport=$("cameraViewport"),sceneLabel=$("cameraSceneLabel");
-    if(box){box.classList.toggle("cameraTargetOn",!!active);box.classList.toggle("cameraTargetOff",!active);box.setAttribute("aria-hidden",String(!active));}
-    if(viewport)viewport.classList.toggle("camera-target-active",!!active);
-    state.classList.toggle("targeting",!!active);
-    setText("cameraTargetType",active?(active.type==="human"?"HUMAN":active.type==="barrier"?"BARRIER":"OBJECT"):"OFF");
-    if(sceneLabel)sceneLabel.textContent=active?"AI TARGET FOCUS • "+(active.type==="human"?"HUMAN":active.type==="barrier"?"BARRIER":"OBJECT"):"AI VISION • SCANNING";
-  };
-  const drawHuman=el=>{el.className="camObstacle camHuman";el.innerHTML='<span class="camObstacleTag">TARGET • HUMAN</span><i class="camHead"></i><i class="camBody"></i><i class="camArm left"></i><i class="camArm right"></i><i class="camLeg left"></i><i class="camLeg right"></i><i class="camBeacon"></i>'};
-  const drawCrate=el=>{el.className="camObstacle camCrate";el.innerHTML='<span class="camObstacleTag">TARGET • OBJECT</span><i class="camCrateBody"></i>'};
-  const drawBarrier=el=>{el.className="camObstacle camBarrier";el.innerHTML='<span class="camObstacleTag">TARGET • BARRIER</span><i class="camBarrierBody"></i><i class="left"></i><i class="right"></i>'};
-  const hideAll=()=>{slots.forEach(s=>{s.el.classList.remove("isVisible");s.active=false;s.type=null});setCameraFocus(null);state.textContent="AI VISION • CLEAR"};
-  const showTarget=type=>{
-    hideAll();
-    const slot=slots[Math.floor(Math.random()*slots.length)];
-    slot.active=true;slot.type=type==="human"?"human":type==="barrier"?"barrier":"object";
-    slot.p.left=positions[Math.floor(Math.random()*positions.length)].left;
-    slot.p.bottom=positions[Math.floor(Math.random()*positions.length)].bottom;
-    slot.p.z=slot.type==="human"?150:105;slot.p.scale=slot.type==="human"?1.04:.86;
-    slot.el.style.left=slot.p.left;slot.el.style.bottom=slot.p.bottom+"px";slot.el.style.setProperty("--obstacle-z",slot.p.z+"px");slot.el.style.setProperty("--obstacle-scale",String(slot.p.scale));
-    if(slot.type==="human")drawHuman(slot.el);else if(slot.type==="barrier")drawBarrier(slot.el);else drawCrate(slot.el);
-    requestAnimationFrame(()=>slot.el.classList.add("isVisible"));
-    setCameraFocus(slot);
-    state.textContent="AI TARGET • "+(slot.type==="human"?"HUMAN":slot.type==="barrier"?"BARRIER":"OBJECT")+" DETECTED";
-  };
-  let lastAppliedDetected=null,lastAppliedType=null;
-  const applyTarget=(detected,type)=>{
-    const normalizedDetected=!!detected;
-    const normalizedType=(type||"object").toLowerCase();
-    if(normalizedDetected===lastAppliedDetected && normalizedType===lastAppliedType)return;
-    lastAppliedDetected=normalizedDetected;
-    lastAppliedType=normalizedType;
-    if(normalizedDetected)showTarget(normalizedType);else hideAll();
-  };
-  window.addEventListener("rover-target-state",e=>{
-    const d=e.detail||{};
-    applyTarget(!!d.detected,d.type||"object");
-  });
-  window.addEventListener("roomobstacledestroy",()=>{});
-  setTimeout(()=>applyTarget(!!window.ROVER_CAMERA_TARGET_STATE?.detected,window.ROVER_CAMERA_TARGET_STATE?.type),0);
 }
 
 function initCamera3DRoom(){
@@ -1112,12 +1139,12 @@ function initCamera3DRoom(){
     else if(e.key==="Home"){e.preventDefault();heading=0;pitch=-2;render();}
   });
   render();
-  initCameraObstacleSimulation(room);
+  window.DEFENX_CAMERA_OBSTACLES?.attach(room,$,setText);
 }
 function bindUI(){
   $("themeBtn")?.addEventListener("click",toggleTheme);
   applyTheme();
-  $("settingsBtn")?.addEventListener("click",()=>scrollToSection("controlPanel"));
+  $("settingsBtn")?.addEventListener("click",openSettings);
   $("profileBtn")?.addEventListener("click",()=>{if(!me){openModal("profileModal");setText("profileMsg","Authenticating…");return;}$("profileUsername").value=me.username;$("profileName").value=me.display_name;$("profilePassword").value="";setText("profileMsg","");openModal("profileModal");recordActivity("PROFILE_OPENED","Profile opened");});
   $("adminBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Admin activity centre opened");await loadUsers();await loadAudit();pollLoginAlerts();});
   $("deviceBtn")?.addEventListener("click",()=>{recordActivity("DEVICES_OPENED","Device management opened");openDevices()});
@@ -1145,14 +1172,21 @@ function bindUI(){
   document.querySelectorAll(".control").forEach(b=>{const c=b.dataset.cmd;if(!c)return;b.addEventListener("click",async()=>{await sendCommand(c);})});
   document.querySelectorAll(".mapTab").forEach(b=>b.addEventListener("click",()=>setMapMode(b.dataset.mapmode)));
   $("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
-  $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",()=>{recording=!recording;const b=$("camRecordBtn");b.classList.toggle("active",recording);addLog("CAMERA",recording?"Recording started":"Recording stopped");recordActivity("CAMERA_RECORD",recording?"Recording started":"Recording stopped")});
-  $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(el?.requestFullscreen)el.requestFullscreen().catch(()=>{});});
+  updateLiveTrackButton();
+  window.DEFENX_CAMERA_ACTIONS?.bind();
+  window.addEventListener("defenx-camera-action",event=>{const detail=event.detail||{};if(detail.action){addLog("CAMERA",detail.details||detail.action);recordActivity(detail.action,detail.details||"Camera action");}});
+  $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(!el)return;if(el.requestFullscreen)el.requestFullscreen().catch(()=>setCameraActionStatus("The browser blocked full-screen mode."));else setCameraActionStatus("Full-screen mode is not supported by this browser.");});
   $("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");loadAudit()}else scrollToSection("eventLogSection")});
   $("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[data-user]");if(b)userAction(b)});
+  $("settingsThemeBtn")?.addEventListener("click",toggleTheme);
+  $("settingsSoundBtn")?.addEventListener("click",toggleNotificationSound);
+  $("settingsWarningBtn")?.addEventListener("click",toggleWarningDisplay);
+  $("settingsCameraReconnectBtn")?.addEventListener("click",()=>{const note=$("settingsNote");if(window.ROVER_MONITOR?.reconnect){window.ROVER_MONITOR.reconnect();if(note)note.textContent="Camera reconnect requested. Check the camera status on the dashboard.";setCameraActionStatus("Camera reconnect requested.");}else{if(note)note.textContent="Camera monitor is not ready yet.";setCameraActionStatus("Camera monitor is not ready yet.");}});
+  $("settingsBrowserAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
   $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
   $("devicesTabBtn")?.addEventListener("click",loadDevices);
   $("auditTabBtn")?.addEventListener("click",async()=>{hide("usersTab");show("auditTab");await loadAudit()});
-  document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){scrollToSection("controlPanel");return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
+  document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){openSettings();return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
   initMobileNav();
   initCamera3DRoom();
   initRealCameraStream();

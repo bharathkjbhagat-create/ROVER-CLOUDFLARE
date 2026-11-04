@@ -1,0 +1,231 @@
+/* DEFENX homepage refinement — layout, hierarchy and responsive polish.
+   Visual-only: existing palette, telemetry IDs, controls and event handlers are preserved. */
+:root {
+  --dfx-radius-lg: 18px;
+  --dfx-radius-md: 13px;
+  --dfx-space: clamp(12px, 1.35vw, 20px);
+}
+html { scroll-padding-top: 82px; }
+body { overflow-x: clip; }
+.topbar {
+  min-height: 72px !important;
+  height: auto !important;
+  padding: 10px clamp(12px, 2vw, 28px) !important;
+  gap: clamp(10px, 1.5vw, 22px) !important;
+  align-items: center !important;
+}
+.brandCluster { min-width: 0; flex: 0 0 auto; }
+.brandWords { display:flex; align-items:flex-start; flex-direction:column; gap:5px; }
+.brandSub { font-size: 9px !important; line-height: 1.3; }
+.topStatus {
+  display:flex !important;
+  flex: 1 1 auto !important;
+  justify-content:center !important;
+  gap: 7px !important;
+  min-width: 0;
+}
+.topStatus .statusBlock {
+  min-width: 108px;
+  padding: 7px 10px !important;
+  border: 1px solid var(--line, rgba(130,150,160,.2)) !important;
+  border-radius: 10px;
+  background: rgba(0,0,0,.10);
+}
+.topStatus .statusBlock b { display:block; font-size:9px !important; line-height:1.25; }
+.topStatus .statusBlock small { display:block; margin-top:3px; font-size:9px !important; }
+.topActions { display:flex; align-items:center; gap:7px !important; flex:0 0 auto; }
+.topActions button { min-height:38px; }
+.appShell { min-height: calc(100vh - 110px); }
+.dashboard {
+  width: min(100%, 1720px) !important;
+  margin-inline: auto !important;
+  padding: clamp(14px, 2vw, 28px) clamp(12px, 2.1vw, 30px) 28px !important;
+}
+.missionBar {
+  display:flex !important;
+  align-items:center !important;
+  justify-content:space-between !important;
+  gap:18px !important;
+  margin-bottom:18px !important;
+  padding: 4px 2px 17px !important;
+}
+.missionBar h1 {
+  margin:0 !important;
+  font-size:clamp(24px,2.4vw,36px) !important;
+  line-height:1.12 !important;
+  font-weight:850 !important;
+  letter-spacing:-.035em !important;
+}
+.missionBar p, .missionBar small { line-height:1.5; }
+.dashboardGrid {
+  gap: var(--dfx-space) !important;
+  align-items:stretch !important;
+}
+.card {
+  border-radius:var(--dfx-radius-lg) !important;
+  overflow:hidden;
+  min-width:0;
+}
+.cardHeader {
+  min-height:52px !important;
+  padding:12px 16px !important;
+  gap:10px;
+}
+.cardHeader > b { font-size:11px !important; line-height:1.35; }
+.cardHeader > span { font-size:10px; }
+.mapCard, .cameraCard, .controlCard, .deviceCard {
+  min-width:0;
+}
+.mapCard { overflow:hidden; }
+.mapCard .mapArea { border-radius:0 !important; }
+.mapCard #map { min-height:430px; }
+.mapReadout {
+  min-height:66px;
+  align-items:stretch;
+}
+.mapReadout > div {
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  gap:5px;
+  padding:10px 13px !important;
+}
+.mapReadout span, .deviceMetrics span, .targetData span {
+  font-size:9px !important;
+  letter-spacing:.07em;
+  text-transform:uppercase;
+}
+.mapReadout b { font-size:clamp(12px,1vw,15px) !important; }
+.cameraCard .cameraViewport {
+  margin:12px !important;
+  border-radius:14px !important;
+  overflow:hidden;
+}
+.cameraCard .cameraFooter {
+  padding:10px 14px !important;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.cameraCard .aiVisionBar {
+  margin:0 12px 12px;
+  border:1px solid var(--line, rgba(130,150,160,.2));
+  border-radius:12px;
+  padding:10px 12px !important;
+}
+.controlCard .drivePad { margin-inline:auto; }
+.controlCard .modeRow { display:flex; }
+.controlCard .modeRow > button { flex:1 1 0; min-width:0; }
+.controlCard .returnBaseControls { border-radius:12px !important; }
+.deviceCard .deviceView { border-radius:12px; overflow:hidden; }
+.lowerGrid {
+  display:grid !important;
+  grid-template-columns:repeat(2,minmax(0,1fr)) !important;
+  gap:var(--dfx-space) !important;
+  margin-top:var(--dfx-space) !important;
+  align-items:stretch;
+}
+.lowerGrid > .card { min-width:0; }
+.statusBlocks { gap:8px !important; }
+.statusBlocks > div {
+  border-radius:11px !important;
+  min-width:0;
+}
+.targetBody { gap:14px; }
+.targetData { min-width:0; }
+.recentList, .adminLogTable { max-width:100%; overflow-x:auto; }
+.safetyStrip {
+  display:grid !important;
+  grid-template-columns:repeat(3,minmax(0,1fr)) !important;
+  gap:0 !important;
+  margin-top:var(--dfx-space) !important;
+  border-radius:var(--dfx-radius-lg) !important;
+  overflow:hidden;
+}
+.safetyStrip > div {
+  min-width:0;
+  padding:14px !important;
+}
+.safetyStrip b { display:block; font-size:11px; }
+.safetyStrip small { display:block; margin-top:4px; font-size:9px; }
+.foldCard { margin-top:var(--dfx-space); }
+footer {
+  max-width:1720px;
+  margin:0 auto;
+  padding:18px clamp(12px,2vw,30px) calc(18px + env(safe-area-inset-bottom));
+  display:flex;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:8px 18px;
+  line-height:1.5;
+}
+button, input, select, textarea { font-family:inherit; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
+  outline-offset:3px !important;
+}
+@media (min-width:1200px) {
+  .dashboardGrid .cameraCard .cameraViewport {
+    height:clamp(390px,43vw,590px) !important;
+    min-height:390px !important;
+    max-height:590px !important;
+  }
+}
+@media (max-width:1100px) {
+  .topbar { flex-wrap:wrap; }
+  .topStatus { order:3; flex-basis:100%; justify-content:flex-start !important; overflow-x:auto; }
+  .topStatus .statusBlock { flex:1 0 120px; }
+  .dashboardGrid .cameraCard .cameraViewport { min-height:340px !important; }
+}
+@media (max-width:700px) {
+  .topbar { min-height:0 !important; padding:10px 12px !important; gap:8px !important; }
+  .brandWords { gap:3px; }
+  .brandSub { max-width:180px; font-size:8px !important; }
+  .topActions { margin-left:auto; gap:5px !important; }
+  .topActions button { min-height:34px; padding:7px 9px !important; }
+  .topStatus { gap:6px !important; padding-bottom:2px; }
+  .topStatus .statusBlock { min-width:112px; padding:6px 8px !important; }
+  .dashboard { padding:14px 11px 22px !important; }
+  .missionBar { align-items:flex-start !important; flex-direction:column; margin-bottom:12px !important; }
+  .missionBar h1 { font-size:25px !important; }
+  .dashboardGrid { gap:12px !important; }
+  .dashboardGrid .cameraCard .cameraViewport {
+    height:clamp(280px,66vw,430px) !important;
+    min-height:280px !important;
+    max-height:430px !important;
+    margin:9px !important;
+  }
+  .lowerGrid {
+    grid-template-columns:minmax(0,1fr) !important;
+    gap:11px !important;
+    margin-top:12px !important;
+  }
+  .cardHeader { min-height:46px !important; padding:10px 12px !important; }
+  .safetyStrip { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  .safetyStrip > div { padding:11px !important; }
+  footer { padding:14px 12px calc(18px + env(safe-area-inset-bottom)); font-size:10px; }
+  .footerRight { flex-basis:100%; }
+}
+@media (max-width:390px) {
+  .topActions .themeTop span { display:none; }
+  .topActions { gap:4px !important; }
+  .topActions button { padding:6px 7px !important; }
+  .topStatus .statusBlock { min-width:104px; }
+  .mapReadout > div { padding:9px !important; }
+}
+@media (prefers-reduced-motion:reduce) {
+  *, *::before, *::after { scroll-behavior:auto !important; transition-duration:.01ms !important; }
+}
+
+
+/* Dedicated settings panel */
+.settingsIntro{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.5}
+.settingsRows{display:grid;gap:8px}
+.settingsRow{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+.settingsRow>div{min-width:0}
+.settingsRow b{display:block;color:var(--text);font-size:12px}
+.settingsRow small{display:block;margin-top:4px;color:var(--muted);font-size:10px;line-height:1.45}
+.settingsRow button{flex:0 0 auto;min-width:145px;max-width:48%;margin:0;padding:8px 10px;font-size:9px;line-height:1.35;white-space:normal}
+.settingsBox .formmsg{margin:10px 0 0}
+.cameraFooter #camActionStatus{flex:1 1 100%;min-height:13px;font-size:9px;line-height:1.4;color:var(--muted);overflow-wrap:anywhere}
+.cameraFooter #camRecordBtn.active{font-weight:900;animation:cameraRecordPulse 1.1s ease-in-out infinite}
+@keyframes cameraRecordPulse{50%{opacity:.55}}
+@media(max-width:560px){.settingsRow{align-items:flex-start;flex-direction:column}.settingsRow button{max-width:none;width:100%}.cameraFooter #camActionStatus{font-size:8px}}

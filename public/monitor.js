@@ -20,8 +20,8 @@
     tel: null, telAt: 0,
     cam: { state: "idle", attempts: 0, timer: null },
     prevKey: "", prevLink: "",
-    map: null, sat: null, std: null, useSat: true, tileErr: 0,
-    marker: null, acc: null, trail: null, trailPts: [], lastFix: null,
+    map: null, sat: null, std: null, terrain: null, labels: null, mapMode: "satellite", tileErr: 0,
+    marker: null, acc: null, trail: null, trailPts: [], trailMeta: [], startMarker: null, endMarker: null, lastFix: null, totalDistanceM: 0, firstTrackAt: null, lastTrackAt: null, historyLoaded: false,
     bearing: null, follow: true, firstFix: false,
     autoFs: false, lastFocus: null, pushed: false
   };
@@ -63,10 +63,12 @@
       (t.gps_source === "ROVER_DEVICE" || t.camera_source === "ROVER_DEVICE" || t.target_source === "ROVER_DEVICE" || !!t.gps_source_id);
   }
   function gpsFix(t) {
-    if (!t || t.gps_source !== "ROVER_DEVICE" || t.gps_fix === false) return null;
-    var lat = num(t.lat), lon = num(t.lon);
+    if (!t || t.gps_source !== "ROVER_DEVICE" || t.gps_fix !== true || t.device_online === false) return null;
+    var lat = num(t.lat), lon = num(t.lon), epoch = num(t.gps_last_epoch), accuracy = num(t.gps_accuracy_m);
+    var age = epoch === null ? Infinity : (Date.now() / 1000 - epoch);
     if (lat === null || lon === null || t.lat == null || t.lon == null) return null;
     if (Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return null;
+    if (epoch === null || accuracy === null || accuracy < 0 || accuracy > 100 || age < -5 || age > 30) return null;
     return [lat, lon];
   }
 
@@ -198,11 +200,14 @@
             '<div><small>Speed</small><b id="mvSpd">—</b></div>' +
             '<div><small>Temp</small><b id="mvTmp">—</b></div>' +
             '<div><small>Updated</small><b id="mvUpd">—</b></div>' +
+            '<div><small>Recorded rover distance</small><b id="mvTrackDistance">—</b></div>' +
+            '<div><small>Track duration</small><b id="mvTrackDuration">—</b></div>' +
+            '<div><small>Verified GPS points</small><b id="mvTrackPoints">0</b></div>' +
           '</div></details>' +
           '<div class="mv-mapwrap">' +
             '<div id="mvMap" aria-label="Rover map"></div>' +
             '<div class="mv-mapbar">' +
-              '<button type="button" class="mv-btn sm" id="mvLayer" data-tip="Satellite / standard map" aria-label="Toggle satellite and standard map">' + svg("layers") + '</button>' +
+              '<button type="button" class="mv-btn sm mv-layer-btn" id="mvLayer" data-tip="Cycle map layers: satellite, map, terrain, hybrid" aria-label="Cycle map layers">' + svg("layers") + '<span id="mvLayerName">SAT</span></button>' +
               '<button type="button" class="mv-btn sm" id="mvCenter" data-tip="Center on rover" aria-label="Center on rover">' + svg("target") + '</button>' +
             '</div>' +
             '<div class="mv-maptag" id="mvMapTag">SATELLITE</div>' +
@@ -218,7 +223,7 @@
     $("mvBannerRetry").addEventListener("click", function () { reconnect(true); });
     $("mvShot").addEventListener("click", snapshot);
     $("mvFs").addEventListener("click", function () { st.autoFs = false; toggleFs(); });
-    $("mvLayer").addEventListener("click", function () { setLayer(!st.useSat); });
+    $("mvLayer").addEventListener("click", function () { cycleLayer(); });
     $("mvCenter").addEventListener("click", function () { st.follow = true; centerNow(true); });
     initResize();
     if (window.matchMedia("(max-height:520px),(orientation:portrait)").matches) $("mvPanel").open = false;
@@ -253,24 +258,39 @@
     L.control.zoom({ position: "bottomleft" }).addTo(st.map);
     st.sat = L.tileLayer(ESRI, { maxZoom: 19, attribution: "Imagery © Esri" });
     st.std = L.tileLayer(OSM, { maxZoom: 19, attribution: "© OpenStreetMap contributors" });
+    st.terrain = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenTopoMap contributors" });
+    st.labels = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", { maxZoom: 19, attribution: "Labels © Esri", opacity: 0.95 });
+    L.control.scale({ imperial: false, metric: true, position: "bottomleft", maxWidth: 110 }).addTo(st.map);
     st.sat.on("tileerror", function () {
       st.tileErr++;
-      if (st.tileErr === 4 && st.useSat) { setLayer(false); toast("Satellite imagery unavailable — showing standard map", "warn"); }
+      if (st.tileErr === 4 && (st.mapMode === "satellite" || st.mapMode === "hybrid")) { setLayerMode("map"); toast("Satellite imagery unavailable — showing standard map", "warn"); }
     });
     st.sat.on("tileload", function () { st.tileErr = 0; });
-    (st.useSat ? st.sat : st.std).addTo(st.map);
+    setLayerMode(st.mapMode);
     st.map.on("dragstart", function () { st.follow = false; });
-    setText("mvMapTag", st.useSat ? "SATELLITE" : "MAP");
     updateMap();
     return true;
   }
-  function setLayer(sat) {
+  var MAP_MODES = ["satellite", "map", "terrain", "hybrid"];
+  function setLayerMode(mode) {
     if (!st.map) return;
-    st.useSat = sat; st.tileErr = 0;
-    if (st.map.hasLayer(st.sat)) st.map.removeLayer(st.sat);
-    if (st.map.hasLayer(st.std)) st.map.removeLayer(st.std);
-    (sat ? st.sat : st.std).addTo(st.map);
-    setText("mvMapTag", sat ? "SATELLITE" : "MAP");
+    if (MAP_MODES.indexOf(mode) < 0) mode = "map";
+    [st.sat, st.std, st.terrain, st.labels].forEach(function (layer) {
+      if (layer && st.map.hasLayer(layer)) st.map.removeLayer(layer);
+    });
+    st.mapMode = mode;
+    if (mode === "satellite" || mode === "hybrid") st.sat.addTo(st.map);
+    if (mode === "map") st.std.addTo(st.map);
+    if (mode === "terrain") st.terrain.addTo(st.map);
+    if (mode === "hybrid") st.labels.addTo(st.map);
+    setText("mvMapTag", mode.toUpperCase());
+    setText("mvLayerName", mode === "satellite" ? "SAT" : mode.toUpperCase());
+    var btn = $("mvLayer");
+    if (btn) btn.setAttribute("aria-label", "Map layer: " + mode + ". Activate to switch layer");
+  }
+  function cycleLayer() {
+    var next = (MAP_MODES.indexOf(st.mapMode) + 1) % MAP_MODES.length;
+    setLayerMode(MAP_MODES[next]);
   }
   function arrowHtml(deg, stale) {
     var cls = "mv-rover" + (stale ? " stale" : "");
@@ -310,24 +330,77 @@
     if (st.trailPts.length > 1) {
       if (!st.trail) st.trail = L.polyline(st.trailPts, { color: "#ffcf5a", weight: 3, opacity: 0.85, interactive: false }).addTo(st.map);
       else st.trail.setLatLngs(st.trailPts);
+      if (!st.startMarker) st.startMarker = L.circleMarker(st.trailPts[0], { radius: 5, color: "#fff", weight: 2, fillColor: "#22d3a6", fillOpacity: 1 }).addTo(st.map).bindTooltip("Track start");
+      else st.startMarker.setLatLng(st.trailPts[0]);
+      if (!st.endMarker) st.endMarker = L.circleMarker(st.trailPts[st.trailPts.length - 1], { radius: 5, color: "#fff", weight: 2, fillColor: "#ffcf5a", fillOpacity: 1 }).addTo(st.map).bindTooltip("Latest recorded point");
+      else st.endMarker.setLatLng(st.trailPts[st.trailPts.length - 1]);
     }
     if (!st.firstFix) { st.firstFix = true; st.map.setView(fix, 17); }
     else if (st.follow && !stale) st.map.panTo(fix, { animate: true });
+  }
+
+  function validTrackPoint(p) {
+    if (!p || p.source !== "ROVER_DEVICE") return null;
+    var lat = num(p.lat), lon = num(p.lon), ts = Date.parse(p.t || p.timestamp || "");
+    if (lat === null || lon === null || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return null;
+    if (!isFinite(ts)) return null;
+    var accuracy = num(p.accuracy_m);
+    if (accuracy === null || accuracy < 0 || accuracy > 100) return null;
+    return { point: [lat, lon], time: ts };
+  }
+  function appendTrackPoint(item) {
+    var last = st.trailMeta.length ? st.trailMeta[st.trailMeta.length - 1] : null;
+    if (last && item.time <= last.time) return;
+    if (last) {
+      var d = distM(last.point, item.point), seconds = Math.max(0.1, (item.time - last.time) / 1000);
+      if (d < 1) return;
+      // Reject implausible GPS teleports without manufacturing a replacement point.
+      if (d > 250 && seconds < 5) return;
+      st.totalDistanceM += d;
+    } else st.firstTrackAt = item.time;
+    st.lastTrackAt = item.time;
+    st.trailMeta.push(item);
+    st.trailPts.push(item.point);
+    if (st.trailPts.length > 2000) {
+      st.trailPts.shift(); st.trailMeta.shift();
+      st.totalDistanceM = 0;
+      for (var i = 1; i < st.trailMeta.length; i++) st.totalDistanceM += distM(st.trailMeta[i - 1].point, st.trailMeta[i].point);
+      st.firstTrackAt = st.trailMeta.length ? st.trailMeta[0].time : null;
+    }
+  }
+  function hydrateTrack(points) {
+    if (!Array.isArray(points) || st.historyLoaded) return;
+    st.historyLoaded = true;
+    // Merge history with any live samples received while the history request was in flight.
+    var merged = st.trailMeta.slice();
+    points.slice(-2000).forEach(function (p) { var item = validTrackPoint(p); if (item) merged.push(item); });
+    merged.sort(function (a, b) { return a.time - b.time; });
+    st.trailMeta = []; st.trailPts = []; st.totalDistanceM = 0; st.firstTrackAt = null; st.lastTrackAt = null;
+    merged.forEach(function (item) { appendTrackPoint(item); });
+    if (st.trailPts.length) { st.lastFix = st.trailPts[st.trailPts.length - 1]; updateMap(); }
+  }
+  function loadTrackHistory() {
+    if (demo || st.historyLoaded) return;
+    fetch("/api/telemetry", { credentials: "same-origin", cache: "no-store" })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (d) { if (d && Array.isArray(d.track)) hydrateTrack(d.track); })
+      .catch(function () { /* Live telemetry remains available; history is optional. */ });
   }
 
   /* ---------- telemetry ---------- */
   function onTelemetry(t) {
     if (!t || typeof t !== "object") return;
     st.tel = t; st.telAt = Date.now();
+    if (Array.isArray(t.track)) hydrateTrack(t.track);
     var fix = gpsFix(t);
     if (fix && !(t.device_online === false)) {
       var last = st.lastFix;
-      if (!last || distM(last, fix) >= 2) {
+      if (!last || distM(last, fix) >= 1) {
+        var timestamp = Date.parse(t.last_seen_at || t.updated || "") || Date.now();
         if (last && distM(last, fix) >= 3) st.bearing = bearingDeg(last, fix);
-        st.trailPts.push(fix);
-        if (st.trailPts.length > 400) st.trailPts.shift();
+        if (t.gps_source === "ROVER_DEVICE") appendTrackPoint({ point: fix, time: timestamp });
+        st.lastFix = fix;
       }
-      st.lastFix = fix;
     }
     render();
   }
@@ -401,6 +474,9 @@
     var sp = (rep && fix) ? num(t.speed_kmh) : null; setText("mvSpd", sp === null ? "—" : sp.toFixed(1) + " km/h");
     var tp = rep ? num(t.temp_c) : null; setText("mvTmp", tp === null ? "—" : Math.round(tp) + "°C");
     setText("mvUpd", (t && rep && (t.last_seen_at || t.updated)) ? fmtAgo(t.last_seen_at || t.updated) : "—");
+    setText("mvTrackDistance", st.totalDistanceM >= 1000 ? (st.totalDistanceM / 1000).toFixed(2) + " km" : Math.round(st.totalDistanceM) + " m");
+    setText("mvTrackPoints", String(st.trailPts.length));
+    setText("mvTrackDuration", st.firstTrackAt && st.lastTrackAt ? Math.max(0, Math.round((st.lastTrackAt - st.firstTrackAt) / 60000)) + " min" : "—");
     setText("mvClock", new Date().toLocaleTimeString());
 
     updateMap();
@@ -408,8 +484,6 @@
 
   /* ---------- open / close / fullscreen ---------- */
   function adopt() {
-    var el = camEl(), stage = $("mvStage");
-    if (!el || !stage || stage.contains(el)) return;
     st.home = el.parentNode;
     stage.appendChild(el);
     if (el.tagName === "VIDEO") { try { var p = el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
@@ -508,6 +582,7 @@
     var ph = $("camPlaceholder"); if (ph) { var rb = $("camPlaceholderRetry"); if (rb) rb.addEventListener("click", function () { reconnect(true); }); }
     if (window.defenxLatestTelemetry) onTelemetry(window.defenxLatestTelemetry);
     loadCfg();
+    loadTrackHistory();
     setInterval(function () {
       var el = camEl();
       if (el) { attachCam(el); if (st.open) adopt(); }
