@@ -66,3 +66,22 @@ These field names are a proposed contract, not fields known to exist in current 
 - Cancel and local emergency stop work independently of cloud connectivity.
 - Arrival is verified physically, motors are stopped, and the dashboard/audit log reflect device-confirmed status.
 - Automated tests/build and supervised field tests pass before the draft PR is merged or deployed.
+
+
+## Precision mapping and cross-layer consistency
+
+- The dashboard currently uses separate street, Esri World Imagery satellite, and OpenTopoMap terrain tile sources. These providers update independently; changing OSM road data does not refresh satellite photography.
+- Rover/base markers and route overlays are Leaflet map layers, so they remain attached to geographic coordinates when the operator switches the base imagery layer.
+- Road-route preview now requests a GeoJSON driving route from the public OSRM demo service. This is an on-demand preview only: the public demo service has no production availability/SLA and must not be used as a guaranteed navigation service. If unavailable, the application reports that the road route is unavailable and does not silently substitute a straight-line route.
+- The synthetic obstacle preview remains explicitly synthetic and is not obstacle detection or safe alternate-route planning.
+- OSM road geometry does not guarantee lane width, legal access, physical clearance, surface condition, or rover traversability. These must be validated from authoritative data and onboard sensors before autonomous movement.
+- Satellite imagery is not live video. Imagery freshness can only be displayed if the imagery provider exposes trustworthy acquisition metadata.
+
+## Production requirements before autonomous Return-to-Base
+
+1. Select and operate a production routing service or self-host a routing engine with a suitable vehicle profile; do not depend on the public OSRM demo endpoint.
+2. Add a maintained map-data ingestion/update strategy and regional offline extracts with licensing/attribution checks.
+3. Define rover width, length, ground clearance, turning radius, maximum slope, permitted surfaces, and access policy; reject routes when required attributes are unknown.
+4. Implement onboard localization (GNSS + IMU + wheel odometry as available), sensor health checks, obstacle sensing, and independent motor safety controller.
+5. Implement authenticated device command/acknowledgement and state-machine endpoints. Until these are verified, Return-to-Base must remain blocked and preview-only.
+6. Test with recorded routes and simulation, then motors disconnected, wheels raised, and finally a controlled low-speed test area.
