@@ -14,6 +14,13 @@ class MapNavigationRegressionTests(unittest.TestCase):
         cls.camera = (PUBLIC / "camera-target-overlay.js").read_text(encoding="utf-8")
         cls.html = (PUBLIC / "index.html").read_text(encoding="utf-8")
 
+    def test_new_overlay_modules_have_server_routes(self):
+        server = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        self.assertIn('@app.get("/road-detail-overlay.js")', server)
+        self.assertIn('@app.get("/camera-target-overlay.js")', server)
+        self.assertIn('cached_static("road-detail-overlay.js", "application/javascript")', server)
+        self.assertIn('cached_static("camera-target-overlay.js", "application/javascript")', server)
+
     def test_new_overlay_modules_load_before_dashboard(self):
         road = self.html.index('/road-detail-overlay.js')
         camera = self.html.index('/camera-target-overlay.js')
