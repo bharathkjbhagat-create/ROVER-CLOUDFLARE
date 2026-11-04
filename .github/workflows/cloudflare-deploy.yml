@@ -190,6 +190,8 @@ jobs:
           check_path /api/health 200
           check_path /rover-device.webp 200
           check_path /rover-left.webp 200
+          check_path /road-detail-overlay.js 200
+          check_path /camera-target-overlay.js 200
           health="$(curl -A 'Mozilla/5.0 (DEFENX smoke test)' -sS "$base/api/health")"
           printf '%s\n' "$health" | grep -q '"ok":true'
           printf '%s\n' "$health" | grep -q '"session_configured":true'
