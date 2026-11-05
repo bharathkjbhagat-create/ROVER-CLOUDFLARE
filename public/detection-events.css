@@ -1,0 +1,14 @@
+.detectionEventsPanel{margin-top:10px;padding:13px 14px;border:1px solid rgba(76,164,210,.22);border-radius:12px;background:linear-gradient(110deg,rgba(7,20,31,.97),rgba(8,14,24,.97));color:#e7f1f8}
+.detectionEventsHead{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.detectionEventsHead b{font-size:11px;letter-spacing:.13em}
+.detectionEventsActions{display:flex;gap:7px;flex-wrap:wrap}
+.detectionEventsActions button{border:1px solid rgba(91,180,220,.35);border-radius:7px;padding:7px 10px;background:rgba(49,122,158,.12);color:#ccefff;font:700 9px system-ui;letter-spacing:.06em;cursor:pointer}
+#detectionAlertStatus{display:block;margin:8px 0;color:#91a9b9;font-size:10px}
+#detectionEventList{display:grid;gap:6px;max-height:180px;overflow:auto}
+.detectionEvent{display:flex;align-items:center;gap:9px;padding:8px 9px;border-radius:7px;background:rgba(255,255,255,.035)}
+.detectionEventMark{color:#43dfaa;font-size:13px}
+.detectionEvent span:last-child{display:grid;gap:3px}
+.detectionEvent b{font-size:10px}
+.detectionEvent small,.detectionEmpty{font-size:9px;color:#91a9b9}
+.detectionEmpty{padding:10px}
+@media(max-width:520px){.detectionEventsPanel{padding:10px}.detectionEventsActions button{font-size:8px;padding:7px}}
