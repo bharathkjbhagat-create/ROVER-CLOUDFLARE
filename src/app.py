@@ -1754,6 +1754,34 @@ def activity():
     audit(action, details[:500], u)
     return jsonify({"ok": True})
 
+@app.post("/api/detection-events")
+@require_login
+def detection_event():
+    """Record a generic, operator-reviewable person-presence transition.
+    No frame, face template, identity, location, or biometric data is accepted.
+    """
+    data = request.get_json(silent=True) or {}
+    event_type = str(data.get("type", "")).strip().upper()
+    if event_type not in {"PERSON_PRESENT", "PERSON_CLEARED"}:
+        return jsonify({"ok": False, "error": "Invalid detection event"}), 400
+
+    # Ignore rapid duplicate posts from a reconnecting browser tab.
+    now = time.monotonic()
+    previous = session.get("detection_event_last") or {}
+    try:
+        duplicate = previous.get("type") == event_type and now - float(previous.get("at", 0)) < 2.5
+    except (TypeError, ValueError):
+        duplicate = False
+    if duplicate:
+        return jsonify({"ok": True, "duplicate": True})
+
+    actor = current_user()
+    action = "PERSON_DETECTED" if event_type == "PERSON_PRESENT" else "PERSON_CLEARED"
+    audit(action, "On-device AI person-presence transition; no image or identity data stored.", actor)
+    session["detection_event_last"] = {"type": event_type, "at": now}
+    return jsonify({"ok": True, "recorded": True})
+
+
 @app.get("/api/live-sync")
 def live_sync():
     expected = _config("LIVE_SYNC_SECRET")

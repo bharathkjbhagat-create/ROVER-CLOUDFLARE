@@ -13,9 +13,10 @@
   const toggle = document.getElementById("detectionAlertToggle");
   const permission = document.getElementById("detectionPermissionBtn");
   const clear = document.getElementById("detectionClearBtn");
-  let enabled = localStorage.getItem(PREF) === "1";
+  let enabled = false;
+  try { enabled = localStorage.getItem(PREF) === "1"; } catch (_) {}
+  const demoMode = location.pathname === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
   let lastPresent = null;
-  let lastEventAt = 0;
   let events = readEvents();
 
   function readEvents() {
@@ -46,19 +47,32 @@
   }
   function record(type) {
     const now = Date.now();
-    if (now - lastEventAt < 2500) return;
-    lastEventAt = now;
     events.unshift({type, label: type === "PERSON_PRESENT" ? "Person detected in camera view" : "Person no longer detected", at: new Date(now).toISOString()});
     events = events.slice(0, 50);
     save();
     render();
+    // Only the generic state transition reaches the authenticated admin audit log.
+    // Demo mode stays local; camera frames and biometric data are never sent.
+    if (!demoMode) {
+      fetch("/api/detection-events", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type }),
+        keepalive: true
+      }).then(response => {
+        if (!response.ok) status.textContent = "Local event saved • admin sync requires an authenticated session";
+      }).catch(() => {
+        status.textContent = "Local event saved • admin sync unavailable";
+      });
+    }
     if (type === "PERSON_PRESENT" && enabled && "Notification" in window && Notification.permission === "granted" && !document.hidden) {
       try { new Notification("DEFENX • Person detected", {body:"A person is visible in the active camera view. Review the live feed."}); } catch (_) {}
     }
   }
   toggle.addEventListener("click", async () => {
     enabled = !enabled;
-    localStorage.setItem(PREF, enabled ? "1" : "0");
+    try { localStorage.setItem(PREF, enabled ? "1" : "0"); } catch (_) {}
     if (enabled && "Notification" in window && Notification.permission === "default") {
       status.textContent = "Use ENABLE BROWSER NOTIFICATIONS to grant permission";
     }

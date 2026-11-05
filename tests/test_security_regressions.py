@@ -51,6 +51,36 @@ class SecurityRegressionTests(unittest.TestCase):
         )
         self.assertEqual(self.client.get("/api/me").status_code, 401)
 
+    def test_detection_event_endpoint_requires_login(self):
+        response = self.client.post("/api/detection-events", json={"type": "PERSON_PRESENT"})
+        self.assertEqual(response.status_code, 401)
+
+    def test_detection_event_accepts_only_generic_presence_transitions(self):
+        with self.client.session_transaction() as session:
+            session["fallback_user"] = {
+                "id": "security-test-user",
+                "username": "SECURITYTEST",
+                "display_name": "Security Test",
+                "role": "user",
+                "enabled": True,
+                "can_control": True,
+                "can_manage_users": False,
+            }
+        with patch.object(rover_app, "audit") as audit_mock:
+            accepted = self.client.post(
+                "/api/detection-events", json={"type": "PERSON_PRESENT"}
+            )
+            rejected = self.client.post(
+                "/api/detection-events", json={"type": "IDENTIFY_UNKNOWN_PERSON"}
+            )
+        self.assertEqual(accepted.status_code, 200, accepted.get_data(as_text=True))
+        self.assertTrue(accepted.get_json().get("recorded"))
+        self.assertEqual(rejected.status_code, 400)
+        self.assertEqual(audit_mock.call_count, 1)
+        args = audit_mock.call_args.args
+        self.assertEqual(args[0], "PERSON_DETECTED")
+        self.assertIn("no image or identity data stored", args[1])
+
     def test_login_throttle_activates_after_configured_failures(self):
         ip = "security-test-ip"
         for _ in range(rover_app.LOGIN_MAX_ATTEMPTS):

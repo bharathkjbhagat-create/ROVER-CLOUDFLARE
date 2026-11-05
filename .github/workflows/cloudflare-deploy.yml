@@ -41,6 +41,10 @@ jobs:
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
+      - name: Validate opt-in face detection JavaScript
+        run: node --check public/face-recognition.js
+      - name: Validate detection event history JavaScript
+        run: node --check public/detection-events.js
       - name: Validate full-screen monitor JavaScript
         run: node --check public/monitor.js
       - name: Run backend smoke tests
