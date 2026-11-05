@@ -13,6 +13,60 @@
   const toggle = document.getElementById("detectionAlertToggle");
   const permission = document.getElementById("detectionPermissionBtn");
   const clear = document.getElementById("detectionClearBtn");
+  const localExport = document.createElement("button");
+  localExport.type = "button";
+  localExport.id = "detectionExportBtn";
+  localExport.textContent = "EXPORT CSV";
+  clear.insertAdjacentElement("beforebegin", localExport);
+
+  function downloadCSV(filename, rows) {
+    const csv = rows.map(row => row.map(value => '"' + String(value ?? "").replace(/"/g, '""') + '"').join(",")).join("\\r\\n");
+    const blob = new Blob(["\\uFEFF" + csv], {type:"text/csv;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+  localExport.addEventListener("click", () => {
+    downloadCSV("defenx-person-events-local.csv", [
+      ["Event", "Timestamp"],
+      ...events.map(item => [item.type, item.at])
+    ]);
+  });
+
+  // The admin export requests the existing protected audit API and exports
+  // only generic person-presence events; IP addresses and user-agent fields
+  // are deliberately excluded.
+  const auditTools = document.getElementById("detectionAuditTools");
+  const auditExport = document.getElementById("exportDetectionAuditBtn");
+  if (auditTools && auditExport) {
+    auditExport.addEventListener("click", async () => {
+      auditExport.disabled = true;
+      auditExport.textContent = "PREPARING…";
+      try {
+        const response = await fetch("/api/audit?limit=5000", {credentials:"same-origin"});
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Admin access required");
+        const rows = (data.logs || []).filter(item =>
+          item.action === "PERSON_DETECTED" || item.action === "PERSON_CLEARED"
+        );
+        downloadCSV("defenx-person-events-admin.csv", [
+          ["Timestamp", "User", "Role", "Event", "Details"],
+          ...rows.map(item => [item.created_at, item.display_name || item.username, item.role, item.action, item.details])
+        ]);
+        status.textContent = rows.length ? "Admin person-event export ready" : "No admin person events to export";
+      } catch (error) {
+        status.textContent = error.message || "Could not export admin events";
+      } finally {
+        auditExport.disabled = false;
+        auditExport.textContent = "EXPORT PERSON EVENTS CSV";
+      }
+    });
+  }
   let enabled = false;
   try { enabled = localStorage.getItem(PREF) === "1"; } catch (_) {}
   const demoMode = location.pathname === "/demo" || new URLSearchParams(location.search).get("demo") === "1";

@@ -12,3 +12,8 @@
 .detectionEvent small,.detectionEmpty{font-size:9px;color:#91a9b9}
 .detectionEmpty{padding:10px}
 @media(max-width:520px){.detectionEventsPanel{padding:10px}.detectionEventsActions button{font-size:8px;padding:7px}}
+
+.detectionAuditTools{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 12px}
+.detectionAuditTools button{border:1px solid rgba(91,180,220,.35);border-radius:7px;padding:8px 11px;background:rgba(49,122,158,.12);color:#ccefff;font:700 9px system-ui;letter-spacing:.06em;cursor:pointer}
+.detectionAuditTools button:disabled{opacity:.55;cursor:wait}
+.detectionAuditTools small{color:#91a9b9;font-size:10px}
