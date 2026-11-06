@@ -6,8 +6,8 @@
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%;width:100%;font-family:Inter,"Segoe UI",Arial,sans-serif;background:#030914;color:#f4f7ff}
-body{min-height:100vh;min-height:100dvh}
-.scene{position:relative;width:min(100vw,177.683vh);aspect-ratio:1672/941;height:auto;max-height:100dvh;margin:auto;top:50%;transform:translateY(-50%);background:#030914 url("/defenx-login-bg.png") center/100% 100% no-repeat;overflow:hidden}
+body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;overflow-x:hidden}
+.scene{position:relative;flex:0 0 auto;width:min(100vw,177.683vh);aspect-ratio:1672/941;height:auto;max-height:100dvh;margin:0;top:auto;transform:none;background:#030914 url("/defenx-login-bg.png") center/100% 100% no-repeat;overflow:hidden}
 .scene:after{content:none}
 .login-form{position:absolute;inset:0;margin:0}
 .field{position:absolute;margin:0}
@@ -23,7 +23,7 @@ body{min-height:100vh;min-height:100dvh}
 .error{position:absolute;left:57.35%;top:65%;width:26.45%;min-height:18px;color:#ff9aa5;text-align:center;font-size:12px;text-shadow:0 1px 3px #000;pointer-events:none}
 .mobile-login{display:none}
 @media(max-width:760px){
- body{min-height:100dvh;overflow-x:hidden}
+ body{display:block;min-height:100dvh;overflow-x:hidden}
  .scene{top:auto;transform:none;width:100vw;height:auto;max-height:none;aspect-ratio:1672/941;margin:0 auto;background-size:100% 100%}
  .login-form{display:none}
  .mobile-login{display:block;width:min(440px,calc(100% - 32px));margin:18px auto 28px;padding:28px 22px 24px;border:1px solid rgba(91,174,238,.72);border-radius:16px;background:linear-gradient(145deg,#071326,#030a18);box-shadow:0 0 22px rgba(0,156,255,.2),0 0 18px rgba(255,30,55,.12)}
