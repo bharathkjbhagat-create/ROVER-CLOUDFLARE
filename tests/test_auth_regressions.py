@@ -18,6 +18,9 @@ import app as rover_app  # noqa: E402
 class AuthenticationRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = rover_app.app.test_client()
+
+    def setUp(self):
+        self.client = rover_app.app.test_client()
         self.old_hash = rover_app.runtime_password_hashes.get("DHANUSH")
         rover_app.runtime_password_hashes["DHANUSH"] = rover_app.generate_password_hash("test-only-old-password")
         rover_app.clear_login_failures("127.0.0.1")
