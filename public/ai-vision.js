@@ -62,6 +62,7 @@
     setText("confidence", "0%");
     clearOverlay();
     window.ROVER_AI_VISION_COUNTS = { human: 0, vehicle: 0, confidence: 0 };
+    window.ROVER_AI_VISION_PERSONS = null;
   }
 
   function clearOverlay() {
@@ -233,6 +234,8 @@
       if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
       const visible = drawDetections(predictions, dimensions.width, dimensions.height);
       publishCounts(visible);
+      window.ROVER_AI_VISION_PERSONS = { at: Date.now(), width: dimensions.width, height: dimensions.height,
+        boxes: visible.filter(item => item.class === "person").map(item => item.bbox.slice(0, 4)) };
       setState("active", visible.length
         ? "LIVE AI • DETECTING HUMAN / VEHICLES"
         : "LIVE AI • SCANNING");
