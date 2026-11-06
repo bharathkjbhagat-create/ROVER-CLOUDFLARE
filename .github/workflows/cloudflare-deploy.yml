@@ -36,7 +36,7 @@ jobs:
         run: python scripts/check_performance_budget.py
 
       - name: Validate Python Worker source
-        run: python -m py_compile src/app.py src/worker.py src/faces.py src/faces.py
+        run: python -m py_compile src/app.py src/worker.py src/faces.py
       - name: Validate frontend JavaScript
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript
@@ -49,8 +49,6 @@ jobs:
         run: node --check public/monitor.js
       - name: Validate face verification logic tests
         run: node tests/face_logic.test.js
-      - name: Validate face verification logic tests
-        run: node tests/face_logic.test.js
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
       - name: Run authentication and security regression tests
@@ -60,8 +58,6 @@ jobs:
           set -e
           test -f public/index.html
           test -f public/monitor.js
-          test -f public/face-recognition.js
-          test -f public/face-recognition.css
           test -f public/face-recognition.js
           test -f public/face-recognition.css
           test -f public/login.html
@@ -90,7 +86,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEVICE_OFFLINE_AFTER_SECONDS: ${{ secrets.DEVICE_OFFLINE_AFTER_SECONDS }}
           FACE_DATA_KEY: ${{ secrets.FACE_DATA_KEY }}
-          FACE_DATA_KEY: ${{ secrets.FACE_DATA_KEY }}
           LEGACY_AUTH_ENABLED: ${{ secrets.LEGACY_AUTH_ENABLED }}
           LEGACY_AUTH_URL: ${{ secrets.LEGACY_AUTH_URL }}
           LIVE_SYNC_SECRET: ${{ secrets.LIVE_SYNC_SECRET }}
@@ -106,7 +101,7 @@ jobs:
 
           names = [
               "ADMIN_PASSWORD", "ADMIN_PASSWORD_HASH", "COOKIE_SECURE",
-              "DATABASE_URL", "DEVICE_OFFLINE_AFTER_SECONDS", "FACE_DATA_KEY", "FACE_DATA_KEY",
+              "DATABASE_URL", "DEVICE_OFFLINE_AFTER_SECONDS", "FACE_DATA_KEY",
               "LEGACY_AUTH_ENABLED", "LEGACY_AUTH_URL", "LIVE_SYNC_SECRET",
               "ROVER_CAMERA_STREAM_URL", "ROVER_CAMERA_STREAM_TYPE",
               "ROVER_DEVICE_TOKEN", "SESSION_SECRET",
