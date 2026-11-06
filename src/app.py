@@ -939,7 +939,10 @@ def secure_login():
 
 @app.get("/api/logout")
 def logout_to_login():
-    """Clear the browser session and return the operator to the sign-in screen."""
+    """Record an authenticated sign-out before clearing the browser session."""
+    user = current_user()
+    if user:
+        audit("LOGOUT", "User logged out", user)
     session.clear()
     response = redirect("/login.html", code=302)
     response.delete_cookie(
@@ -1674,14 +1677,18 @@ def login_events():
             mark_db_unavailable()
             warning = "PostgreSQL is temporarily unavailable. Using shared login alerts."
 
-    if not db_available():
-        if warning is None:
-            warning = "PostgreSQL is not connected. Using shared login alerts."
-        shared_rows, latest = read_shared_login_events(limit=limit, since=since or None)
-        rows.extend(shared_rows)
-    else:
-        latest = None
+    if not db_available() and warning is None:
+        warning = "PostgreSQL is not connected. Using shared login alerts."
 
+    # Shared Durable Object events include fast-path accounts that may not write
+    # to PostgreSQL. Merge them even when the database is configured; dedup below
+    # prevents double rows when an event exists in both stores.
+    shared_rows, latest = read_shared_login_events(limit=limit, since=since or None)
+    rows.extend(shared_rows)
+
+    # Apply the same seven-day cutoff to this process-local fallback before
+    # exposing it in the admin history.
+    prune_local_login_events()
     with lock:
         rows.extend(
             x for x in recent_actions
