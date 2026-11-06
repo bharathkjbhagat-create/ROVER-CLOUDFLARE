@@ -41,7 +41,8 @@ function stopTargetAlarm(){
 }
 function startTargetAlarm(t){
   if(!warningDisplayEnabled||targetAlarmActive)return;
-  if(/person|human/i.test(String(t?.type||""))&&Number(t?.range_m||0)<=15&&window.DEFENX_FACE_ALL_AUTHORIZED?.())return;
+  const faceRange=t?.range_m;const hasFaceRange=faceRange!==null&&faceRange!==undefined&&String(faceRange).trim()!==""&&Number.isFinite(Number(faceRange));
+  if(/person|human/i.test(String(t?.type||""))&&hasFaceRange&&Number(faceRange)>=0&&Number(faceRange)<=15&&window.DEFENX_FACE_ALL_AUTHORIZED?.())return;
   lastTargetAlarmData=t||lastTargetAlarmData;
   targetAlarmActive=true;
   const old=$("targetAlarmPopup");if(old)old.remove();
