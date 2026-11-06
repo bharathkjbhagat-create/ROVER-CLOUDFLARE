@@ -2393,8 +2393,8 @@ def face_people_add():
     raw = data.get("descriptors")
     if not label:
         return jsonify({"ok": False, "error": "Name is required"}), 400
-    if not isinstance(raw, list) or not (1 <= len(raw) <= face_service.MAX_TEMPLATES_PER_PERSON):
-        return jsonify({"ok": False, "error": "Provide 1 to %d face templates" % face_service.MAX_TEMPLATES_PER_PERSON}), 400
+    if not isinstance(raw, list) or not (face_service.MIN_TEMPLATES_PER_PERSON <= len(raw) <= face_service.MAX_TEMPLATES_PER_PERSON):
+        return jsonify({"ok": False, "error": "Provide %d to %d face templates" % (face_service.MIN_TEMPLATES_PER_PERSON, face_service.MAX_TEMPLATES_PER_PERSON)}), 400
     templates = []
     for item in raw:
         clean = face_service.validate_descriptor(item)
