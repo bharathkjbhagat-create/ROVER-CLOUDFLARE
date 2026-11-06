@@ -825,7 +825,7 @@ function scheduleTelemetry(){
   setTimeout(async()=>{await loop();scheduleTelemetry()},delay);
 }
 let returnBaseMarker=null,returnBaseSelection=false,returnBase=null;
-let returnRouteLine=null,returnRouteMode="none";
+let returnRouteLine=null,returnRouteMode="none",lastRoadRouteCache=null,lastRoadRouteRequestAt=0;
 
 try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(parsed&&Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon)&&parsed.lat>=-90&&parsed.lat<=90&&parsed.lon>=-180&&parsed.lon<=180)returnBase=parsed;else localStorage.removeItem("defenx_return_base");}}catch(_){}
 function renderReturnBase(){
@@ -836,28 +836,61 @@ function renderReturnBase(){
   setText("returnBaseStatus",label);
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;returnRouteMode="none";}
 }
-function previewReturnRoute(simulateObstacle=false){
+async function previewReturnRoute(simulateObstacle=false){
   if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
-  // This is a visual software simulation only. It deliberately does not use
-  // randomized display coordinates as live rover location and sends no commands.
   const origin=roverGpsValid&&lastRoverPoint?L.latLng(lastRoverPoint[0],lastRoverPoint[1]):null;
-  if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE");addLog("ROUTE","No map marker is available for the simulated rover");return;}
+  if(!origin){setText("returnBaseStatus","VERIFIED ROVER GPS REQUIRED");addLog("ROUTE","A verified rover GPS fix is required for a road route");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
-  const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
-  let points=[a,b],label="SIMULATION · DIRECT PREVIEW";
+  const start=[origin.lat,origin.lng],destination=[returnBase.lat,returnBase.lon];
   if(simulateObstacle){
-    const midLat=(a[0]+b[0])/2,midLon=(a[1]+b[1])/2;
-    const dLat=b[0]-a[0],dLon=b[1]-a[1],length=Math.max(Math.hypot(dLat,dLon),0.00001);
+    const midLat=(start[0]+destination[0])/2,midLon=(start[1]+destination[1])/2;
+    const dLat=destination[0]-start[0],dLon=destination[1]-start[1],length=Math.max(Math.hypot(dLat,dLon),0.00001);
     const offset=Math.min(0.003,Math.max(0.00035,length*0.18));
-    points=[a,[midLat-dLon/length*offset,midLon+dLat/length*offset],b];
-    label="SIMULATION · ALTERNATE ROUTE";
+    const detour=[start,[midLat-dLon/length*offset,midLon+dLat/length*offset],destination];
+    returnRouteLine=L.polyline(detour,{color:"#f5b942",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
+    returnRouteMode="alternate";
+    map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
+    setText("returnBaseStatus","SIMULATED DETOUR · NOT A ROAD ROUTE");
+    addLog("ROUTE","Visual detour simulation rendered; no rover command sent");
+    return;
   }
-  returnRouteLine=L.polyline(points,{color:simulateObstacle?"#f5b942":"#22d3a6",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
-  returnRouteMode=simulateObstacle?"alternate":"direct";
-  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
-  setText("returnBaseStatus",label+" · NOT NAVIGATION");
-  addLog("ROUTE",label+" rendered; no rover command sent");
+  const routeKey=[start[0].toFixed(5),start[1].toFixed(5),destination[0].toFixed(5),destination[1].toFixed(5)].join(",");
+  let route=lastRoadRouteCache&&lastRoadRouteCache.key===routeKey&&Date.now()-lastRoadRouteCache.savedAt<300000?lastRoadRouteCache.route:null;
+  if(!route){
+    const now=Date.now();
+    if(now-lastRoadRouteRequestAt<1100){
+      setText("returnBaseStatus","PLEASE WAIT BEFORE REQUESTING ANOTHER ROUTE");
+      return;
+    }
+    lastRoadRouteRequestAt=now;
+    const url="https://router.project-osrm.org/route/v1/driving/"+encodeURIComponent(start[1]+","+start[0])+";"+encodeURIComponent(destination[1]+","+destination[0])+"?overview=full&geometries=geojson&steps=false&alternatives=false";
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    try{
+      const response=await fetch(url,{method:"GET",headers:{"Accept":"application/json"},signal:controller.signal,cache:"no-store"});
+      if(!response.ok)throw new Error("Routing service returned HTTP "+response.status);
+      const payload=await response.json();
+      if(payload.code!=="Ok"||!Array.isArray(payload.routes)||!payload.routes.length)throw new Error(payload.message||"No road route is available");
+      route=payload.routes[0];
+      if(!route.geometry||!Array.isArray(route.geometry.coordinates)||route.geometry.coordinates.length<2)throw new Error("The route service returned no usable road geometry");
+      lastRoadRouteCache={key:routeKey,route,savedAt:Date.now()};
+    }catch(error){
+      setText("returnBaseStatus",error&&error.name==="AbortError"?"ROAD ROUTE TIMED OUT":"ROAD ROUTE UNAVAILABLE");
+      addLog("ROUTE","Road route preview failed; no rover command was sent");
+      return;
+    }finally{
+      clearTimeout(timeout);
+    }
+  }
+  const points=route.geometry.coordinates.map(pair=>[Number(pair[1]),Number(pair[0])]).filter(pair=>isValidMapPoint(pair[0],pair[1]));
+  if(points.length<2){setText("returnBaseStatus","ROAD ROUTE DATA INVALID");addLog("ROUTE","Invalid road-route geometry was rejected");return;}
+  returnRouteLine=L.polyline(points,{color:"#22d3a6",weight:5,opacity:.96,lineJoin:"round"}).addTo(map);
+  returnRouteMode="road";
+  map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:18});
+  const km=(Number(route.distance)/1000).toFixed(2),minutes=Math.max(1,Math.round(Number(route.duration)/60));
+  setText("returnBaseStatus","ROAD ROUTE · "+km+" KM · "+minutes+" MIN · PREVIEW ONLY");
+  addLog("ROUTE","OpenStreetMap-based road route preview rendered; no rover command sent");
 }
 function clearReturnRoutePreview(){
   if(returnRouteLine&&map){map.removeLayer(returnRouteLine);returnRouteLine=null;}
