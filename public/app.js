@@ -928,13 +928,13 @@ function toggleTheme(){
 
 function loadDashboardAudit(){
   const el=$("dashboardAuditTable");if(!el)return;
-  if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin only.</div>";return}
+  if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin.</div>";return}
   api("/api/login-events?limit=100").then(r=>r.json()).then(d=>{
     const logs=Array.isArray(d.logs)?d.logs:[];
-    if(!logs.length){el.innerHTML="<div class='empty'>No login/logout events in the last 7 days.</div>";return}
+    if(!logs.length){el.innerHTML="<div class='empty'>No recent events.</div>";return}
     const m=new Map();logs.forEach(x=>{const k=x.session_id||x.id||x.created_at+":"+x.action,s=m.get(k)||{};s[x.action==="LOGIN"?"login":"logout"]=x;m.set(k,s)});
     const fmt=x=>x?new Date(x).toLocaleString():"—";
-    el.innerHTML="<table><tr><th>User / role</th><th>Login</th><th>Logout</th><th>Details</th><th>IP / device</th></tr>"+[...m.values()].map(s=>{const x=s.login||s.logout,d=[s.login&&("Login: "+(s.login.details||"Success")),s.logout&&("Logout: "+(s.logout.details||"Recorded"))].filter(Boolean).join(" • ");return "<tr><td><b>"+esc(x.display_name||x.username||"Unknown")+"</b><small>"+esc(x.username||"")+" • "+esc(x.role||"")+"</small></td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(d||"—")+"</td><td>"+esc(x.ip_address||"—")+"<small>"+esc(x.user_agent||"")+"</small></td></tr>"}).join("")+"</table>";
+    el.innerHTML="<table><tr><th>User</th><th>Login</th><th>Logout</th><th>Details</th><th>IP / device</th></tr>"+[...m.values()].map(s=>{const x=s.login||s.logout,d=[s.login&&("Login: "+(s.login.details||"OK")),s.logout&&("Logout: "+(s.logout.details||"Done"))].filter(Boolean).join(" • ");return "<tr><td><b>"+esc(x.display_name||x.username||"Unknown")+"</b><small>"+esc(x.username||"")+" • "+esc(x.role||"")+"</small></td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(d||"—")+"</td><td>"+esc(x.ip_address||"—")+"<small>"+esc(x.user_agent||"")+"</small></td></tr>"}).join("")+"</table>";
   }).catch(()=>{el.innerHTML="<div class='empty'>Load failed.</div>"});
 }
 function scrollToSection(id){
