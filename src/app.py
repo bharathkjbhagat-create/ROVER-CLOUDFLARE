@@ -22,6 +22,7 @@ import uuid
 import json
 import hmac
 import hashlib
+import faces as face_service
 
 try:
     from workers import env as CF_ENV
@@ -2102,6 +2103,351 @@ def simulate():
     # Simulation ticks are system telemetry, not user actions. Do not flood
     # the shared Admin event log with one entry every few seconds.
     return jsonify({"ok": True, "telemetry": snapshot or None})
+
+
+
+# ---------------------------------------------------------------------------
+# DEFENX face verification (see docs/FACE_RECOGNITION.md)
+# Matching runs here so authorised-face templates never reach any browser.
+# Recognition is never treated as evidence of hostile intent.
+# ---------------------------------------------------------------------------
+_face_rate = {}
+
+def _face_key():
+    return str(_config("FACE_DATA_KEY", "") or "").strip()
+
+def _face_policy():
+    return face_service.policy_from_config(_config)
+
+def _face_disabled():
+    if not face_service.key_is_valid(_face_key()):
+        return jsonify({"ok": False, "code": "not_configured",
+                        "error": "Face verification is not configured (FACE_DATA_KEY missing or too short)."}), 503
+    return None
+
+def _face_store(req):
+    stub = _realtime_stub()
+    if stub is None:
+        return face_service.local_op(req)
+    try:
+        raw = run_sync(stub.face_op(json.dumps(req, separators=(",", ":"))))
+        data = json.loads(str(raw))
+    except Exception:
+        raise face_service.FaceStoreError("registry_unavailable")
+    if not isinstance(data, dict):
+        raise face_service.FaceStoreError("registry_unavailable")
+    if not data.get("ok"):
+        raise face_service.FaceOpError(str(data.get("error") or "registry_unavailable"))
+    return data.get("result")
+
+def _face_error(exc):
+    code = getattr(exc, "code", "registry_unavailable")
+    status = {"not_found": 404, "registry_full": 409, "bad_request": 400,
+              "snapshot_not_expected": 409}.get(code, 503)
+    return jsonify({"ok": False, "error": code.replace("_", " ")}), status
+
+def _face_rate_limited(limit=90, window=60):
+    u = current_user() or {}
+    key = str(u.get("username") or client_ip())
+    now = time.monotonic()
+    bucket = [t for t in _face_rate.get(key, []) if now - t < window]
+    if len(bucket) >= limit:
+        _face_rate[key] = bucket
+        return True
+    bucket.append(now)
+    _face_rate[key] = bucket
+    if len(_face_rate) > 512:
+        for k in list(_face_rate)[:128]:
+            _face_rate.pop(k, None)
+    return False
+
+def _face_people_plain():
+    """Decrypt enabled people. Returns (list, ok). Any unreadable record -> ok False (fail safe)."""
+    key = _face_key()
+    rows = _face_store({"op": "people_list"})["people"]
+    out, ok = [], True
+    for row in rows:
+        try:
+            plain = json.loads(face_service.decrypt_blob(key, row["blob"], "person:" + row["id"]).decode("utf-8"))
+            out.append({"id": row["id"], "label": str(plain.get("label") or ""),
+                        "templates": plain.get("templates") or [], "enabled": bool(row.get("enabled")),
+                        "created_at": row.get("created_at"), "created_by": row.get("created_by")})
+        except Exception:
+            ok = False
+    return out, ok
+
+def _face_labels():
+    try:
+        people, _ = _face_people_plain()
+        return {p["id"]: p["label"] for p in people}
+    except Exception:
+        return {}
+
+def _face_is_admin():
+    u = current_user()
+    return bool(u and u.get("role") == "admin")
+
+def _face_view(event, admin, labels=None):
+    ev = dict(event)
+    if admin:
+        pid = ev.get("person_id")
+        ev["person_label"] = (labels or {}).get(pid, "REVOKED / REMOVED") if pid else None
+    else:
+        for k in ("person_id", "reviewed_by", "match_distance", "confidence", "reason"):
+            ev.pop(k, None)
+        ev["has_snapshot"] = False
+    return ev
+
+@app.get("/api/faces/status")
+@require_login
+def face_status():
+    configured = face_service.key_is_valid(_face_key())
+    return jsonify({"ok": True, "configured": configured, "admin": _face_is_admin(),
+                    "policy": _face_policy().public(),
+                    "categories": {k: v["label"] for k, v in face_service.CATEGORIES.items()}})
+
+@app.post("/api/faces/observe")
+@require_login
+def face_observe():
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if _face_rate_limited():
+        return jsonify({"ok": False, "error": "Too many verification requests"}), 429
+    data = request.get_json(silent=True) or {}
+    state_in = "face" if data.get("state") == "face" else "no_face"
+    raw = data.get("descriptors") or []
+    if not isinstance(raw, list) or len(raw) > 5:
+        return jsonify({"ok": False, "error": "Invalid descriptors"}), 400
+    descs = []
+    for item in raw:
+        clean = face_service.validate_descriptor(item)
+        if clean is None:
+            return jsonify({"ok": False, "error": "Invalid descriptor"}), 400
+        descs.append(clean)
+    try:
+        persisted = float(data.get("persisted_s") or 0)
+    except (TypeError, ValueError):
+        persisted = 0.0
+    obs = {"state": state_in, "descriptors": descs, "occluded": bool(data.get("occluded")),
+           "quality_ok": bool(data.get("quality_ok")), "quality_reason": str(data.get("quality_reason") or "")[:40],
+           "persisted_s": persisted}
+    policy = _face_policy()
+    try:
+        people, registry_ok = _face_people_plain()
+        enabled = [p for p in people if p["enabled"]]
+        verdict = face_service.classify(obs, enabled, policy, registry_ok)
+        category = verdict["category"]
+        with lock:
+            device_id = str(state.get("device_id") or "ROVER-01")
+            location = {"lat": state.get("lat"), "lon": state.get("lon"), "source": state.get("gps_source")}
+        report = _face_store({
+            "op": "event_report",
+            "window": 300 if category == face_service.CATEGORY_AUTHORIZED else 60,
+            "event": {"category": category, "camera_id": device_id,
+                      "camera": device_id + " \u2022 FRONT CAMERA", "location": location,
+                      "person_id": verdict["person_id"], "reason": verdict["reason"],
+                      "match_distance": verdict["distance"], "confidence": verdict["confidence"]},
+        })
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    event = report["event"]
+    if report["created"] and face_service.CATEGORIES[category]["notify_admin"]:
+        audit("FACE_ALERT", f"{event['label']} \u2022 {event['camera']} \u2022 event {event['id']} \u2022 {event['first_seen']}")
+    admin = _face_is_admin()
+    body = {"ok": True, "category": category, "label": event["label"],
+            "classification": event["classification"], "event_id": event["id"],
+            "created": report["created"], "need_snapshot": report["need_snapshot"]}
+    if admin:
+        labels = {p["id"]: p["label"] for p in people}
+        body["person_label"] = labels.get(verdict["person_id"]) if verdict["person_id"] else None
+        body["match_distance"] = verdict["distance"]
+        body["confidence"] = verdict["confidence"]
+        body["reason"] = verdict["reason"]
+    return jsonify(body)
+
+@app.post("/api/faces/events/<event_id>/snapshot")
+@require_login
+def face_snapshot_upload(event_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(event_id):
+        return jsonify({"ok": False, "error": "Invalid event"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        image = base64.b64decode(str(data.get("image_b64") or ""), validate=True)
+    except Exception:
+        return jsonify({"ok": False, "error": "Invalid image"}), 400
+    if not (500 <= len(image) <= face_service.MAX_SNAPSHOT_BYTES) or image[:3] != b"\xff\xd8\xff" or image[-2:] != b"\xff\xd9":
+        return jsonify({"ok": False, "error": "Invalid snapshot image"}), 400
+    try:
+        blob = face_service.encrypt_blob(_face_key(), image, "snap:" + event_id)
+        _face_store({"op": "snap_put", "id": event_id, "blob": blob})
+    except (face_service.FaceStoreError, face_service.FaceOpError, face_service.FaceCryptoError) as exc:
+        return _face_error(exc)
+    return jsonify({"ok": True})
+
+@app.get("/api/faces/events")
+@require_login
+def face_events():
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    try:
+        limit = int(request.args.get("limit", 50))
+    except ValueError:
+        limit = 50
+    try:
+        events = _face_store({"op": "events_list", "limit": limit})["events"]
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    admin = _face_is_admin()
+    labels = _face_labels() if admin else None
+    response = jsonify({"ok": True, "admin": admin, "events": [_face_view(e, admin, labels) for e in events]})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+@app.get("/api/faces/events/<event_id>/snapshot")
+@require_admin
+def face_snapshot_view(event_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(event_id):
+        return jsonify({"ok": False, "error": "Invalid event"}), 400
+    try:
+        blob = _face_store({"op": "snap_get", "id": event_id})["blob"]
+        image = face_service.decrypt_blob(_face_key(), blob, "snap:" + event_id)
+    except face_service.FaceCryptoError:
+        return jsonify({"ok": False, "error": "Snapshot unreadable"}), 500
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    return Response(image, mimetype="image/jpeg", headers={
+        "Cache-Control": "no-store, private", "Content-Disposition": "inline"})
+
+@app.post("/api/faces/events/<event_id>/review")
+@require_admin
+def face_event_review(event_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(event_id):
+        return jsonify({"ok": False, "error": "Invalid event"}), 400
+    action = str((request.get_json(silent=True) or {}).get("action") or "")
+    if action not in face_service.REVIEW_ACTIONS:
+        return jsonify({"ok": False, "error": "Invalid action"}), 400
+    try:
+        result = _face_store({"op": "event_review", "id": event_id, "action": action,
+                              "by": (current_user() or {}).get("username", "")})
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    audit("FACE_REVIEW", f"event {event_id} \u2022 {action}")
+    return jsonify({"ok": True, "event": _face_view(result["event"], True, _face_labels())})
+
+@app.delete("/api/faces/events/<event_id>")
+@require_admin
+def face_event_delete(event_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(event_id):
+        return jsonify({"ok": False, "error": "Invalid event"}), 400
+    try:
+        _face_store({"op": "event_delete", "id": event_id})
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    audit("FACE_EVENT_DELETE", f"event {event_id}")
+    return jsonify({"ok": True})
+
+@app.get("/api/faces/people")
+@require_admin
+def face_people_list():
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    try:
+        people, ok = _face_people_plain()
+        rows = _face_store({"op": "people_list"})["people"]
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    readable = {p["id"]: p for p in people}
+    out = []
+    for row in rows:
+        p = readable.get(row["id"])
+        out.append({"id": row["id"], "label": p["label"] if p else "UNREADABLE RECORD",
+                    "enabled": bool(row.get("enabled")), "templates": int(row.get("count") or 0),
+                    "created_at": row.get("created_at"), "created_by": row.get("created_by")})
+    response = jsonify({"ok": True, "registry_ok": ok, "people": out})
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+@app.post("/api/faces/people")
+@require_admin
+def face_people_add():
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    data = request.get_json(silent=True) or {}
+    label = "".join(ch for ch in str(data.get("label") or "") if ch.isprintable()).strip()[:64]
+    raw = data.get("descriptors")
+    if not label:
+        return jsonify({"ok": False, "error": "Name is required"}), 400
+    if not isinstance(raw, list) or not (1 <= len(raw) <= face_service.MAX_TEMPLATES_PER_PERSON):
+        return jsonify({"ok": False, "error": "Provide 1 to %d face templates" % face_service.MAX_TEMPLATES_PER_PERSON}), 400
+    templates = []
+    for item in raw:
+        clean = face_service.validate_descriptor(item)
+        if clean is None:
+            return jsonify({"ok": False, "error": "Invalid face template"}), 400
+        templates.append(clean)
+    person_id = uuid.uuid4().hex[:16]
+    user = current_user() or {}
+    try:
+        blob = face_service.encrypt_blob(
+            _face_key(), json.dumps({"label": label, "templates": templates}, separators=(",", ":")).encode("utf-8"),
+            "person:" + person_id)
+        _face_store({"op": "people_add", "person": {
+            "id": person_id, "blob": blob, "count": len(templates),
+            "created_at": datetime.now(timezone.utc).isoformat(), "created_by": user.get("username")}})
+    except (face_service.FaceStoreError, face_service.FaceOpError, face_service.FaceCryptoError) as exc:
+        return _face_error(exc)
+    audit("FACE_REGISTER", f"person {person_id} \u2022 {len(templates)} templates")
+    return jsonify({"ok": True, "id": person_id}), 201
+
+@app.patch("/api/faces/people/<person_id>")
+@require_admin
+def face_people_update(person_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(person_id):
+        return jsonify({"ok": False, "error": "Invalid person"}), 400
+    enabled = (request.get_json(silent=True) or {}).get("enabled")
+    if not isinstance(enabled, bool):
+        return jsonify({"ok": False, "error": "enabled must be true or false"}), 400
+    try:
+        _face_store({"op": "people_set_enabled", "id": person_id, "enabled": enabled})
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    audit("FACE_REINSTATE" if enabled else "FACE_REVOKE", f"person {person_id}")
+    return jsonify({"ok": True, "enabled": enabled})
+
+@app.delete("/api/faces/people/<person_id>")
+@require_admin
+def face_people_delete(person_id):
+    blocked = _face_disabled()
+    if blocked:
+        return blocked
+    if not face_service.ID_RE.match(person_id):
+        return jsonify({"ok": False, "error": "Invalid person"}), 400
+    try:
+        _face_store({"op": "people_delete", "id": person_id})
+    except (face_service.FaceStoreError, face_service.FaceOpError) as exc:
+        return _face_error(exc)
+    audit("FACE_DELETE", f"person {person_id} \u2022 biometric data erased")
+    return jsonify({"ok": True})
+
 
 
 if __name__ == "__main__":
