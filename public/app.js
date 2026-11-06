@@ -41,6 +41,7 @@ function stopTargetAlarm(){
 }
 function startTargetAlarm(t){
   if(!warningDisplayEnabled||targetAlarmActive)return;
+  if(/person|human/i.test(String(t?.type||""))&&Number(t?.range_m||0)<=15&&window.DEFENX_FACE_ALL_AUTHORIZED?.())return;
   lastTargetAlarmData=t||lastTargetAlarmData;
   targetAlarmActive=true;
   const old=$("targetAlarmPopup");if(old)old.remove();
