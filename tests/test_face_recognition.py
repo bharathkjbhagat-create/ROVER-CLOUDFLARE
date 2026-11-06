@@ -85,6 +85,15 @@ class PolicyTests(unittest.TestCase):
         self.assertEqual(r["category"], faces.CATEGORY_AUTHORIZED)
         self.assertEqual(r["person_id"], "a" * 16)
 
+    def test_poor_quality_blocks_even_a_close_face_match(self):
+        descs = [jitter(self.alice, 0.005, s) for s in range(3)]
+        result = faces.classify(
+            self.obs(descs, quality_ok=False, quality_reason="low_light"),
+            self.people, self.policy,
+        )
+        self.assertEqual(result["category"], faces.CATEGORY_REVIEW)
+        self.assertIsNone(result["person_id"])
+
     def test_unknown_person_is_unverified_not_hostile(self):
         descs = [vec(99)] * 3
         r = faces.classify(self.obs(descs), self.people, self.policy)
