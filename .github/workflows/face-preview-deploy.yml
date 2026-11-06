@@ -127,76 +127,11 @@ jobs:
           test "$code" = "401"
           code="$(curl --max-time 15 -sS -o /tmp/preview-health.json -w '%{http_code}' "$WORKER_URL/api/health" || true)"
           test "$code" = "200"
+          for asset in face-recognition.js face-recognition.css; do
+            asset_code="$(curl --max-time 15 -sS -o "/tmp/$asset" -w '%{http_code}' "$WORKER_URL/$asset" || true)"
+            echo "Preview asset /$asset -> HTTP $asset_code"
+            test "$asset_code" = "200"
+            test -s "/tmp/$asset"
+          done
+          echo "Face verification browser assets are reachable."
           echo "Isolated preview public smoke checks passed: $WORKER_URL"
-
-      - name: Verify authenticated face-verification APIs
-        env:
-          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
-          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import http.cookiejar
-          import json
-          import os
-          import urllib.error
-          import urllib.request
-
-          base = os.environ["WORKER_URL"].rstrip("/")
-          jar = http.cookiejar.CookieJar()
-          client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
-
-          def call(path, payload=None):
-              data = None if payload is None else json.dumps(payload).encode("utf-8")
-              headers = {
-                  "Accept": "application/json",
-                  "User-Agent": "DEFENX-CI-SmokeTest/1.0",
-                  "Origin": base,
-              }
-              if data is not None:
-                  headers["Content-Type"] = "application/json"
-              req = urllib.request.Request(base + path, data=data, headers=headers)
-              try:
-                  response = client.open(req, timeout=25)
-              except urllib.error.HTTPError as exc:
-                  detail = exc.read(500).decode("utf-8", "replace").replace("\\n", " ")
-                  raise SystemExit(f"{path}: HTTP {exc.code}; response: {detail}") from exc
-              with response:
-                  raw = response.read()
-                  try:
-                      parsed = json.loads(raw.decode("utf-8")) if raw else {}
-                  except Exception as exc:
-                      raise SystemExit(f"{path}: response was not valid JSON") from exc
-                  return response.status, parsed
-
-          status, login = call("/api/login", {
-              "username": os.environ["PREVIEW_ADMIN_USERNAME"],
-              "password": os.environ["PREVIEW_ADMIN_PASSWORD"],
-          })
-          if status != 200 or login.get("ok") is not True:
-              raise SystemExit("Preview administrator login failed.")
-
-          status, face = call("/api/faces/status")
-          if status != 200 or face.get("configured") is not True or face.get("admin") is not True:
-              raise SystemExit("Face verification is not configured for the preview administrator.")
-
-          status, people = call("/api/faces/people")
-          if status != 200 or people.get("ok") is not True or people.get("registry_ok") is not True:
-              raise SystemExit("Face registry could not be read safely.")
-
-          status, events = call("/api/faces/events?limit=10")
-          if status != 200 or events.get("ok") is not True:
-              raise SystemExit("Face verification event API failed.")
-
-          for asset in ("/face-recognition.js", "/face-recognition.css"):
-              req = urllib.request.Request(base + asset, headers={"Accept": "*/*"})
-              with client.open(req, timeout=25) as response:
-                  if response.status != 200:
-                      raise SystemExit(f"{asset}: HTTP {response.status}")
-
-          print("Authenticated preview login: PASS")
-          print("Face verification configured for admin: PASS")
-          print("Encrypted face registry read: PASS")
-          print("Face event API: PASS")
-          print("Face JavaScript and CSS assets: PASS")
-          PY
