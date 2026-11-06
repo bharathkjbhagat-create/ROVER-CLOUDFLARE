@@ -635,10 +635,24 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Permanently remove every non-admin account from the database.
-                    # Keep exactly the configured administrator account.
-                    cur.execute("DELETE FROM users WHERE username <> %s", (ADMIN_USERNAME,))
-                    cur.execute("UPDATE users SET role='admin',enabled=TRUE,can_control=TRUE,can_manage_users=TRUE WHERE UPPER(username)=UPPER(%s)", (ADMIN_USERNAME,))
+                    # Permanently remove every non-admin account and duplicate
+                    # case-variant admin rows, retaining one configured administrator.
+                    cur.execute(
+                        """DELETE FROM users
+                           WHERE id NOT IN (
+                               SELECT id FROM users
+                               WHERE UPPER(username)=UPPER(%s)
+                               ORDER BY (username=%s) DESC, created_at ASC, id ASC
+                               LIMIT 1
+                           )""",
+                        (ADMIN_USERNAME, ADMIN_USERNAME),
+                    )
+                    cur.execute(
+                        """UPDATE users SET username=%s,role='admin',enabled=TRUE,
+                           can_control=TRUE,can_manage_users=TRUE
+                           WHERE UPPER(username)=UPPER(%s)""",
+                        (ADMIN_USERNAME, ADMIN_USERNAME),
+                    )
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
                         cur.execute(
@@ -675,14 +689,17 @@ def current_user():
     if hasattr(g, "_rover_user_loaded"):
         return g._rover_user
 
-    cached = session.get("user_cache")
+    # Older signed sessions may contain only fallback_user (without user_cache).
+    # Validate either representation before granting access.
+    cached = session.get("user_cache") or fallback_user()
     if cached and (
         str(cached.get("role") or "").strip().lower() != "admin"
         or str(cached.get("username") or "").strip().upper() != ADMIN_USERNAME.upper()
+        or not bool(cached.get("enabled", True))
     ):
-        # Invalidate already-issued regular-user cookies after the admin-only change.
         session.clear()
         cached = None
+
     if cached and cached.get("username"):
         user = dict(cached)
         database_configured = bool(DATABASE_URL or _cf_hyperdrive())
@@ -705,6 +722,8 @@ def current_user():
                                 )
                                 current = cur.fetchone()
                         if (not current or not current["enabled"]
+                                or str(current["role"] or "").strip().lower() != "admin"
+                                or str(current["username"] or "").strip().upper() != ADMIN_USERNAME.upper()
                                 or int(current["auth_version"]) != int(session.get("auth_version", -1))):
                             session.clear()
                             user = None
@@ -720,7 +739,7 @@ def current_user():
                     mark_db_unavailable()
                     user = None
     else:
-        user = fallback_user()
+        user = None
 
     g._rover_user_loaded = True
     g._rover_user = user
@@ -1131,6 +1150,10 @@ def login():
         fast_user = None
         record_login_failure(ip)
         return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
+
+    # Every accepted alias represents the configured administrator, not a separate DB user.
+    username = ADMIN_USERNAME
+    canonical_username = ADMIN_USERNAME
     if fast_user and (
         str(fast_user.get("role") or "").lower() != "admin"
         or normalize_login_id(fast_user.get("username")) not in admin_login_ids
@@ -1142,23 +1165,7 @@ def login():
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
-    elif not database_configured:
-        runtime_user = runtime_users.get(username)
-        runtime_hash = runtime_password_hashes.get(username)
-        if not runtime_user and login_key:
-            for candidate_username, candidate_user in runtime_users.items():
-                if normalize_login_id(candidate_username) == login_key:
-                    runtime_user = candidate_user
-                    runtime_hash = runtime_password_hashes.get(candidate_username)
-                    break
-        if runtime_user and runtime_user.get("enabled") and runtime_hash:
-            try:
-                if safe_check_password_hash(runtime_hash, password):
-                    fast_user = dict(runtime_user)
-                    fast_user["last_login_at"] = datetime.now(timezone.utc).isoformat()
-                    runtime_users[username] = dict(fast_user)
-            except Exception:
-                fast_user = None
+
 
     if fast_user:
         clear_login_failures(ip)
@@ -1203,44 +1210,12 @@ def login():
         database_ready = False
 
     if not database_ready:
-        if not database_configured and username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-            user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
-                    "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
-                    "created_at": None, "last_login_at": None}
-        else:
-            user = None
-            known_username = login_key in admin_login_ids or username in runtime_users or any(normalize_login_id(x) == login_key for x in runtime_users)
-            runtime_user = runtime_users.get(username)
-            runtime_hash = runtime_password_hashes.get(username)
-            if not database_configured and runtime_user and runtime_user.get("enabled") and runtime_hash is None:
-                configured_friend = next((f for f in FRIEND_ACCOUNTS if f["username"] == username), None)
-                if configured_friend and configured_friend.get("password"):
-                    runtime_hash = generate_password_hash(configured_friend["password"])
-                    runtime_password_hashes[username] = runtime_hash
-            if not database_configured and runtime_user and runtime_user.get("enabled") and runtime_hash and safe_check_password_hash(runtime_hash, password):
-                user = dict(runtime_user)
-                user["last_login_at"] = datetime.now(timezone.utc).isoformat()
-                runtime_users[username] = dict(user)
-        if not user:
-            record_login_failure(ip)
-            return jsonify({"ok": False,
-                            "error": "Invalid password." if known_username else "Invalid login ID.",
-                            "field": "password" if known_username else "username"}), 401
-        session.clear()
-        session.permanent = False
-        session["fallback_user"] = user
-        session["user_cache"] = user
-        session["dashboard_entry"] = True
-        session["audit_session_id"] = str(uuid.uuid4())
-        audit("LOGIN", "Successful login", user)
-        response = jsonify({"ok": True, "user": user, "db_connected": False,
-                            "warning": "Database not connected. Friend management and permanent audit history require DATABASE_URL."})
-        response.set_cookie(
-            "rover_auth", "1", max_age=60 * 60 * 12,
-            secure=_config("COOKIE_SECURE", "1") != "0",
-            httponly=True, samesite="Lax", path="/"
-        )
-        return response
+        record_login_failure(ip)
+        return jsonify({
+            "ok": False,
+            "error": "Invalid login ID or password.",
+            "field": "password",
+        }), 401
 
     with get_db() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
