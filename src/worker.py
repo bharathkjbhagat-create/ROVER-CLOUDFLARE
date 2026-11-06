@@ -91,21 +91,50 @@ class RealtimeHub(DurableObject):
         events = await self.ctx.storage.get("login_events")
         if not isinstance(events, list):
             events = []
-        events = [x for x in events if isinstance(x, dict)]
-        events.insert(0, event)
-        # Bound the private fallback log so it cannot grow without limit.
-        await self.ctx.storage.put("login_events", events[:500])
+        now = int(time.time())
+        retained = []
+        for item in events:
+            try:
+                expires = int(item.get("expires_at") or 0)
+                if not expires:
+                    from datetime import datetime
+                    stamp = datetime.fromisoformat(str(item.get("created_at", "")).replace("Z", "+00:00"))
+                    expires = int(stamp.timestamp()) + 7 * 24 * 60 * 60
+                if expires > now:
+                    retained.append(item)
+            except (TypeError, ValueError, OverflowError):
+                continue
+        retained.insert(0, event)
+        # Keep the complete seven-day event window; cap only pathological volumes.
+        await self.ctx.storage.put("login_events", retained[:5000])
         return True
 
-    async def get_login_events(self, limit=20):
+    async def get_login_events(self, limit=100):
         try:
-            safe_limit = min(max(int(limit), 1), 100)
+            safe_limit = min(max(int(limit), 1), 5000)
         except (TypeError, ValueError):
-            safe_limit = 20
+            safe_limit = 100
         events = await self.ctx.storage.get("login_events")
         if not isinstance(events, list):
             return []
-        return [x for x in events if isinstance(x, dict)][:safe_limit]
+        now = int(time.time())
+        retained = []
+        for item in events:
+            if not isinstance(item, dict):
+                continue
+            try:
+                expires = int(item.get("expires_at") or 0)
+                if not expires:
+                    from datetime import datetime
+                    stamp = datetime.fromisoformat(str(item.get("created_at", "")).replace("Z", "+00:00"))
+                    expires = int(stamp.timestamp()) + 7 * 24 * 60 * 60
+                if expires > now:
+                    retained.append(item)
+            except (TypeError, ValueError, OverflowError):
+                continue
+        if len(retained) != len(events):
+            await self.ctx.storage.put("login_events", retained[:5000])
+        return retained[:safe_limit]
 
     async def set_last_known_loss(self, loss_event):
         if not isinstance(loss_event, dict):
