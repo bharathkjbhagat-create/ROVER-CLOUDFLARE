@@ -79,6 +79,9 @@ assert '$("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay)' i
 assert "updateWarningControlUI({obstacle_cm:d.obstacle_cm,target:{detected}})" in app_js
 assert 'localStorage.setItem("rover_warning_display"' in app_js
 assert "ROVER_DEVICE" in app_js
+assert "router.project-osrm.org/route/v1/driving/" in app_js
+assert 'id="mapFollowBtn"' in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+assert 'data-mapmode="hybrid"' in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
 
 ai_js = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
 assert "lite_mobilenet_v2" in ai_js
