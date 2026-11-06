@@ -10,6 +10,8 @@ from js import WebSocketPair, WebSocketRequestResponsePair, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint, wsgi
 from werkzeug.security import check_password_hash
 
+import faces as face_registry
+
 from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME, runtime_users, runtime_password_hashes, safe_check_password_hash
 
 
@@ -135,6 +137,46 @@ class RealtimeHub(DurableObject):
         if len(retained) != len(events):
             await self.ctx.storage.put("login_events", retained[:5000])
         return retained[:safe_limit]
+
+    async def face_op(self, request_json):
+        """Atomic face-registry operations (Durable Object calls are serialised).
+
+        Stores only authenticated ciphertext (templates, snapshots) plus
+        non-biometric event metadata. Encryption/decryption never happens here.
+        """
+        try:
+            req = json.loads(str(request_json))
+            if not isinstance(req, dict):
+                raise ValueError("request")
+        except Exception:
+            return json.dumps({"ok": False, "error": "bad_request"})
+        storage = self.ctx.storage
+        try:
+            if req.get("op") == "snap_get":
+                sid = str(req.get("id") or "")
+                blob = await storage.get("face_snap:" + sid) if face_registry.ID_RE.match(sid) else None
+                if not blob:
+                    return json.dumps({"ok": False, "error": "not_found"})
+                return json.dumps({"ok": True, "result": {"blob": str(blob)}})
+            raw_people = await storage.get("face_people")
+            raw_events = await storage.get("face_events")
+            people = json.loads(str(raw_people)) if raw_people else {}
+            events = json.loads(str(raw_events)) if raw_events else []
+            result, mut = face_registry.apply_op(req, people, events)
+            if mut["people"]:
+                await storage.put("face_people", json.dumps(people, separators=(",", ":")))
+            if mut["events"]:
+                await storage.put("face_events", json.dumps(events, separators=(",", ":")))
+            for sid, blob in mut["snap_put"].items():
+                await storage.put("face_snap:" + sid, blob)
+            for sid in mut["snap_del"]:
+                await storage.delete("face_snap:" + sid)
+            return json.dumps({"ok": True, "result": result}, separators=(",", ":"))
+        except face_registry.FaceOpError as exc:
+            return json.dumps({"ok": False, "error": exc.code})
+        except Exception:
+            return json.dumps({"ok": False, "error": "registry_unavailable"})
+
 
     async def set_last_known_loss(self, loss_event):
         if not isinstance(loss_event, dict):
