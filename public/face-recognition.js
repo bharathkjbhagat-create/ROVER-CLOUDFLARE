@@ -779,6 +779,7 @@
         video: { facingMode: { ideal: "environment" } },
         audio: false
       });
+      localCameraStream = stream;
       let video = document.getElementById("roverRealCamera");
       if (!video || video.tagName !== "VIDEO") {
         const replacement = document.createElement("video");
