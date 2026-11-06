@@ -413,31 +413,8 @@ class Default(WorkerEntrypoint):
                     admin_name, "admin", "ROVER Administrator",
                     can_manage_users=True, user_id="env-admin"
                 )
-        # Environment-configured friend accounts can authenticate locally when
-        # no database is configured. When a database is configured, its stored
-        # password hash remains authoritative so admin password resets persist.
-        if not database_configured:
-            friend_bindings = {
-                "MAHANTESH": ("FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH"),
-                "DHANUSH": ("FRIEND_DHANUSH_PASSWORD", "FRIEND_DHANUSH_PASSWORD_HASH"),
-                "ANIRUDH": ("FRIEND_ANIRUDH_PASSWORD", "FRIEND_ANIRUDH_PASSWORD_HASH"),
-                "MAMLESHWAR": ("FRIEND4_PASSWORD", "FRIEND4_PASSWORD_HASH"),
-            }
-            for friend_name, (password_key, hash_key) in friend_bindings.items():
-                if key != self._normalize_login(friend_name):
-                    continue
-                configured_password = self._env_value(env, password_key)
-                configured_hash = self._env_value(env, hash_key)
-                valid = bool(configured_password) and hmac.compare_digest(password, configured_password)
-                if not valid and configured_hash:
-                    valid = safe_check_password_hash(configured_hash, password)
-                if valid:
-                    return self._make_user(
-                        friend_name, "user", friend_name,
-                        can_manage_users=False, user_id="env-" + friend_name.lower()
-                    )
-                return None
-        # Database-managed friend credentials remain authoritative after a reset.
+        # DEFENX is admin-only: environment-configured friend credentials and
+        # database-managed regular-user accounts are intentionally not accepted.
         return None
 
     async def _legacy_authenticate(self, username, password):
@@ -488,7 +465,8 @@ class Default(WorkerEntrypoint):
                 return None
             username_value = str(user.get("username") or "").strip().upper()
             role = str(user.get("role") or "user").strip().lower()
-            if not username_value or role not in {"admin", "user"}:
+            configured_admin = self._env_value(self.env, "ADMIN_USERNAME", ADMIN_USERNAME).strip().upper() or "ADMIN"
+            if not username_value or role != "admin" or self._normalize_login(username_value) != self._normalize_login(configured_admin):
                 return None
             return {
                 "id": str(user.get("id") or f"legacy-{username_value.lower()}"),
@@ -665,6 +643,15 @@ class Default(WorkerEntrypoint):
                     status=400,
                     headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
                 )
+
+            admin_name = self._env_value(self.env, "ADMIN_USERNAME", ADMIN_USERNAME).strip().upper() or "ADMIN"
+            admin_aliases = {
+                self._normalize_login(admin_name), "ADMIN", "ADMIN-1", "ADMINISTRATOR",
+                "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
+                "ADMINUSER", "ADMINUSERID",
+            }
+            if self._normalize_login(username) not in admin_aliases:
+                return self._login_response(None)
 
             user = self._local_authenticate(self.env, username, password)
             if user:
