@@ -24,6 +24,23 @@ class SecurityRegressionTests(unittest.TestCase):
     def tearDown(self):
         rover_app.clear_login_failures("security-test-ip")
 
+    def _set_admin_session(self, include_user_cache=True):
+        admin = {
+            "id": "security-test-admin",
+            "username": rover_app.ADMIN_USERNAME,
+            "display_name": "ROVER Administrator",
+            "role": "admin",
+            "enabled": True,
+            "can_control": True,
+            "can_manage_users": True,
+        }
+        with self.client.session_transaction() as session:
+            session["fallback_user"] = dict(admin)
+            if include_user_cache:
+                session["user_cache"] = dict(admin)
+            session["dashboard_entry"] = True
+            session["audit_session_id"] = "security-test-session"
+
     def test_security_headers_are_present(self):
         response = self.client.get("/api/ping")
         self.assertEqual(response.status_code, 200)
@@ -34,8 +51,7 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertIn("max-age=31536000", response.headers.get("Strict-Transport-Security", ""))
 
     def test_cross_origin_state_change_is_rejected_before_handler(self):
-        response = self.client.post(
-            "/api/command",
+        response = self.client.post("/api/command",
             headers={"Origin": "https://attacker.example"},
             json={"command": "FORWARD"},
         )
@@ -45,10 +61,7 @@ class SecurityRegressionTests(unittest.TestCase):
     def test_sensitive_api_routes_require_authentication(self):
         self.assertEqual(self.client.get("/api/bootstrap").status_code, 401)
         self.assertEqual(self.client.get("/api/telemetry").status_code, 401)
-        self.assertEqual(
-            self.client.post("/api/command", json={"command": "FORWARD"}).status_code,
-            401,
-        )
+        self.assertEqual(self.client.post("/api/command", json={"command": "FORWARD"}).status_code, 401)
         self.assertEqual(self.client.get("/api/me").status_code, 401)
 
     def test_detection_event_endpoint_requires_login(self):
@@ -56,23 +69,10 @@ class SecurityRegressionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401)
 
     def test_detection_event_accepts_only_generic_presence_transitions(self):
-        with self.client.session_transaction() as session:
-            session["fallback_user"] = {
-                "id": "security-test-user",
-                "username": "SECURITYTEST",
-                "display_name": "Security Test",
-                "role": "user",
-                "enabled": True,
-                "can_control": True,
-                "can_manage_users": False,
-            }
+        self._set_admin_session()
         with patch.object(rover_app, "audit") as audit_mock:
-            accepted = self.client.post(
-                "/api/detection-events", json={"type": "PERSON_PRESENT"}
-            )
-            rejected = self.client.post(
-                "/api/detection-events", json={"type": "IDENTIFY_UNKNOWN_PERSON"}
-            )
+            accepted = self.client.post("/api/detection-events", json={"type": "PERSON_PRESENT"})
+            rejected = self.client.post("/api/detection-events", json={"type": "IDENTIFY_UNKNOWN_PERSON"})
         self.assertEqual(accepted.status_code, 200, accepted.get_data(as_text=True))
         self.assertTrue(accepted.get_json().get("recorded"))
         self.assertEqual(rejected.status_code, 400)
@@ -102,53 +102,34 @@ class SecurityRegressionTests(unittest.TestCase):
 
     def test_worker_only_revokes_sessions_for_post_logout(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
-        self.assertIn(
-            'url.path == "/api/logout" and str(request.method).upper() == "POST"',
-            source,
-        )
-        self.assertNotIn(
-            'url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}',
-            source,
-        )
+        self.assertIn('url.path == "/api/logout" and str(request.method).upper() == "POST"', source)
+        self.assertNotIn('url.path == "/api/logout" and str(request.method).upper() in {"GET", "POST"}', source)
 
-    def test_logout_clears_both_session_and_auth_marker_cookies(self):
+    def test_legacy_regular_user_fallback_session_is_rejected(self):
         with self.client.session_transaction() as session:
             session["fallback_user"] = {
-                "id": "security-test-user",
-                "username": "SECURITYTEST",
-                "display_name": "Security Test",
+                "id": "old-user-session",
+                "username": "DHANUSH",
+                "display_name": "Legacy Friend",
                 "role": "user",
                 "enabled": True,
                 "can_control": True,
                 "can_manage_users": False,
             }
-            session["user_cache"] = dict(session["fallback_user"])
-            session["dashboard_entry"] = True
+        response = self.client.get("/api/me")
+        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
 
+    def test_logout_clears_both_session_and_auth_marker_cookies(self):
+        self._set_admin_session()
         response = self.client.post("/api/logout")
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertTrue(response.get_json().get("ok"))
         self.assertEqual(self.client.get("/api/me").status_code, 401)
-
         set_cookie_headers = response.headers.getlist("Set-Cookie")
-        # rover_session is Flask's signed authentication session and must expire.
-        self.assertTrue(
-            any(
-                value.startswith("rover_session=;")
-                and ("Max-Age=0" in value or "Expires=" in value)
-                for value in set_cookie_headers
-            ),
-            f"Logout must expire rover_session. Set-Cookie headers: {set_cookie_headers!r}",
-        )
-        # rover_auth is a separate legacy/UI marker and must also expire.
-        self.assertTrue(
-            any(
-                value.startswith("rover_auth=;")
-                and ("Max-Age=0" in value or "Expires=" in value)
-                for value in set_cookie_headers
-            ),
-            f"Logout must expire rover_auth. Set-Cookie headers: {set_cookie_headers!r}",
-        )
+        self.assertTrue(any(value.startswith("rover_session=;") and ("Max-Age=0" in value or "Expires=" in value) for value in set_cookie_headers),
+            f"Logout must expire rover_session. Set-Cookie headers: {set_cookie_headers!r}")
+        self.assertTrue(any(value.startswith("rover_auth=;") and ("Max-Age=0" in value or "Expires=" in value) for value in set_cookie_headers),
+            f"Logout must expire rover_auth. Set-Cookie headers: {set_cookie_headers!r}")
 
 
 if __name__ == "__main__":
