@@ -565,6 +565,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
  details TEXT,
  ip_address TEXT,
  user_agent TEXT,
+ session_id TEXT,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE TABLE IF NOT EXISTS device_loss_events (
@@ -643,6 +644,7 @@ def ensure_db():
                     for statement in [s.strip() for s in SCHEMA.split(";") if s.strip()]:
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
+                    cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
                     cur.execute("UPDATE users SET can_control=TRUE WHERE enabled=TRUE")
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
@@ -742,18 +744,20 @@ def current_user():
     g._rover_user = user
     return user
 
-AUDIT_RETENTION_HOURS = 24
+AUDIT_RETENTION_HOURS = 7 * 24
 AUDIT_RETENTION_SECONDS = AUDIT_RETENTION_HOURS * 60 * 60
+AUDIT_RETENTION_ACTIONS = ("LOGIN", "LOGOUT")
+
+def _audit_event_is_recent(item, cutoff=None):
+    if item.get("action") not in AUDIT_RETENTION_ACTIONS:
+        return True
+    stamp = _parse_iso_datetime(item.get("created_at"))
+    return bool(stamp and stamp >= (cutoff or datetime.now(timezone.utc) - timedelta(seconds=AUDIT_RETENTION_SECONDS)))
 
 def prune_local_login_events():
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=AUDIT_RETENTION_HOURS)
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=AUDIT_RETENTION_SECONDS)
     with lock:
-        recent_actions[:] = [
-            x for x in recent_actions
-            if x.get("action") != "LOGIN" or (
-                x.get("created_at") and datetime.fromisoformat(str(x["created_at"]).replace("Z","+00:00")) >= cutoff
-            )
-        ]
+        recent_actions[:] = [x for x in recent_actions if _audit_event_is_recent(x, cutoff)]
 
 def recent_action(action, details="", user=None):
     u = user or current_user()
@@ -766,41 +770,35 @@ def recent_action(action, details="", user=None):
         "details": details,
         "ip_address": client_ip(),
         "user_agent": request.headers.get("User-Agent", "")[:500],
+        "session_id": session.get("audit_session_id"),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     with lock:
         recent_actions.insert(0, entry)
-        # Keep every successful login locally for the full 24-hour retention window.
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=AUDIT_RETENTION_HOURS)
-        recent_actions[:] = [
-            x for x in recent_actions
-            if x.get("action") != "LOGIN" or (
-                x.get("created_at") and datetime.fromisoformat(str(x["created_at"]).replace("Z","+00:00")) >= cutoff
-            )
-        ]
-        # Non-login UI events remain bounded; LOGIN events are retained separately for 24h.
-        non_login = [x for x in recent_actions if x.get("action") != "LOGIN"][:100]
-        logins = [x for x in recent_actions if x.get("action") == "LOGIN"]
-        recent_actions[:] = sorted(non_login + logins, key=lambda x: str(x.get("created_at","")), reverse=True)
+        cutoff = datetime.now(timezone.utc) - timedelta(seconds=AUDIT_RETENTION_SECONDS)
+        recent_actions[:] = [x for x in recent_actions if _audit_event_is_recent(x, cutoff)]
+        retained = [x for x in recent_actions if x.get("action") in AUDIT_RETENTION_ACTIONS]
+        other = [x for x in recent_actions if x.get("action") not in AUDIT_RETENTION_ACTIONS][:100]
+        recent_actions[:] = sorted(retained + other, key=lambda x: str(x.get("created_at", "")), reverse=True)
 
 def audit(action, details="", user=None):
-    # Successful login entries are intentionally retained for 24 hours, then removed.
+    # Keep successful login and logout records for seven days.
     if db_available():
         try:
             with get_db() as conn:
                 with conn.cursor() as cur:
                     cur.execute(
                         """DELETE FROM audit_log
-                           WHERE action = 'LOGIN'
-                             AND created_at < NOW() - INTERVAL '24 hours'"""
+                           WHERE action IN ('LOGIN','LOGOUT')
+                             AND created_at < NOW() - INTERVAL '7 days'"""
                     )
         except Exception:
             mark_db_unavailable()
     prune_local_login_events()
     if not db_available():
         recent_action(action, details, user)
-        if action == "LOGIN":
-            write_shared_login_event(user or current_user(), details)
+        if action in AUDIT_RETENTION_ACTIONS:
+            write_shared_login_event(user or current_user(), details, action)
         return
     u = user or current_user()
     try:
@@ -808,8 +806,8 @@ def audit(action, details="", user=None):
             with conn.cursor() as cur:
                 cur.execute(
                     """INSERT INTO audit_log
-                       (username,display_name,role,action,details,ip_address,user_agent)
-                       VALUES (%s,%s,%s,%s,%s,%s,%s)""",
+                       (username,display_name,role,action,details,ip_address,user_agent,session_id)
+                       VALUES (%s,%s,%s,%s,%s,%s,%s,%s)""",
                     (
                         u["username"] if u else "anonymous",
                         u.get("display_name") if u else None,
@@ -818,13 +816,14 @@ def audit(action, details="", user=None):
                         details,
                         client_ip(),
                         request.headers.get("User-Agent", "")[:500],
+                        session.get("audit_session_id"),
                     ),
                 )
     except Exception:
         recent_action(action, details, user)
         mark_db_unavailable()
-        if action == "LOGIN":
-            write_shared_login_event(user or current_user(), details)
+        if action in AUDIT_RETENTION_ACTIONS:
+            write_shared_login_event(user or current_user(), details, action)
 def require_login(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
@@ -1174,6 +1173,7 @@ def login():
         session["user_cache"] = fast_user
         session["auth_source"] = "legacy" if request.headers.get("X-DEFENX-LEGACY-USER") else "environment"
         session["dashboard_entry"] = True
+        session["audit_session_id"] = str(uuid.uuid4())
         # Do not block sign-in on a database audit write. Keep the event in the
         # local/realtime login-alert path and let administrative persistence happen
         # outside the critical authentication path.
@@ -1181,13 +1181,9 @@ def login():
         # The session is already established at this point; auxiliary logging is best-effort.
         try:
             recent_action("LOGIN", "Successful login", fast_user)
+            write_shared_login_event(fast_user, "Successful login", "LOGIN")
         except Exception as exc:
             print(f"DEFENX login audit skipped: {type(exc).__name__}")
-        if fast_user.get("role") == "user":
-            try:
-                write_shared_login_event(fast_user, "Successful login")
-            except Exception as exc:
-                print(f"DEFENX login event skipped: {type(exc).__name__}")
         try:
             db_status = bool(db_available())
         except Exception:
@@ -1240,6 +1236,7 @@ def login():
         session["fallback_user"] = user
         session["user_cache"] = user
         session["dashboard_entry"] = True
+        session["audit_session_id"] = str(uuid.uuid4())
         audit("LOGIN", "Successful login", user)
         response = jsonify({"ok": True, "user": user, "db_connected": False,
                             "warning": "Database not connected. Friend management and permanent audit history require DATABASE_URL."})
@@ -1339,6 +1336,7 @@ def login():
     session["auth_source"] = "database"
     session["auth_version"] = int(user.get("auth_version", 0))
     session["dashboard_entry"] = True
+    session["audit_session_id"] = str(uuid.uuid4())
     public_user = {
         "id": str(user["id"]), "username": user["username"], "display_name": user["display_name"],
         "role": user["role"], "enabled": user["enabled"], "can_control": user["can_control"],
@@ -1599,10 +1597,10 @@ def audit_logs():
             with get_db() as conn:
                 with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
                     cur.execute(
-                        """SELECT id,username,display_name,role,action,details,ip_address,user_agent,created_at
+                        """SELECT id,username,display_name,role,action,details,ip_address,user_agent,session_id,created_at
                            FROM audit_log
-                           WHERE created_at >= NOW() - INTERVAL '24 hours'
-                              OR action <> 'LOGIN'
+                           WHERE (action IN ('LOGIN','LOGOUT') AND created_at >= NOW() - INTERVAL '7 days')
+                              OR action NOT IN ('LOGIN','LOGOUT')
                            ORDER BY created_at DESC LIMIT %s""",
                         (limit,),
                     )
@@ -1652,17 +1650,18 @@ def login_events():
                         since_dt = None
                     if since_dt is not None:
                         cur.execute(
-                            """SELECT id,username,display_name,role,action,details,ip_address,user_agent,created_at
+                            """SELECT id,username,display_name,role,action,details,ip_address,user_agent,session_id,created_at
                                FROM audit_log
-                               WHERE action='LOGIN' AND role='user' AND created_at > %s
+                               WHERE action IN ('LOGIN','LOGOUT') AND created_at > %s
                                ORDER BY created_at DESC LIMIT %s""",
                             (since_dt, limit),
                         )
                     else:
                         cur.execute(
-                            """SELECT id,username,display_name,role,action,details,ip_address,user_agent,created_at
+                            """SELECT id,username,display_name,role,action,details,ip_address,user_agent,session_id,created_at
                                FROM audit_log
-                               WHERE action='LOGIN' AND role='user'
+                               WHERE action IN ('LOGIN','LOGOUT')
+                                 AND created_at >= NOW() - INTERVAL '7 days'
                                ORDER BY created_at DESC LIMIT %s""",
                             (limit,),
                         )
@@ -1682,7 +1681,7 @@ def login_events():
     with lock:
         rows.extend(
             x for x in recent_actions
-            if x.get("action") == "LOGIN" and x.get("role") == "user"
+            if x.get("action") in AUDIT_RETENTION_ACTIONS
         )
 
     dedup = {}
