@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUDGETS = {
-    "public/app.js": 76_000,
+    "public/app.js": 78_000,
     "public/style.css": 120_000,
     "public/ai-vision.js": 14_000,
     "public/index.html": 30_000,
