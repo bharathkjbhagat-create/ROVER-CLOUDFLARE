@@ -35,12 +35,8 @@ jobs:
         run: |
           node --check public/face-recognition.js
           node tests/face_logic.test.js
-      - name: Validate face verification JavaScript and logic tests
-        run: |
-          node --check public/face-recognition.js
-          node tests/face_logic.test.js
       - name: Validate Python Worker syntax
-        run: python -m py_compile src/app.py src/worker.py src/faces.py src/faces.py
+        run: python -m py_compile src/app.py src/worker.py src/faces.py
       - name: Install uv
         run: python -m pip install --upgrade uv
       - name: Run backend smoke tests
