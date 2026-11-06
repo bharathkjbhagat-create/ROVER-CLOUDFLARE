@@ -207,6 +207,26 @@ jobs:
           echo "Live JavaScript ON/OFF handlers: PASS"
 
 
+      - name: Verify deployed map layers and controls
+        run: |
+          set -euo pipefail
+          base="$WORKER_URL"
+          curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/index.html?demo=1" -o /tmp/defenx-map-index.html
+          curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/app.js" -o /tmp/defenx-map-app.js
+          curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/map-enhancements.css" -o /tmp/defenx-map.css
+          for id in map mapFollowBtn mapFullscreenBtn mapTileStatus recenterCrossBtn; do
+            grep -Fq "id=\"$id\"" /tmp/defenx-map-index.html || { echo "Missing map control: $id"; exit 1; }
+          done
+          for layer in 'data-mapmode="map"' 'data-mapmode="satellite"' 'data-mapmode="hybrid"'; do
+            grep -Fq "$layer" /tmp/defenx-map-index.html || { echo "Missing map layer tab: $layer"; exit 1; }
+          done
+          grep -Fq 'tile.openstreetmap.org/{z}/{x}/{y}.png' /tmp/defenx-map-app.js
+          grep -Fq 'World_Imagery/MapServer/tile/{z}/{y}/{x}' /tmp/defenx-map-app.js
+          grep -Fq 'overlay_3857/default/g/{z}/{y}/{x}.jpg' /tmp/defenx-map-app.js
+          grep -Fq 'gpsSource==="ROVER_DEVICE"' /tmp/defenx-map-app.js
+          grep -Fq '.mapTabs{display:flex!important' /tmp/defenx-map.css
+          echo "Deployed map HTML, layer sources, rover GPS validation and responsive controls: PASS"
+
       - name: Verify deployed login endpoint rejects bad credentials cleanly
         run: |
           set -euo pipefail
