@@ -17,7 +17,7 @@ jobs:
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.PREVIEW_CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PREVIEW_CLOUDFLARE_ACCOUNT_ID }}
-      WORKER_URL: https://defenx-face-preview.${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}.workers.dev
+      WORKER_URL: https://defenx-face-preview.bindukjagadish.workers.dev
       UV_PYTHON: "3.13"
     steps:
       - uses: actions/checkout@v7
@@ -77,6 +77,8 @@ jobs:
           path.write_text(json.dumps(config, indent=2) + "\\n", encoding="utf-8")
           print("Configured separate Worker name and preview admin username.")
           PY
+      - name: Bootstrap isolated preview Worker
+        run: uv run pywrangler deploy
       - name: Set isolated preview secrets
         env:
           PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
@@ -99,7 +101,7 @@ jobs:
           print("Prepared isolated preview-only secrets.")
           PY
           uv run pywrangler secret bulk /tmp/defenx-preview-secrets.json
-      - name: Deploy isolated preview Worker
+      - name: Deploy isolated preview Worker with preview-only secrets
         run: uv run pywrangler deploy
       - name: Smoke-test isolated preview
         run: |
