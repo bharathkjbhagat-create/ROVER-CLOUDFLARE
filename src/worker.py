@@ -761,16 +761,6 @@ class Default(WorkerEntrypoint):
                 if valid_session_cookie else None
             )
             if session_hash and url.path == "/api/logout" and str(request.method).upper() == "POST":
-                try:
-                    serializer = app.session_interface.get_signing_serializer(app)
-                    session_data = serializer.loads(session_cookie)
-                    user = session_data.get("user_cache") or session_data.get("fallback_user") or {}
-                    await self._record_auth_event(
-                        user, "LOGOUT", session_data.get("audit_session_id"), request,
-                        "User logged out"
-                    )
-                except BaseException as exc:
-                    print(f"DEFENX logout audit setup failed: {type(exc).__name__}")
                 hub = self.env.REALTIME_HUB.getByName("defenx-global")
                 revoked = await hub.revoke_session(session_hash, int(time.time()) + 43200)
                 if not revoked:
