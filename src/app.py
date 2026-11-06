@@ -637,7 +637,7 @@ def ensure_db():
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
                     # Permanently remove every non-admin account from the database.
                     # Keep exactly the configured administrator account.
-                    cur.execute("DELETE FROM users WHERE UPPER(username) <> UPPER(%s)", (ADMIN_USERNAME,))
+                    cur.execute("DELETE FROM users WHERE username <> %s", (ADMIN_USERNAME,))
                     cur.execute("UPDATE users SET role='admin',enabled=TRUE,can_control=TRUE,can_manage_users=TRUE WHERE UPPER(username)=UPPER(%s)", (ADMIN_USERNAME,))
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
@@ -676,6 +676,13 @@ def current_user():
         return g._rover_user
 
     cached = session.get("user_cache")
+    if cached and (
+        str(cached.get("role") or "").strip().lower() != "admin"
+        or str(cached.get("username") or "").strip().upper() != ADMIN_USERNAME.upper()
+    ):
+        # Invalidate already-issued regular-user cookies after the admin-only change.
+        session.clear()
+        cached = None
     if cached and cached.get("username"):
         user = dict(cached)
         database_configured = bool(DATABASE_URL or _cf_hyperdrive())
