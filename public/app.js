@@ -896,9 +896,10 @@ async function createUser(){
 async function loadAudit(){
   const r=await api("/api/audit?limit=1000");const d=await r.json();
   if(!r.ok){$("auditTable").innerHTML="<div class='empty'>"+esc(d.error||"Could not load audit log")+"</div>";return}
-  if(!d.logs.length){$("auditTable").innerHTML="<div class='empty'>"+esc(d.warning||"No audit entries yet.")+"</div>";return}
+  const adminLogs=(Array.isArray(d.logs)?d.logs:[]).filter(x=>String(x.role||"").toLowerCase()==="admin");
+  if(!adminLogs.length){$("auditTable").innerHTML="<div class='empty'>"+esc(d.warning||"No administrator events yet.")+"</div>";return}
   const sessions=new Map(),other=[];
-  d.logs.forEach(x=>{
+  adminLogs.forEach(x=>{
     if(x.action!=="LOGIN"&&x.action!=="LOGOUT"){other.push(x);return}
     const key=x.session_id||("legacy:"+x.username+":"+x.created_at);
     if(!sessions.has(key))sessions.set(key,{login:null,logout:null});
@@ -908,8 +909,8 @@ async function loadAudit(){
   const sessionRows=Array.from(sessions.values()).sort((a,b)=>String(b.login?.created_at||b.logout?.created_at||"").localeCompare(String(a.login?.created_at||a.logout?.created_at||"")));
   const fmt=x=>x?new Date(x).toLocaleString():"—";
   $("auditTable").innerHTML="<div class='auditRetentionNote'>Successful logins and logouts are retained for 7 days, then automatically deleted.</div><table><tr><th>User</th><th>Role</th><th>Login date &amp; time</th><th>Logout date &amp; time</th><th>IP address</th><th>Device / browser</th></tr>"+
-    sessionRows.map(s=>{const x=s.login||s.logout;return "<tr><td><b>"+esc(x.display_name||x.username)+"</b><small>"+esc(x.username)+"</small></td><td>"+esc(x.role||"")+"</td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc((s.login||s.logout).ip_address||"")+"</td><td>"+esc((s.login||s.logout).user_agent||"")+"</td></tr>"}).join("")+
-    "</table>"+(other.length?"<div class='auditRetentionNote'>Other recent activity</div><table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr>"+other.map(x=>"<tr><td>"+esc(fmt(x.created_at))+"</td><td>"+esc(x.display_name||x.username)+"</td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td></tr>").join("")+"</table>":"");
+    sessionRows.map(s=>{const x=s.login||s.logout;return "<tr><td><b>Admin</b></td><td>Admin</td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc((s.login||s.logout).ip_address||"")+"</td><td>"+esc((s.login||s.logout).user_agent||"")+"</td></tr>"}).join("")+
+    "</table>"+(other.length?"<div class='auditRetentionNote'>Other recent activity</div><table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr>"+other.map(x=>"<tr><td>"+esc(fmt(x.created_at))+"</td><td>Admin</td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td></tr>").join("")+"</table>":"");
 }
 function applyTheme(){
   const light=localStorage.getItem("rover_theme")==="light";
@@ -930,11 +931,11 @@ function loadDashboardAudit(){
   const el=$("dashboardAuditTable");if(!el)return;
   if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin.</div>";return}
   api("/api/login-events?limit=100").then(r=>r.json()).then(d=>{
-    const logs=Array.isArray(d.logs)?d.logs:[];
-    if(!logs.length){el.innerHTML="<div class='empty'>No recent events.</div>";return}
+    const logs=(Array.isArray(d.logs)?d.logs:[]).filter(x=>String(x.role||"").toLowerCase()==="admin");
+    if(!logs.length){el.innerHTML="<div class='empty'>No recent admin events.</div>";return}
     const m=new Map();logs.forEach(x=>{const k=x.session_id||x.id||x.created_at+":"+x.action,s=m.get(k)||{};s[x.action==="LOGIN"?"login":"logout"]=x;m.set(k,s)});
     const fmt=x=>x?new Date(x).toLocaleString():"—";
-    el.innerHTML="<table><tr><th>User</th><th>Login</th><th>Logout</th><th>Details</th><th>IP / device</th></tr>"+[...m.values()].map(s=>{const x=s.login||s.logout,d=[s.login&&("Login: "+(s.login.details||"OK")),s.logout&&("Logout: "+(s.logout.details||"Done"))].filter(Boolean).join(" • ");return "<tr><td><b>"+esc(x.display_name||x.username||"Unknown")+"</b><small>"+esc(x.username||"")+" • "+esc(x.role||"")+"</small></td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(d||"—")+"</td><td>"+esc(x.ip_address||"—")+"<small>"+esc(x.user_agent||"")+"</small></td></tr>"}).join("")+"</table>";
+    el.innerHTML="<table><tr><th>User</th><th>Login</th><th>Logout</th><th>Details</th><th>IP / device</th></tr>"+[...m.values()].map(s=>{const x=s.login||s.logout,d=[s.login&&("Login: "+(s.login.details||"OK")),s.logout&&("Logout: "+(s.logout.details||"Done"))].filter(Boolean).join(" • ");return "<tr><td><b>Admin</b></td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(d||"—")+"</td><td>"+esc(x.ip_address||"—")+"<small>"+esc(x.user_agent||"")+"</small></td></tr>"}).join("")+"</table>";
   }).catch(()=>{el.innerHTML="<div class='empty'>Load failed.</div>"});
 }
 function scrollToSection(id){
