@@ -215,6 +215,8 @@
     section.appendChild(head);
     const cameraTools = el("div", "faceRow");
     ui.scanStart = el("button", "faceBtn primary", "START FACE SCAN");
+    ui.scanStart.id = "defenxStartFaceScan";
+    ui.scanStart.style.cssText = "position:relative;z-index:20;pointer-events:auto;touch-action:manipulation;min-height:42px;";
     ui.scanStart.type = "button";
     ui.cameraStart = el("button", "faceBtn", "USE THIS DEVICE CAMERA (TEST)");
     ui.cameraStart.type = "button";
@@ -228,7 +230,24 @@
       "Optional test mode. Camera starts only after you tap the button. Frames stay in this browser; face-template numbers are sent for matching.");
     section.appendChild(cameraTools);
     section.appendChild(ui.cameraStatus);
-    ui.scanStart.addEventListener("click", startFaceScan);
+    ui.scanStart.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      startFaceScan().catch(error => {
+        ui.cameraStatus.textContent = "Face scan could not start: " + String(error && error.message || error);
+        ui.scanStart.disabled = false;
+      });
+    });
+    document.addEventListener("click", (event) => {
+      const button = event.target && event.target.closest && event.target.closest("#defenxStartFaceScan");
+      if (!button || button.disabled) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      startFaceScan().catch(error => {
+        ui.cameraStatus.textContent = "Face scan could not start: " + String(error && error.message || error);
+        ui.scanStart.disabled = false;
+      });
+    }, true);
     ui.cameraStart.addEventListener("click", startLocalCamera);
     ui.cameraStop.addEventListener("click", stopLocalCamera);
     ui.notice = el("div", "faceNotice");
