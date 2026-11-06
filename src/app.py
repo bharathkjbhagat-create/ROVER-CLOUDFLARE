@@ -167,8 +167,8 @@ for _known_username in KNOWN_FRIEND_USERNAMES:
 # Vercel Blob is intentionally removed from the Cloudflare runtime.
 BLOB_LOGIN_PREFIX = "defenx-audit/logins/"
 
-def write_shared_login_event(user, details=""):
-    if not user or user.get("role") != "user":
+def write_shared_login_event(user, details="", action="LOGIN"):
+    if not user or action not in ("LOGIN", "LOGOUT"):
         return False
     now = datetime.now(timezone.utc)
     event = {
@@ -176,11 +176,13 @@ def write_shared_login_event(user, details=""):
         "username": user.get("username"),
         "display_name": user.get("display_name"),
         "role": user.get("role"),
-        "action": "LOGIN",
+        "action": action,
         "details": details,
+        "session_id": session.get("audit_session_id"),
         "ip_address": client_ip(),
         "user_agent": request.headers.get("User-Agent", "")[:500],
         "created_at": now.isoformat(),
+        "expires_at": int(now.timestamp()) + AUDIT_RETENTION_SECONDS,
     }
     return bool(_realtime_call("append_login_event", event))
 
