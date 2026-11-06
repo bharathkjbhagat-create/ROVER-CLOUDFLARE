@@ -101,7 +101,7 @@
   }
   function record(type) {
     const now = Date.now();
-    events.unshift({type, label: type === "PERSON_PRESENT" ? "Person detected in camera view" : "Person no longer detected", at: new Date(now).toISOString()});
+    events.unshift({type, label: type === "PERSON_PRESENT" ? "UNVERIFIED PERSON DETECTED • review camera view" : "UNVERIFIED PERSON NO LONGER DETECTED", at: new Date(now).toISOString()});
     events = events.slice(0, 50);
     save();
     render();
