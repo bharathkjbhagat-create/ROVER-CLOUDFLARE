@@ -12,6 +12,26 @@ function solid(r, g, b, w = 8, h = 8, noise = 0) {
 }
 const S = (rgb, noise) => L.regionStats(solid(...rgb, 8, 8, noise), 8, 8, { x: 0, y: 0, w: 8, h: 8 });
 
+// Pixel-statistics regression: optimized scan must preserve the original YCbCr means,
+// luma variance and clipping behavior used by the mask/quality heuristics.
+{
+  const pixels = new Uint8ClampedArray([
+    240, 180, 130, 255,  30, 80, 210, 255,
+    90, 150, 70, 255,   12, 18, 24, 255
+  ]);
+  const actual = L.regionStats(pixels, 2, 2, { x: -1, y: 0, w: 3, h: 2 });
+  const sample = [[240,180,130],[30,80,210],[90,150,70],[12,18,24]];
+  const y = sample.map(([r,g,b]) => 0.299*r + 0.587*g + 0.114*b);
+  const cb = sample.map(([r,g,b]) => 128 - 0.168736*r - 0.331264*g + 0.5*b);
+  const cr = sample.map(([r,g,b]) => 128 + 0.5*r - 0.418688*g - 0.081312*b);
+  const mean = a => a.reduce((sum,v) => sum+v, 0) / a.length;
+  const close = (a,b) => assert(Math.abs(a-b) < 1e-9, a + " != " + b);
+  close(actual.y, mean(y)); close(actual.cb, mean(cb)); close(actual.cr, mean(cr));
+  close(actual.sd, Math.sqrt(Math.max(0, mean(y.map(v => v*v)) - mean(y)**2)));
+  assert.strictEqual(actual.n, 4);
+  assert.strictEqual(L.regionStats(pixels, 2, 2, { x: 3, y: 0, w: 1, h: 1 }), null);
+}
+
 const SKINS = { light: [233, 190, 165], medium: [198, 146, 110], dark: [120, 78, 55] };
 // Real eye boxes mix sclera, iris, lashes and skin: mid brightness and high variance.
 const realisticEye = tone => ({ y: S(SKINS[tone]).y * 0.62, cb: 120, cr: 140, sd: 42, n: 64 });
