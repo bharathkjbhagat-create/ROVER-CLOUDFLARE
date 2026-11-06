@@ -9,7 +9,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,terrainLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="";
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="";
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
@@ -185,12 +185,14 @@ function initMap(){
     // Exactly one native Leaflet zoom control. The custom rail below is recenter-only.
     L.control.zoom({position:"topleft"}).addTo(map);
     streetLayer=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"});
-    satelliteLayer=L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Imagery © Esri"});
-    terrainLayer=L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:"© OpenTopoMap contributors"});
+    satelliteLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",{minZoom:7,maxZoom:13,attribution:'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)'});
+    hybridOverlayLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/overlay/default/g/{z}/{y}/{x}.png",{minZoom:0,maxZoom:19,opacity:0.9,attribution:"EOxMaps overlay"});
     satelliteLayer.addTo(map);
+    hybridOverlayLayer.addTo(map);
     satelliteOn=true;
-    document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode==="satellite"));
-    setText("mapMode","Satellite");
+    hybridOn=true;
+    document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode==="hybrid"));
+    setText("mapMode","Hybrid");
     geofence=L.circle(demoCenter,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
     const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
     rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
@@ -209,17 +211,16 @@ function initMap(){
 }
 function setMapMode(mode){
   if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
-  [streetLayer,satelliteLayer,terrainLayer].forEach(layer=>{if(layer&&map.hasLayer(layer))map.removeLayer(layer)});
+  [streetLayer,satelliteLayer,hybridOverlayLayer].forEach(layer=>{if(layer&&map.hasLayer(layer))map.removeLayer(layer)});
   hybridOn=false;
   if(mode==="satellite"){satelliteLayer.addTo(map);satelliteOn=true}
-  else if(mode==="terrain"){terrainLayer.addTo(map);satelliteOn=false}
-  else if(mode==="hybrid"){satelliteLayer.addTo(map);hybridOn=true;satelliteOn=true}
+  else if(mode==="hybrid"){satelliteLayer.addTo(map);hybridOverlayLayer.addTo(map);hybridOn=true;satelliteOn=true}
   else {streetLayer.addTo(map);satelliteOn=false}
-  const names={map:"Map",satellite:"Satellite",terrain:"Terrain",hybrid:"Hybrid"};
-  setText("mapMode",names[mode]||"Map");
+  const names={map:"Street",satellite:"Satellite",hybrid:"Hybrid"};
+  setText("mapMode",names[mode]||"Street");
   document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode===mode));
-  recordActivity("MAP_SATELLITE",(names[mode]||"Map")+" view");
-  addLog("MAP",(names[mode]||"Map")+" view enabled");
+  recordActivity("MAP_SATELLITE",(names[mode]||"Street")+" view");
+  addLog("MAP",(names[mode]||"Street")+" view enabled");
 }
 function toggleSatellite(){
   setMapMode(satelliteOn?"map":"satellite");
