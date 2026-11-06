@@ -224,6 +224,8 @@ jobs:
           grep -Fq 'World_Imagery/MapServer/tile/{z}/{y}/{x}' /tmp/defenx-map-app.js
           grep -Fq 'overlay_3857/default/g/{z}/{y}/{x}.jpg' /tmp/defenx-map-app.js
           grep -Fq 'verifiedRoverFix=d.gps_fix===true&&String(d.gps_source||"")==="ROVER_DEVICE"' /tmp/defenx-map-app.js
+          grep -Fq 'router.project-osrm.org/route/v1/driving/' /tmp/defenx-map-app.js
+          grep -Fq 'ROAD ROUTE PREVIEW' /tmp/defenx-map-index.html
           grep -Fq '.mapTabs{display:flex!important' /tmp/defenx-map.css
           echo "Deployed map HTML, layer sources, rover GPS validation and responsive controls: PASS"
 
