@@ -183,11 +183,16 @@ function setMapFollow(enabled,writeLog=true){
 async function toggleMapFullscreen(){
   const card=$("liveMap");
   if(!card)return;
+  if(card.classList.contains("mapFullscreenFallback")){
+    card.classList.remove("mapFullscreenFallback");
+    syncMapFullscreenUI();
+    return;
+  }
   try{
     if(document.fullscreenElement===card)await document.exitFullscreen();
     else if(card.requestFullscreen)await card.requestFullscreen({navigationUI:"hide"});
-    else card.classList.toggle("mapFullscreenFallback");
-  }catch(_){card.classList.toggle("mapFullscreenFallback");}
+    else card.classList.add("mapFullscreenFallback");
+  }catch(_){card.classList.add("mapFullscreenFallback");}
   syncMapFullscreenUI();
 }
 function syncMapFullscreenUI(){
@@ -459,7 +464,7 @@ function updateUI(input){
   setText("lat",liveGps?Number(d.lat).toFixed(6):"--");setText("lon",liveGps?Number(d.lon).toFixed(6):"--");setText("updated",d.updated?new Date(d.updated).toLocaleTimeString():"--");
   setText("deviceOnline",d.device_online===false?"● OFFLINE":"● ONLINE");
   setLastKnownLoss(d.last_known_loss||null);
-  setText("mapCoords",liveGps?Number(d.lat).toFixed(4)+"° "+(Number(d.lat)>=0?"N":"S")+"  "+Number(d.lon).toFixed(4)+"° "+(Number(d.lon)>=0?"E":"W"):(demoMode?"SIMULATION · NOT LIVE":"ROVER GPS NOT FIXED"));
+  setText("mapCoords",d.gps_fix===true&&String(d.gps_source||"")==="ROVER_DEVICE"&&isValidMapPoint(d.lat,d.lon)?Number(d.lat).toFixed(4)+"° "+(Number(d.lat)>=0?"N":"S")+"  "+Number(d.lon).toFixed(4)+"° "+(Number(d.lon)>=0?"E":"W"):(demoMode?"SIMULATION · NOT LIVE":"ROVER GPS NOT FIXED"));
   const gpsSource=String(d.gps_source||"SIMULATION");
   const gpsAccuracy=Number(d.gps_accuracy_m);
   const hasGpsAccuracy=d.gps_accuracy_m!==null&&d.gps_accuracy_m!==undefined&&Number.isFinite(gpsAccuracy);
