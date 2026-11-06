@@ -520,6 +520,7 @@ class Default(WorkerEntrypoint):
             "user_cache": user,
             "auth_source": auth_source,
             "auth_version": int(user.get("auth_version", 0)),
+            "audit_session_id": str(uuid.uuid4()),
             "dashboard_entry": True,
         }
         return serializer.dumps(session_data)
@@ -565,6 +566,31 @@ class Default(WorkerEntrypoint):
             # Keep the app available in local/test runtimes without this binding;
             # production config declares it and the Flask limiter remains a fallback.
             print(f"DEFENX edge login limiter unavailable: {type(exc).__name__}")
+            return False
+
+    async def _record_auth_event(self, user, action, session_id, request, details):
+        """Write Worker-authenticated sessions directly to the shared Durable Object."""
+        if not isinstance(user, dict) or action not in {"LOGIN", "LOGOUT"} or not session_id:
+            return False
+        now = int(time.time())
+        event = {
+            "id": f"worker-{now}-{uuid.uuid4().hex}",
+            "username": str(user.get("username") or "UNKNOWN"),
+            "display_name": str(user.get("display_name") or user.get("username") or "UNKNOWN"),
+            "role": str(user.get("role") or "user"),
+            "action": action,
+            "details": details,
+            "session_id": str(session_id),
+            "ip_address": str(request.headers.get("CF-Connecting-IP") or request.headers.get("X-Forwarded-For") or "")[:120],
+            "user_agent": str(request.headers.get("User-Agent") or "")[:500],
+            "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now)),
+            "expires_at": now + 7 * 24 * 60 * 60,
+        }
+        try:
+            hub = self.env.REALTIME_HUB.getByName("defenx-global")
+            return bool(await hub.append_login_event(event))
+        except BaseException as exc:
+            print(f"DEFENX {action.lower()} audit write failed: {type(exc).__name__}")
             return False
 
     def _login_response(self, user, auth_source="environment"):
@@ -642,7 +668,20 @@ class Default(WorkerEntrypoint):
 
             user = self._local_authenticate(self.env, username, password)
             if user:
-                return self._login_response(user)
+                response = self._login_response(user)
+                if int(response.status) == 200:
+                    try:
+                        cookie_header = str(response.headers.get("Set-Cookie") or "")
+                        cookie_value = cookie_header.split(";", 1)[0].split("=", 1)[1]
+                        serializer = app.session_interface.get_signing_serializer(app)
+                        session_data = serializer.loads(cookie_value)
+                        await self._record_auth_event(
+                            user, "LOGIN", session_data.get("audit_session_id"), request,
+                            "Successful login"
+                        )
+                    except BaseException as exc:
+                        print(f"DEFENX login audit setup failed: {type(exc).__name__}")
+                return response
 
             # Local/DB authentication gets priority over the optional legacy
             # provider so old passwords cannot bypass a local reset.
@@ -676,7 +715,20 @@ class Default(WorkerEntrypoint):
                         status=503,
                         headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
                     )
-                return self._login_response(legacy_user, auth_source="legacy")
+                response = self._login_response(legacy_user, auth_source="legacy")
+                if int(response.status) == 200:
+                    try:
+                        cookie_header = str(response.headers.get("Set-Cookie") or "")
+                        cookie_value = cookie_header.split(";", 1)[0].split("=", 1)[1]
+                        serializer = app.session_interface.get_signing_serializer(app)
+                        session_data = serializer.loads(cookie_value)
+                        await self._record_auth_event(
+                            legacy_user, "LOGIN", session_data.get("audit_session_id"), request,
+                            "Successful login"
+                        )
+                    except BaseException as exc:
+                        print(f"DEFENX legacy login audit setup failed: {type(exc).__name__}")
+                return response
             return fallback_response
         except BaseException as exc:
             print(f"DEFENX login handler recovered from {type(exc).__name__}")
@@ -709,6 +761,16 @@ class Default(WorkerEntrypoint):
                 if valid_session_cookie else None
             )
             if session_hash and url.path == "/api/logout" and str(request.method).upper() == "POST":
+                try:
+                    serializer = app.session_interface.get_signing_serializer(app)
+                    session_data = serializer.loads(session_cookie)
+                    user = session_data.get("user_cache") or session_data.get("fallback_user") or {}
+                    await self._record_auth_event(
+                        user, "LOGOUT", session_data.get("audit_session_id"), request,
+                        "User logged out"
+                    )
+                except BaseException as exc:
+                    print(f"DEFENX logout audit setup failed: {type(exc).__name__}")
                 hub = self.env.REALTIME_HUB.getByName("defenx-global")
                 revoked = await hub.revoke_session(session_hash, int(time.time()) + 43200)
                 if not revoked:
