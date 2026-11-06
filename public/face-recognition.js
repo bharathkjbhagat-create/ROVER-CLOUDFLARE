@@ -230,14 +230,8 @@
       "Optional test mode. Camera starts only after you tap the button. Frames stay in this browser; face-template numbers are sent for matching.");
     section.appendChild(cameraTools);
     section.appendChild(ui.cameraStatus);
-    ui.scanStart.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      startFaceScan().catch(error => {
-        ui.cameraStatus.textContent = "Face scan could not start: " + String(error && error.message || error);
-        ui.scanStart.disabled = false;
-      });
-    });
+    // One delegated capture handler is the single entry point for mobile and desktop taps.
+    // Do not also bind a button-level click handler: that would launch the scan twice.
     document.addEventListener("click", (event) => {
       const button = event.target && event.target.closest && event.target.closest("#defenxStartFaceScan");
       if (!button || button.disabled) return;
