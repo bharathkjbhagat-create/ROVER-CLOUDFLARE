@@ -929,12 +929,43 @@ function toggleTheme(){
 function loadDashboardAudit(){
   const el=$("dashboardAuditTable");
   if(!el)return;
-  if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin access required for the shared audit history.</div>";return}
-  api("/api/audit?limit=20").then(r=>r.json()).then(d=>{
-    if(!d.logs||!d.logs.length){el.innerHTML="<div class='empty'>"+esc(d.warning||"No audit entries yet.")+"</div>";return}
-    el.innerHTML="<table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th><th>IP</th></tr>"+
-      d.logs.map(x=>"<tr><td>"+esc(new Date(x.created_at).toLocaleTimeString())+"</td><td>"+esc(x.display_name||x.username)+"</td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td><td>"+esc(x.ip_address||"")+"</td></tr>").join("")+"</table>";
-  }).catch(()=>{});
+  if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin access required.</div>";return}
+  api("/api/login-events?limit=100").then(async r=>{
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||"Could not load event history");
+    const logs=Array.isArray(d.logs)?d.logs:[];
+    if(!logs.length){el.innerHTML="<div class='empty'>No login or logout events recorded in the last 7 days.</div>";return}
+    const sessions=new Map();
+    logs.forEach(x=>{
+      const key=x.session_id||("event:"+x.username+":"+x.action+":"+x.created_at);
+      if(!sessions.has(key))sessions.set(key,{login:null,logout:null});
+      const row=sessions.get(key);
+      if(x.action==="LOGIN")row.login=x;
+      else if(x.action==="LOGOUT")row.logout=x;
+    });
+    const rows=Array.from(sessions.values()).sort((a,b)=>
+      String(b.login?.created_at||b.logout?.created_at||"").localeCompare(
+        String(a.login?.created_at||a.logout?.created_at||"")
+      )
+    );
+    const fmt=value=>{
+      if(!value)return "—";
+      const date=new Date(value);
+      return Number.isNaN(date.getTime())?"—":date.toLocaleString();
+    };
+    el.innerHTML="<table><tr><th>User</th><th>Role</th><th>Login date &amp; time</th><th>Logout date &amp; time</th><th>Event details</th><th>IP address</th><th>Device / browser</th></tr>"+
+      rows.map(s=>{
+        const x=s.login||s.logout;
+        const details=[
+          s.login?"Login: "+(s.login.details||"Successful login"):"",
+          s.logout?"Logout: "+(s.logout.details||"Logout recorded"):""
+        ].filter(Boolean).join(" • ")||"—";
+        const source=s.login||s.logout;
+        return "<tr><td><b>"+esc(x.display_name||x.username||"Unknown")+"</b><small>"+esc(x.username||"")+"</small></td><td>"+esc(x.role||"—")+"</td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(details)+"</td><td>"+esc(source.ip_address||"—")+"</td><td>"+esc(source.user_agent||"—")+"</td></tr>";
+      }).join("")+"</table>";
+  }).catch(error=>{
+    el.innerHTML="<div class='empty'>"+esc(error.message||"Unable to load event details.")+"</div>";
+  });
 }
 function scrollToSection(id){
   const el=$(id);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
