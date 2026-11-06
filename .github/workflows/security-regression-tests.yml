@@ -30,17 +30,13 @@ jobs:
       - name: Build embedded frontend assets
         run: python scripts/build_assets.py
       - name: Validate Python source
-        run: python -m py_compile src/app.py src/worker.py src/faces.py src/faces.py
+        run: python -m py_compile src/app.py src/worker.py src/faces.py
       - name: Validate JavaScript
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript
         run: node --check public/monitor.js
-      - name: Validate face verification JavaScript and logic tests
-        run: |
-          node --check public/face-recognition.js
-          node tests/face_logic.test.js
       - name: Validate face verification JavaScript and logic tests
         run: |
           node --check public/face-recognition.js
