@@ -646,7 +646,7 @@
     if (!authorized.length || authorized.length !== live.length) return false;
     if (noFaceSince || noFaceCategory) return false;
     const persons = freshPersons();
-    return !persons || persons.boxes.length <= authorized.length;
+    return !!persons && persons.boxes.length === authorized.length;
   };
 
   /* ---------------- registration (admin) ---------------- */
@@ -699,7 +699,7 @@
   async function registerPerson() {
     const label = ui.name.value.trim();
     if (!label) { regMessage("Enter a name or ID label.", true); return; }
-    if (!ui.pending.length) { regMessage("Add at least one accepted face photo first.", true); return; }
+    if (ui.pending.length < 3) { regMessage("Add at least 3 accepted face photos before registering.", true); return; }
     ui.register.disabled = true;
     const r = await api("/api/faces/people", { method: "POST", body: { label, descriptors: ui.pending.slice(0, 10) } });
     ui.register.disabled = false;
