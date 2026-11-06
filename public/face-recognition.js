@@ -162,6 +162,7 @@
 
   let status = null, isAdmin = false, enabled = false;
   let source = null, faceapi = null, modelsPromise = null, ssdLoaded = false;
+  let localCameraStream = null, localCameraActive = false, localCameraVideo = null;
   let busy = false, timer = 0, tracks = [], nextTrackId = 1, lastFaceSeen = 0;
   let noFaceSince = 0, noFaceCategory = null, noFaceReportedAt = 0, noFaceInflight = false;
   let events = [], knownAlertIds = new Set(), alertsPrimed = false, loopStopped = false;
@@ -203,6 +204,20 @@
     ui.state = el("span", "faceStateChip", "STARTING");
     head.appendChild(ui.state);
     section.appendChild(head);
+    const cameraTools = el("div", "faceRow");
+    ui.cameraStart = el("button", "faceBtn", "USE THIS DEVICE CAMERA (TEST)");
+    ui.cameraStart.type = "button";
+    ui.cameraStop = el("button", "faceBtn danger", "STOP DEVICE CAMERA");
+    ui.cameraStop.type = "button";
+    ui.cameraStop.hidden = true;
+    cameraTools.appendChild(ui.cameraStart);
+    cameraTools.appendChild(ui.cameraStop);
+    ui.cameraStatus = el("small", "faceHint",
+      "Optional test mode. Camera starts only after you tap the button. Frames stay in this browser; face-template numbers are sent for matching.");
+    section.appendChild(cameraTools);
+    section.appendChild(ui.cameraStatus);
+    ui.cameraStart.addEventListener("click", startLocalCamera);
+    ui.cameraStop.addEventListener("click", stopLocalCamera);
     ui.notice = el("div", "faceNotice");
     ui.notice.hidden = true;
     ui.notice.setAttribute("role", "status");
@@ -222,7 +237,7 @@
     section.appendChild(ui.list);
     section.appendChild(el("p", "faceFoot",
       "Face matching runs in this browser; only numeric templates are compared on the server. " +
-      "An unrecognised or covered face is UNVERIFIED, not a threat. Snapshots are visible to administrators only."));
+      "An unrecognised or covered face is UNVERIFIED, not a threat. For rover-camera events, a small encrypted review snapshot may be uploaded; local test-camera frames are never uploaded."));
     if (isAdmin) buildAdmin();
   }
 
@@ -493,7 +508,7 @@
     const r = await api("/api/faces/observe", { method: "POST", body: payload });
     if (r.status === 503 && r.data.code === "not_configured") { enabled = false; setChip("NOT CONFIGURED", "off"); return null; }
     if (!r.ok) return null;
-    if (r.data.need_snapshot) uploadSnapshot(r.data.event_id);
+    if (r.data.need_snapshot && !localCameraActive) uploadSnapshot(r.data.event_id);
     return r.data;
   }
 
@@ -740,6 +755,89 @@
     });
   }
 
+  /* ---------------- explicit local camera test mode ---------------- */
+  async function startLocalCamera() {
+    if (sourceReady(source)) {
+      ui.cameraStatus.textContent = "A rover camera feed is already active; local test mode will not replace it.";
+      return;
+    }
+    // Do not replace a configured but still-loading remote rover feed.
+    if (source && (source.tagName === "IFRAME" ||
+        (source.tagName === "IMG" && source.getAttribute("src")) ||
+        (source.tagName === "VIDEO" && (source.getAttribute("src") || source.srcObject)))) {
+      ui.cameraStatus.textContent = "A rover camera stream is configured or loading. Local test mode will not override it.";
+      return;
+    }
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      ui.cameraStatus.textContent = "This browser does not support camera access. Use HTTPS on a supported browser.";
+      return;
+    }
+    ui.cameraStart.disabled = true;
+    ui.cameraStatus.textContent = "Waiting for camera permission…";
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+        audio: false
+      });
+      let video = document.getElementById("roverRealCamera");
+      if (!video || video.tagName !== "VIDEO") {
+        const replacement = document.createElement("video");
+        replacement.id = "roverRealCamera";
+        if (video) video.replaceWith(replacement);
+        else viewport.insertBefore(replacement, viewport.firstChild);
+        video = replacement;
+      }
+      video.autoplay = true;
+      video.muted = true;
+      video.playsInline = true;
+      video.setAttribute("aria-label", "Local device camera test feed");
+      video.style.cssText = "display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
+      video.srcObject = stream;
+      await video.play();
+      localCameraStream = stream;
+      localCameraVideo = video;
+      localCameraActive = true;
+      const scene = document.getElementById("camera3DScene");
+      if (scene) scene.style.display = "none";
+      ui.cameraStart.hidden = true;
+      ui.cameraStop.hidden = false;
+      ui.cameraStatus.textContent = "LOCAL DEVICE CAMERA ACTIVE • TEST ONLY • FRAMES NOT UPLOADED";
+      findSource();
+      clearTimeout(timer);
+      timer = setTimeout(tick, 100);
+    } catch (err) {
+      if (localCameraStream) localCameraStream.getTracks().forEach(track => track.stop());
+      localCameraStream = null;
+      localCameraActive = false;
+      ui.cameraStart.disabled = false;
+      ui.cameraStatus.textContent = "Camera could not start: " + String(err && err.message || err);
+      setChip("CAMERA PERMISSION REQUIRED", "error");
+    }
+  }
+
+  function stopLocalCamera() {
+    if (localCameraStream) localCameraStream.getTracks().forEach(track => track.stop());
+    if (localCameraVideo) {
+      localCameraVideo.pause();
+      localCameraVideo.srcObject = null;
+      localCameraVideo.style.display = "none";
+    }
+    localCameraStream = null;
+    localCameraVideo = null;
+    localCameraActive = false;
+    tracks = [];
+    clearOverlay();
+    const scene = document.getElementById("camera3DScene");
+    if (scene) scene.style.display = "";
+    if (ui.cameraStart) {
+      ui.cameraStart.hidden = false;
+      ui.cameraStart.disabled = false;
+    }
+    if (ui.cameraStop) ui.cameraStop.hidden = true;
+    if (ui.cameraStatus) ui.cameraStatus.textContent = "Local camera stopped. No local test-camera snapshots were uploaded.";
+    setChip("WAITING FOR LIVE CAMERA", "idle");
+  }
+
   /* ---------------- camera source discovery ---------------- */
   function findSource() {
     const e = document.getElementById("roverRealCamera");
@@ -771,5 +869,6 @@
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { pollEvents(); clearTimeout(timer); timer = setTimeout(tick, 200); } });
     window.addEventListener("resize", () => { if (tracks.length && source && sourceReady(source)) drawOverlay(sourceSize(source)); });
     timer = setTimeout(tick, 500);
+    window.addEventListener("pagehide", stopLocalCamera, { once: true });
   })();
 })();
