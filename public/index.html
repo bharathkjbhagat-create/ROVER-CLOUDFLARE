@@ -82,14 +82,13 @@
         <div class="cardHeader mapHeader">
           <div><b>LIVE MAP</b><span id="mapMode">Satellite</span></div>
           <div class="mapTabs">
-            <button type="button" class="mapTab active" data-mapmode="map">Map</button>
+            <button type="button" class="mapTab" data-mapmode="map">Street</button>
             <button type="button" class="mapTab" data-mapmode="satellite">Satellite</button>
-            <button type="button" class="mapTab" data-mapmode="terrain">Terrain</button>
-            <button type="button" class="mapTab" data-mapmode="hybrid">Hybrid</button>
+            <button type="button" class="mapTab active" data-mapmode="hybrid">Hybrid</button>
           </div>
         </div>
         <div class="mapArea">
-          <img id="satellitePreview" class="satellitePreview" alt="Satellite map preview" src="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=77.54,12.94,77.65,13.01&bboxSR=4326&imageSR=4326&size=1200,700&format=jpg&f=image">
+          <img id="satellitePreview" class="satellitePreview" alt="Satellite map preview" src="https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/8/118/184.jpg">
           <div id="map"><div id="mapFallback" class="mapfallback hidden">Loading interactive map…</div></div>
           <div class="mapCompass" id="mapCompass" aria-label="Rover heading 0 degrees"><span class="compassN">N</span><span class="compassE">E</span><span class="compassS">S</span><span class="compassW">W</span><i id="compassNeedle" aria-hidden="true">▲</i></div>
           <div class="mapTargetHud" id="targetHud"><b>TARGET</b><strong id="targetHudType">Person</strong><span id="targetDistanceHud">842 m</span></div>
