@@ -443,7 +443,7 @@ function updateUI(input){
   const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
   const displayPoint=demoMode?simPoint:(deviceGps?{lat:Number(rawInput.lat),lon:Number(rawInput.lon)}:null);
   const rawTarget=rawInput.target&&typeof rawInput.target==="object"?rawInput.target:{};
-  const deviceTarget=String(rawInput.target_source||"")==="ROVER_DEVICE";
+  const deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE";
   const safeTarget=Object.assign({},rawTarget,{
     type:deviceTarget?(rawTarget.type||"Object"):"Object",
     detected:deviceTarget&&rawTarget.detected===true,
