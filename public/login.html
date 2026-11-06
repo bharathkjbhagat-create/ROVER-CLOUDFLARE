@@ -2,60 +2,60 @@
 <html lang="en">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#050b14"><title>DEFENX | Login</title>
+<meta name="theme-color" content="#030914"><title>DEFENX | Login</title>
 <style>
-:root{color-scheme:dark;--bg:#050b14;--panel:#0a1726;--line:#29445c;--red:#f12e43;--blue:#36a9f5;--white:#f3f7fc;--muted:#9aabba}
-*{box-sizing:border-box}html,body{margin:0;min-height:100%;font-family:Inter,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--white)}
-body{min-height:100vh;display:grid;place-items:center;padding:24px;overflow-x:hidden;background:radial-gradient(ellipse at 12% 45%,#a719302c,transparent 38%),radial-gradient(ellipse at 90% 15%,#1673b933,transparent 36%),linear-gradient(135deg,#02060b,#091827 55%,#030810)}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.16;background-image:linear-gradient(#6099be22 1px,transparent 1px),linear-gradient(90deg,#6099be22 1px,transparent 1px);background-size:42px 42px}
-.shell{position:relative;width:min(1220px,100%);min-height:min(740px,calc(100vh - 48px));display:grid;grid-template-columns:1.08fr .92fr;overflow:hidden;border:1px solid #29465f;border-radius:20px;background:linear-gradient(135deg,#06101da8,#030911b8),url("/defenx-login-bg.png") center/cover no-repeat;box-shadow:0 30px 100px #000b,0 0 55px #0c5a8a1c}
-.hero{display:flex;flex-direction:column;justify-content:space-between;min-height:650px;padding:44px 46px;border-right:1px solid #23445e;background:radial-gradient(ellipse at 30% 38%,#0c5e9438,transparent 40%),radial-gradient(ellipse at 4% 76%,#d6192b2b,transparent 36%),linear-gradient(145deg,#091a2bd0,#030911d8)}
-.brand{display:flex;align-items:center;gap:14px}.mark{width:42px;height:42px;display:grid;place-items:center;border:1px solid #e83b4b;border-radius:11px;background:linear-gradient(145deg,#a91c2b,#28121c);font-weight:900;box-shadow:0 0 24px #e72b3c3a}.brand strong{font-size:31px;letter-spacing:3px}.brand strong span{color:var(--red)}.tag{margin-top:5px;color:#9fb4c7;font-size:9px;font-weight:800;letter-spacing:2px}
-.heroMain{margin:45px 0}.eyebrow{color:#b3c6d7;font-size:10px;font-weight:900;letter-spacing:2.5px}.hero h1{margin:17px 0 13px;font-size:clamp(44px,5vw,68px);line-height:.98;letter-spacing:1px}.hero h1 span{color:#ff3548;text-shadow:0 0 32px #f3293d55}.hero p{max-width:460px;color:#b1c0ce;font-size:14px;line-height:1.8}.chips{display:flex;flex-wrap:wrap;gap:9px;margin-top:25px}.chips span{padding:9px 11px;border:1px solid #31516a;border-radius:5px;background:#081a2ab8;color:#c4d4e2;font-size:8px;font-weight:800;letter-spacing:1px}.chips span:before{content:"";display:inline-block;width:6px;height:6px;margin:0 7px 1px 0;border-radius:50%;background:var(--red);box-shadow:0 0 9px var(--red)}
-.foot{display:flex;justify-content:space-between;gap:12px;padding-top:17px;border-top:1px solid #29445a;color:#8fa5b8;font-size:9px;letter-spacing:1.2px}.online{color:#d7e7f3}.online:before{content:"";display:inline-block;width:7px;height:7px;margin-right:8px;border-radius:50%;background:#32d69a;box-shadow:0 0 10px #32d69a}
-.loginSide{position:relative;display:grid;place-items:center;padding:48px 40px;background:radial-gradient(ellipse at 100% 0,#1368a726,transparent 44%),linear-gradient(160deg,#091522d0,#040a12e0 75%)}
-.loginSide:before{content:"";position:absolute;inset:20px;border:1px solid #24445b;clip-path:polygon(0 18px,18px 0,calc(100% - 18px) 0,100% 18px,100% calc(100% - 18px),calc(100% - 18px) 100%,18px 100%,0 calc(100% - 18px));pointer-events:none}
-.card{position:relative;width:min(430px,100%);padding:40px 34px 28px;border:1px solid #31516b;border-radius:14px;background:linear-gradient(150deg,#0c1c2cf7,#040c15fa);box-shadow:0 24px 65px #0008,inset 0 1px #ffffff0a}.card:before{content:"";position:absolute;left:0;top:22px;bottom:22px;width:3px;background:linear-gradient(180deg,transparent,var(--red),transparent);box-shadow:0 0 14px #f3293d66}
-.cardTop{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:32px}.cardTop small{color:#8da6ba;font-size:9px;font-weight:900;letter-spacing:1.8px}.secure{padding:7px 9px;border:1px solid #27516a;border-radius:4px;color:#b4d5e8;font-size:8px;letter-spacing:1px}
-h2{margin:0;font-size:37px;font-weight:900}.rule{height:2px;margin:16px 0 28px;background:linear-gradient(90deg,var(--red),#f3293d55 42%,transparent);box-shadow:0 0 13px #f3293d55}
-label{display:block;margin:17px 0 8px;color:#9eb2c3;font-size:9px;font-weight:900;letter-spacing:1.5px}.field{position:relative}.field input{width:100%;height:53px;padding:0 48px 0 15px;border:1px solid #304b63;border-radius:8px;outline:none;background:linear-gradient(110deg,#0a1a2a,#07111e);color:#f3f7fc;font-size:15px}.field input::placeholder{color:#8297aa}.field input:focus{border-color:#45aef4;box-shadow:0 0 0 3px #1688d222,0 0 20px #1688d21c}.eye{position:absolute;right:6px;top:7px;width:39px;height:39px;border:0;border-radius:6px;background:transparent;color:#9cb4c7;font-size:17px;cursor:pointer}.fieldError{min-height:13px;margin-top:4px;color:#ff7886;font-size:9px}
-.submit{width:100%;height:54px;margin-top:22px;border:1px solid #ff6471;border-radius:8px;background:linear-gradient(180deg,#ff3548,#c90d25);color:#fff;font-size:13px;font-weight:950;letter-spacing:1.3px;box-shadow:0 10px 30px #f3293d35,inset 0 1px #ffffff44;cursor:pointer}.submit:disabled{opacity:.65;cursor:wait}.error{min-height:20px;margin-top:10px;text-align:center;color:#ff7886;font-size:10px}.cardFoot{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:23px;padding-top:18px;border-top:1px solid #263e52;color:#8299ab;font-size:8px;letter-spacing:1px}.shield{width:24px;height:24px;display:grid;place-items:center;border:1px solid #34536b;border-radius:50%;color:#dbe9f4}
-@media(max-width:850px){body{display:block;min-height:100dvh;padding:14px}.shell{width:min(760px,100%);margin:0 auto;grid-template-columns:1fr;min-height:0}.hero{min-height:310px;padding:28px 30px;border-right:0;border-bottom:1px solid #23445e}.heroMain{margin:34px 0 24px}.hero h1{font-size:48px}.loginSide{padding:34px 24px}}
-@media(max-width:520px){body{display:block;padding:0;min-height:100dvh}.shell{width:100%;min-height:100dvh;border:0;border-radius:0;display:flex;flex-direction:column}.hero{min-height:230px;padding:22px 20px 17px}.mark{width:35px;height:35px}.brand strong{font-size:26px}.tag{font-size:7px}.heroMain{margin:25px 0 20px}.hero h1{font-size:35px;margin:9px 0}.hero p{font-size:10px;line-height:1.5;margin:0}.eyebrow{font-size:8px}.chips{gap:5px;margin-top:13px}.chips span{padding:6px 7px;font-size:7px}.foot{padding-top:10px;font-size:7px}.loginSide{flex:1;padding:28px 17px 32px}.loginSide:before{inset:8px}.card{padding:29px 21px 23px}.cardTop{margin-bottom:25px}h2{font-size:32px}.rule{margin:13px 0 23px}.field input{height:51px}.submit{height:52px}}
-@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+*{box-sizing:border-box}html,body{margin:0;width:100%;min-height:100%;font-family:Inter,"Segoe UI",Arial,sans-serif;background:#030914;color:#f4f7ff}
+body{min-height:100vh;min-height:100dvh;overflow:hidden}
+.scene{position:relative;width:100%;min-height:100vh;min-height:100dvh;background:#030914 url("/defenx-login-bg.png") center center/cover no-repeat;display:flex;align-items:center;justify-content:flex-end;padding:7vh 13.2vw 10vh 4vw}
+.scene:after{content:"";position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,transparent 42%,rgba(1,7,17,.12) 56%,rgba(1,7,17,.3) 100%)}
+.panel{position:relative;z-index:1;width:min(500px,40vw);min-width:390px;padding:48px 44px 32px;background:linear-gradient(145deg,rgba(4,12,28,.94),rgba(2,9,22,.97));border:1px solid rgba(91,174,238,.72);border-radius:20px;box-shadow:0 0 0 1px rgba(255,255,255,.07) inset,0 0 26px rgba(0,156,255,.28),0 0 26px rgba(255,30,55,.16);clip-path:polygon(0 22px,22px 0,calc(100% - 22px) 0,100% 22px,100% calc(100% - 22px),calc(100% - 22px) 100%,22px 100%,0 calc(100% - 22px))}
+.panel:before{content:"";position:absolute;left:0;top:0;width:5px;height:74px;background:#ff2438;box-shadow:0 0 18px #ff2438}
+.panel:after{content:"";position:absolute;right:0;bottom:0;width:5px;height:74px;background:#24baff;box-shadow:0 0 18px #24baff}
+h1{text-align:center;margin:0;font-size:clamp(34px,3vw,48px);font-weight:800;letter-spacing:-1px}
+.rule{height:3px;width:82%;margin:12px auto 36px;background:linear-gradient(90deg,transparent,#ff2539 15%,#ff2539 85%,transparent);box-shadow:0 0 12px #ff2438}
+.field{position:relative;margin:0 0 17px}
+.field input{display:block;width:100%;height:58px;padding:0 18px 0 66px;border:1px solid #536987;border-radius:11px;outline:none;background:linear-gradient(110deg,rgba(17,31,53,.96),rgba(8,17,34,.98));color:#f4f7ff;font-size:16px;box-shadow:inset 0 1px 8px #0006}
+.field input::placeholder{color:#d0d8e7;opacity:1}
+.field input:focus{border-color:#48baff;box-shadow:0 0 0 3px #1688d233,0 0 18px #1688d244}
+.fieldIcon{position:absolute;left:19px;top:50%;transform:translateY(-50%);font-size:22px;color:#e8f2ff;pointer-events:none}
+.eye{position:absolute;right:8px;top:8px;width:42px;height:42px;border:0;background:transparent;color:#e3efff;font-size:21px;cursor:pointer}
+.error{min-height:18px;margin:4px 0 0;color:#ff8b98;font-size:12px;text-align:center}
+.submit{width:100%;height:62px;margin-top:8px;border:1px solid #ff6b70;border-radius:11px;background:linear-gradient(180deg,#ff312d,#e10d16);color:#fff;font-size:22px;font-weight:800;box-shadow:0 0 22px #ff201f66,inset 0 1px #ffffff66;cursor:pointer}
+.submit:disabled{opacity:.65;cursor:wait}
+.foot{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:28px;padding-top:18px;border-top:1px solid #49627e;color:#d4dfef;font-size:11px;letter-spacing:1.1px}
+.shield{font-size:25px;color:#edf6ff}
+@media(max-width:760px){body{overflow:auto}.scene{min-height:100dvh;justify-content:center;padding:24px 16px;background-position:38% center}.scene:before{content:"";position:absolute;inset:0;background:rgba(1,6,16,.45)}.panel{width:min(440px,100%);min-width:0;padding:36px 25px 26px;background:rgba(3,10,24,.91)}h1{font-size:36px}.rule{margin-bottom:28px}.field input{height:55px}.submit{height:56px;font-size:19px}.foot{font-size:9px}}
+@media(max-width:380px){.panel{padding:30px 18px 22px}.foot{letter-spacing:.5px}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 </style>
 </head>
 <body>
-<main class="shell">
-<section class="hero" aria-label="DEFENX platform">
-<div class="brand"><div class="mark" aria-hidden="true">D</div><div><strong>DEFEN<span>X</span></strong><div class="tag">DETECT • ANALYZE • RESPOND</div></div></div>
-<div class="heroMain"><div class="eyebrow">ADVANCED SURVEILLANCE &amp; SECURITY SYSTEM</div><h1>SMARTER<br><span>SECURITY.</span></h1><p>Real-time monitoring, location intelligence and secure remote operations — unified in one command platform.</p><div class="chips"><span>LIVE MONITORING</span><span>REAL-TIME TRACKING</span><span>INTELLIGENT ALERTS</span></div></div>
-<div class="foot"><span>DEFENX • COMMAND ACCESS</span><span class="online">SYSTEM ONLINE</span></div>
-</section>
-<section class="loginSide" aria-label="Operator login"><div class="card">
-<div class="cardTop"><small>SECURE OPERATOR ACCESS</small><span class="secure">ENCRYPTED SESSION</span></div>
-<h2>Login</h2><div class="rule"></div>
+<main class="scene">
+<section class="panel" aria-label="DEFENX operator login">
+<h1>Login</h1><div class="rule"></div>
 <form id="form" novalidate>
-<label for="username">USERNAME OR EMAIL</label><div class="field"><input id="username" name="username" autocomplete="username" autocapitalize="characters" spellcheck="false" placeholder="Enter your username" required></div><div id="usernameError" class="fieldError"></div>
-<label for="password">PASSWORD</label><div class="field"><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required><button class="eye" id="eye" type="button" aria-label="Show password" title="Show password">◉</button></div><div id="passwordError" class="fieldError"></div>
-<button class="submit" id="submit" type="submit">LOGIN <span aria-hidden="true">→</span></button><div id="error" class="error" role="alert" aria-live="polite"></div>
-</form><div class="cardFoot"><span class="shield" aria-hidden="true">◆</span><span>SECURE ACCESS • AUTHORIZED USERS ONLY</span></div>
-</div></section></main>
+<div class="field"><span class="fieldIcon" aria-hidden="true">👤</span><input id="username" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Username or Email" aria-label="Username or Email" required></div>
+<div class="field"><span class="fieldIcon" aria-hidden="true">🔒</span><input id="password" name="password" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" required><button class="eye" id="eye" type="button" aria-label="Show password" title="Show password">◉</button></div>
+<button class="submit" id="submit" type="submit">Login <span aria-hidden="true">→</span></button><div id="error" class="error" role="alert" aria-live="polite"></div>
+</form>
+<div class="foot"><span class="shield" aria-hidden="true">⛨</span><span>DEFENX v2.0&nbsp; | &nbsp;SECURE&nbsp; • &nbsp;INTELLIGENT&nbsp; • &nbsp;CONNECTED</span></div>
+</section>
+</main>
 <script>
 (()=>{"use strict";
-const form=document.getElementById("form"),error=document.getElementById("error"),password=document.getElementById("password"),eye=document.getElementById("eye"),submit=document.getElementById("submit"),usernameError=document.getElementById("usernameError"),passwordError=document.getElementById("passwordError");
+const form=document.getElementById("form"),error=document.getElementById("error"),password=document.getElementById("password"),eye=document.getElementById("eye"),submit=document.getElementById("submit");
 eye.addEventListener("click",()=>{const show=password.type==="password";password.type=show?"text":"password";eye.textContent=show?"◉":"◌";eye.title=show?"Hide password":"Show password";eye.setAttribute("aria-label",eye.title);password.focus({preventScroll:true})});
 fetch("/api/ping",{method:"GET",cache:"no-store",credentials:"same-origin"}).catch(()=>{});
-form.addEventListener("submit",async e=>{e.preventDefault();error.textContent="";usernameError.textContent="";passwordError.textContent="";
+form.addEventListener("submit",async e=>{e.preventDefault();error.textContent="";
 const username=document.getElementById("username").value.trim(),pass=password.value;
-if(!username||!pass){error.textContent="Enter login ID and password.";return}
+if(!username||!pass){error.textContent="Enter username and password.";return}
 submit.disabled=true;submit.textContent="AUTHENTICATING…";
 const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),15000);
 try{const response=await fetch("/api/login",{method:"POST",credentials:"include",cache:"no-store",signal:controller.signal,headers:{"Content-Type":"application/json","Accept":"application/json"},body:JSON.stringify({username,password:pass})});clearTimeout(timeout);
 const raw=await response.text();let data={};try{data=raw?JSON.parse(raw):{}}catch(_){}
-if(!response.ok){const message=data.error||("Login failed ("+response.status+").");if(data.field==="username")usernameError.textContent=message;else if(data.field==="password")passwordError.textContent=message;else error.textContent=message;submit.disabled=false;submit.textContent="LOGIN →";return}
+if(!response.ok){error.textContent=data.error||("Login failed ("+response.status+").");submit.disabled=false;submit.textContent="Login →";return}
 sessionStorage.removeItem("rover_user");window.location.replace("/index.html");
-}catch(err){clearTimeout(timeout);error.textContent=err&&err.name==="AbortError"?"Login request timed out. Check your connection and try again.":"Unable to contact the control centre. Check your connection and try again.";submit.disabled=false;submit.textContent="LOGIN →"}
+}catch(err){clearTimeout(timeout);error.textContent=err&&err.name==="AbortError"?"Login request timed out. Try again.":"Unable to contact the control centre. Check your connection.";submit.disabled=false;submit.textContent="Login →"}
 });
 })();
 </script>
