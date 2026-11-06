@@ -39,6 +39,10 @@ Do not merge authentication changes or deploy to production until the GitHub Act
 
 The authenticated dashboard can run local human and vehicle detection on a direct rover MJPEG/image or video stream. It loads TensorFlow.js 4.22.0 and COCO-SSD 2.2.3 only after a readable live stream is available, using the lightweight MobileNet V2 model. It draws detections in the browser and does not upload camera frames or send AI results to the backend. Cross-origin camera streams must allow CORS; embedded iframe feeds cannot be analysed by the browser detector. Demo/simulated camera scenes are never treated as real detections.
 
+## Face Verification
+
+Admin-managed authorized-personnel registry with on-device face detection, server-side matching and encrypted template storage. Unknown, covered or unclear faces are UNVERIFIED (never "hostile") and raise an administrator notice. Requires the `FACE_DATA_KEY` secret (32+ chars). See [`docs/FACE_RECOGNITION.md`](docs/FACE_RECOGNITION.md) for setup, policy, test results and limitations.
+
 ## DEFENX Return to Base
 
 The current feature branch contains dashboard scaffolding for selecting a base and a fail-closed Return to Base request. Physical autonomous movement is intentionally disabled until controller capabilities and a hardware command/acknowledgement protocol are implemented and tested. See [`docs/RETURN_TO_BASE.md`](docs/RETURN_TO_BASE.md) for the proposed GPS + obstacle sensors + camera architecture, fail-safe state machine, device protocol contract, and acceptance tests. Do not merge/deploy this feature as hardware-ready.
