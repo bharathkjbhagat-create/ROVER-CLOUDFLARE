@@ -24,6 +24,7 @@ from datetime import datetime, timezone
 DESCRIPTOR_LEN = 128
 MAX_PEOPLE = 50
 MAX_EVENTS = 200
+MIN_TEMPLATES_PER_PERSON = 3
 MAX_TEMPLATES_PER_PERSON = 10
 SNAPSHOT_RETENTION_SECONDS = 7 * 24 * 3600
 MAX_SNAPSHOT_BYTES = 18000
@@ -245,14 +246,14 @@ def classify(obs, people, policy, registry_ok=True):
         return out(CATEGORY_REVIEW, "insufficient_observations")
     m = match_descriptors(descs, people)
 
+    # Poor image quality always blocks automatic authorization. A close
+    # embedding match cannot compensate for blur, low light, face size or pose.
+    if not obs.get("quality_ok"):
+        return out(uncertain, str(obs.get("quality_reason") or "poor_quality")[:40], m)
     if obs.get("occluded"):
         if _strong(m, policy.obscured_match, policy):
             return out(CATEGORY_AUTHORIZED, "matched_despite_partial_obstruction", m)
         return out(CATEGORY_OBSCURED, "face_obscured", m)
-    if not obs.get("quality_ok"):
-        if _strong(m, policy.obscured_match, policy):
-            return out(CATEGORY_AUTHORIZED, "matched_with_strict_threshold", m)
-        return out(uncertain, str(obs.get("quality_reason") or "poor_quality")[:40], m)
     if _strong(m, policy.match, policy):
         return out(CATEGORY_AUTHORIZED, "matched", m)
     if m is None:
