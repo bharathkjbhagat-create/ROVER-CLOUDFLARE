@@ -6,6 +6,7 @@ Recognition is **never** treated as evidence of hostile intent. No "threat"/"hos
 1. Create a random secret of 32+ characters and add it as the GitHub/Cloudflare secret `FACE_DATA_KEY`. Without it the feature stays disabled (fails closed). **Back it up: losing it makes stored templates unreadable.**
 2. Deploy. Sign in as the Admin → *Face Verification* card → *Authorized Personnel Registry*.
 3. Enter a name, choose 3–5 clear front-facing photos per person (and/or "Add live camera frame" with the person standing in front of the rover), press **REGISTER**.
+4. For a controlled dashboard check without a rover stream, tap **USE THIS DEVICE CAMERA (TEST)**. This explicitly requests this browser/device camera; tap **STOP DEVICE CAMERA** to release it. Local test-camera frames are not uploaded (only numeric descriptors and event metadata are sent). The test mode never replaces a configured rover camera stream.
 
 ## How it works
 | Stage | Where | Detail |
@@ -29,7 +30,7 @@ Recognition is **never** treated as evidence of hostile intent. No "threat"/"hos
 Five category tiles (24 h counts), event list with timestamp, camera, GPS, status, snapshot (admin only), admin actions *Mark verified / Dismiss / Delete*. Events live in the Durable Object, so every device sees the same list. The sensor-based "TARGET DETECTED" popup is suppressed only when the target is a person within 15 m **and** every person in view is currently authorized.
 
 ### Privacy / security
-Admin-only: register, revoke, reinstate, delete, view snapshots, review events (all audit-logged: `FACE_REGISTER/REVOKE/REINSTATE/DELETE/ALERT/REVIEW`). Non-admins see only category/status — no names, no images. Revoke = keep data but stop authorizing; Delete = erase templates. Source photos are never uploaded. Snapshots auto-expire after 7 days. Observe endpoint is rate-limited (90/min/user) to limit probing.
+Admin-only: register, revoke, reinstate, delete, view snapshots, review events (all audit-logged: `FACE_REGISTER/REVOKE/REINSTATE/DELETE/ALERT/REVIEW`). Non-admins see only category/status — no names, no images. Revoke = keep data but stop authorizing; Delete = erase templates. Source photos are never uploaded. Rover-camera event snapshots are encrypted before storage and auto-expire after 7 days. The optional local device-camera test mode never uploads frames or snapshots. Observe endpoint is rate-limited (90/min/user) to limit probing.
 
 ## Test results
 Run in this build environment (all passing; 47 Python tests including the 33 new ones, plus smoke, budgets and `node --check`):
