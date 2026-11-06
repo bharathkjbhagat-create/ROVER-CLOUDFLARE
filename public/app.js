@@ -545,7 +545,7 @@ async function pollLoginAlerts(){
     const r=await api(loginUrl);const d=await r.json();
     if(!r.ok||!Array.isArray(d.logs))return;
     if(d.warning)setText("alertStatus","Login alerts: "+d.warning);
-    const logins=d.logs.filter(x=>x.action==="LOGIN"&&x.role==="user").sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
+    const logins=d.logs.filter(x=>x.action==="LOGIN").sort((a,b)=>String(a.created_at).localeCompare(String(b.created_at)));
     if(!logins.length){renderAlertCount();return}
     const newest=String(logins[logins.length-1].created_at||"");
     if(!lastLoginAt){
@@ -897,8 +897,19 @@ async function loadAudit(){
   const r=await api("/api/audit?limit=1000");const d=await r.json();
   if(!r.ok){$("auditTable").innerHTML="<div class='empty'>"+esc(d.error||"Could not load audit log")+"</div>";return}
   if(!d.logs.length){$("auditTable").innerHTML="<div class='empty'>"+esc(d.warning||"No audit entries yet.")+"</div>";return}
-  $("auditTable").innerHTML="<table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th><th>IP</th></tr>"+
-    d.logs.map(x=>"<tr><td>"+esc(new Date(x.created_at).toLocaleString())+"</td><td><b>"+esc(x.display_name||x.username)+"</b><small>"+esc(x.username)+" · "+esc(x.role||"")+"</small></td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td><td>"+esc(x.ip_address||"")+"</td></tr>").join("")+"</table>";
+  const sessions=new Map(),other=[];
+  d.logs.forEach(x=>{
+    if(x.action!=="LOGIN"&&x.action!=="LOGOUT"){other.push(x);return}
+    const key=x.session_id||("legacy:"+x.username+":"+x.created_at);
+    if(!sessions.has(key))sessions.set(key,{login:null,logout:null});
+    const row=sessions.get(key);
+    if(x.action==="LOGIN")row.login=x;else row.logout=x;
+  });
+  const sessionRows=Array.from(sessions.values()).sort((a,b)=>String(b.login?.created_at||b.logout?.created_at||"").localeCompare(String(a.login?.created_at||a.logout?.created_at||"")));
+  const fmt=x=>x?new Date(x).toLocaleString():"—";
+  $("auditTable").innerHTML="<div class='auditRetentionNote'>Successful logins and logouts are retained for 7 days, then automatically deleted.</div><table><tr><th>User</th><th>Role</th><th>Login date &amp; time</th><th>Logout date &amp; time</th><th>IP address</th><th>Device / browser</th></tr>"+
+    sessionRows.map(s=>{const x=s.login||s.logout;return "<tr><td><b>"+esc(x.display_name||x.username)+"</b><small>"+esc(x.username)+"</small></td><td>"+esc(x.role||"")+"</td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc((s.login||s.logout).ip_address||"")+"</td><td>"+esc((s.login||s.logout).user_agent||"")+"</td></tr>"}).join("")+
+    "</table>"+(other.length?"<div class='auditRetentionNote'>Other recent activity</div><table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr>"+other.map(x=>"<tr><td>"+esc(fmt(x.created_at))+"</td><td>"+esc(x.display_name||x.username)+"</td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td></tr>").join("")+"</table>":"");
 }
 function applyTheme(){
   const light=localStorage.getItem("rover_theme")==="light";
