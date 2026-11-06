@@ -2,6 +2,16 @@ name: Deploy DEFENX isolated face preview
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/face-verification-registry
+    paths:
+      - '.github/workflows/face-preview-deploy.yml'
+      - 'src/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'scripts/**'
+      - 'wrangler.jsonc'
 
 permissions:
   contents: read
