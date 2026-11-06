@@ -513,21 +513,9 @@ recent_actions = []
 # When PostgreSQL is intentionally not connected, keep Admin-managed friend
 # accounts in the running application instance so password resets still work.
 # This avoids requiring Neon/PostgreSQL for the live demonstration.
+# DEFENX is now admin-only. No regular-user accounts are loaded into memory.
 runtime_users = {}
 runtime_password_hashes = {}
-for i, friend in enumerate(FRIEND_ACCOUNTS, start=1):
-    runtime_users[friend["username"]] = {
-        "id": f"runtime-{i}",
-        "username": friend["username"],
-        "display_name": friend.get("display_name") or friend["username"],
-        "role": "user",
-        "enabled": True,
-        "can_control": True,
-        "can_manage_users": False,
-        "created_at": None,
-        "last_login_at": None,
-    }
-    runtime_password_hashes[friend["username"]] = friend.get("password_hash")
 
 
 lock = threading.Lock()
@@ -647,7 +635,10 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    cur.execute("UPDATE users SET can_control=TRUE WHERE enabled=TRUE")
+                    # Permanently remove every non-admin account from the database.
+                    # Keep exactly the configured administrator account.
+                    cur.execute("DELETE FROM users WHERE UPPER(username) <> UPPER(%s)", (ADMIN_USERNAME,))
+                    cur.execute("UPDATE users SET role='admin',enabled=TRUE,can_control=TRUE,can_manage_users=TRUE WHERE UPPER(username)=UPPER(%s)", (ADMIN_USERNAME,))
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
                         cur.execute(
@@ -663,24 +654,6 @@ def ensure_db():
                                VALUES (%s,%s,%s,'ROVER',TRUE,%s)""",
                             (str(uuid.uuid4()), "ROVER-01", "ROVER-01", "Default demonstration rover"),
                         )
-                    for i, friend in enumerate(FRIEND_ACCOUNTS, start=1):
-                        # Known usernames without configured credentials are placeholders,
-                        # not accounts to seed with an invalid/empty password.
-                        if not friend.get("password_hash") and not friend.get("password"):
-                            continue
-                        cur.execute("SELECT id FROM users WHERE username=%s", (friend["username"],))
-                        if not cur.fetchone():
-                            cur.execute(
-                                """INSERT INTO users
-                                (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
-                                VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE)""",
-                                (
-                                    str(uuid.uuid4()),
-                                    friend["username"],
-                                    friend.get("display_name") or f"ROVER Friend {i}",
-                                    friend.get("password_hash") or generate_password_hash(friend["password"]),
-                                ),
-                            )
                 _db_initialized = True
         except Exception:
             # Never hold the page hostage when the database is unavailable.
@@ -1145,9 +1118,19 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Fast authentication path: configured Admin and Friend accounts are already
-    # available in Worker memory. Verify them locally before touching PostgreSQL,
-    # so a slow database can never hold the sign-in screen hostage.
+    # Only the configured administrator may authenticate. Reject signed legacy
+    # user payloads and every other username before any fallback can run.
+    if login_key not in admin_login_ids:
+        fast_user = None
+        record_login_failure(ip)
+        return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
+    if fast_user and (
+        str(fast_user.get("role") or "").lower() != "admin"
+        or normalize_login_id(fast_user.get("username")) not in admin_login_ids
+    ):
+        fast_user = None
+    # Fast authentication path: configured Admin credentials are checked locally
+    # before touching PostgreSQL, so a slow database cannot hold sign-in hostage.
     if not database_configured and ADMIN_USERNAME and ADMIN_PASSWORD and login_key in admin_login_ids and _safe_equal(password, ADMIN_PASSWORD):
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
@@ -1411,8 +1394,7 @@ def profile():
 @app.get("/api/users")
 @require_manage
 def users():
-    # Initialize the database/schema and seed the four configured friend accounts
-    # before reading the Admin user-management table.
+    # Initialize the schema; non-admin accounts are permanently purged by ensure_db().
     ensure_db()
     if not db_available():
         rows = []
