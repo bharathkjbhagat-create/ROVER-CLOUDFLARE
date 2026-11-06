@@ -1,0 +1,118 @@
+name: Deploy DEFENX isolated face preview
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: defenx-face-preview
+  cancel-in-progress: false
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PREVIEW_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PREVIEW_CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://defenx-face-preview.${{ vars.CLOUDFLARE_WORKERS_SUBDOMAIN }}.workers.dev
+      UV_PYTHON: "3.13"
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Validate isolated preview credentials
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+          PREVIEW_SESSION_SECRET: ${{ secrets.PREVIEW_SESSION_SECRET }}
+          PREVIEW_FACE_DATA_KEY: ${{ secrets.PREVIEW_FACE_DATA_KEY }}
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID WORKER_URL PREVIEW_ADMIN_USERNAME PREVIEW_ADMIN_PASSWORD PREVIEW_SESSION_SECRET PREVIEW_FACE_DATA_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing isolated preview setting: $name"
+              exit 1
+            fi
+          done
+          if [ "${#PREVIEW_SESSION_SECRET}" -lt 32 ] || [ "${#PREVIEW_FACE_DATA_KEY}" -lt 32 ]; then
+            echo "Preview session and face-data keys must each be at least 32 characters."
+            exit 1
+          fi
+          if [ "$WORKER_URL" = "https://defenx.bindukjagadish.workers.dev" ]; then
+            echo "Refusing to deploy: preview URL resolves to the production Worker."
+            exit 1
+          fi
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Build embedded assets
+        run: python scripts/build_assets.py
+      - name: Run source and feature tests
+        run: |
+          set -euo pipefail
+          python scripts/check_performance_budget.py
+          python -m py_compile src/app.py src/worker.py src/faces.py
+          node --check public/app.js
+          node --check public/face-recognition.js
+          node tests/face_logic.test.js
+          uv run --group dev python tests/smoke.py
+          uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Configure isolated Worker identity and admin
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path("wrangler.jsonc")
+          config = json.loads(path.read_text(encoding="utf-8"))
+          config["name"] = "defenx-face-preview"
+          config.setdefault("vars", {})["ADMIN_USERNAME"] = os.environ["PREVIEW_ADMIN_USERNAME"].strip()
+          path.write_text(json.dumps(config, indent=2) + "\\n", encoding="utf-8")
+          print("Configured separate Worker name and preview admin username.")
+          PY
+      - name: Set isolated preview secrets
+        env:
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+          PREVIEW_SESSION_SECRET: ${{ secrets.PREVIEW_SESSION_SECRET }}
+          PREVIEW_FACE_DATA_KEY: ${{ secrets.PREVIEW_FACE_DATA_KEY }}
+          PREVIEW_ROVER_DEVICE_TOKEN: ${{ secrets.PREVIEW_ROVER_DEVICE_TOKEN }}
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          import json, os
+          names = {
+              "ADMIN_PASSWORD": "PREVIEW_ADMIN_PASSWORD",
+              "SESSION_SECRET": "PREVIEW_SESSION_SECRET",
+              "FACE_DATA_KEY": "PREVIEW_FACE_DATA_KEY",
+              "ROVER_DEVICE_TOKEN": "PREVIEW_ROVER_DEVICE_TOKEN",
+          }
+          payload = {target: os.environ[source] for target, source in names.items() if os.environ.get(source)}
+          with open("/tmp/defenx-preview-secrets.json", "w", encoding="utf-8") as f:
+              json.dump(payload, f)
+          print("Prepared isolated preview-only secrets.")
+          PY
+          uv run pywrangler secret bulk /tmp/defenx-preview-secrets.json
+      - name: Deploy isolated preview Worker
+        run: uv run pywrangler deploy
+      - name: Smoke-test isolated preview
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 10); do
+            code="$(curl --max-time 15 -sS -o /tmp/preview-login.html -w '%{http_code}' "$WORKER_URL/login.html" || true)"
+            echo "Preview login page -> HTTP $code (attempt $attempt/10)"
+            if [ "$code" = "200" ]; then break; fi
+            if [ "$attempt" -eq 10 ]; then exit 1; fi
+            sleep 6
+          done
+          code="$(curl --max-time 15 -sS -o /tmp/preview-me.json -w '%{http_code}' "$WORKER_URL/api/me" || true)"
+          test "$code" = "401"
+          code="$(curl --max-time 15 -sS -o /tmp/preview-health.json -w '%{http_code}' "$WORKER_URL/api/health" || true)"
+          test "$code" = "200"
+          echo "Isolated preview public smoke checks passed: $WORKER_URL"
