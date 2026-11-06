@@ -9,7 +9,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="";
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",mapModeCurrent="hybrid",followRover=localStorage.getItem("defenx_map_follow")!=="off",roverGpsValid=false,lastRoverPoint=null,mapTileErrorCount=0;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
@@ -162,17 +162,78 @@ async function api(url,options={}){
   return r;
 }
 
+function isValidMapPoint(lat,lon){
+  const latitude=Number(lat),longitude=Number(lon);
+  return Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180;
+}
+function updateMapFollowButton(){
+  const button=$("mapFollowBtn");
+  if(!button)return;
+  button.classList.toggle("active",followRover);
+  button.setAttribute("aria-pressed",String(followRover));
+  button.textContent=followRover?"FOLLOW ON":"FOLLOW";
+}
+function setMapFollow(enabled,writeLog=true){
+  followRover=Boolean(enabled);
+  try{localStorage.setItem("defenx_map_follow",followRover?"on":"off")}catch(_){}
+  updateMapFollowButton();
+  if(followRover&&mapReady&&map&&roverGpsValid&&lastRoverPoint)map.panTo(lastRoverPoint,{animate:true,duration:.45});
+  if(writeLog)addLog("MAP",followRover?"Rover follow enabled":"Rover follow paused");
+}
+async function toggleMapFullscreen(){
+  const card=$("liveMap");
+  if(!card)return;
+  try{
+    if(document.fullscreenElement===card)await document.exitFullscreen();
+    else if(card.requestFullscreen)await card.requestFullscreen({navigationUI:"hide"});
+    else card.classList.toggle("mapFullscreenFallback");
+  }catch(_){card.classList.toggle("mapFullscreenFallback");}
+  syncMapFullscreenUI();
+}
+function syncMapFullscreenUI(){
+  const card=$("liveMap");
+  const active=Boolean(card&&(document.fullscreenElement===card||card.classList.contains("mapFullscreenFallback")));
+  const button=$("mapFullscreenBtn");
+  if(button){button.textContent=active?"EXIT FULL SCREEN":"FULL SCREEN";button.setAttribute("aria-pressed",String(active));}
+  if(mapReady&&map)setTimeout(()=>map.invalidateSize(true),120);
+}
 function loadMapAsync(){
-  const link=document.createElement("link");
-  link.rel="stylesheet";
-  link.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-  document.head.appendChild(link);
-  const s=document.createElement("script");
-  s.src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js";
-  s.async=true;
-  s.onload=()=>initMap();
-  s.onerror=()=>{show("mapFallback");setText("mapFallback","Map service is unavailable. Control centre remains online.");};
-  document.head.appendChild(s);
+  if(window.L){initMap();return;}
+  if(window.__DEFENX_LEAFLET_LOADING)return;
+  window.__DEFENX_LEAFLET_LOADING=true;
+  if(!document.getElementById("defenx-leaflet-css")){
+    const link=document.createElement("link");
+    link.id="defenx-leaflet-css";link.rel="stylesheet";
+    link.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
+    link.onerror=()=>{
+      if(link.dataset.fallbackTried==="1")return;
+      link.dataset.fallbackTried="1";
+      const fallback=document.createElement("link");
+      fallback.rel="stylesheet";fallback.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+      document.head.appendChild(fallback);
+    };
+    document.head.appendChild(link);
+  }
+  const urls=[
+    "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
+    "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  ];
+  let index=0;
+  const loadNext=()=>{
+    if(window.L){window.__DEFENX_LEAFLET_LOADING=false;initMap();return;}
+    if(index>=urls.length){
+      window.__DEFENX_LEAFLET_LOADING=false;
+      show("mapFallback");setText("mapFallback","Map library unavailable. Check the connection and reload the dashboard.");
+      setText("mapTileStatus","MAP LIBRARY UNAVAILABLE");
+      return;
+    }
+    const script=document.createElement("script");
+    script.src=urls[index++];script.async=true;
+    script.onload=()=>{if(window.L){window.__DEFENX_LEAFLET_LOADING=false;initMap();}else loadNext();};
+    script.onerror=()=>{script.remove();loadNext();};
+    document.head.appendChild(script);
+  };
+  loadNext();
 }
 function initMap(){
   try{
@@ -181,63 +242,83 @@ function initMap(){
     const mapHost=$("map");
     if(!mapHost)throw new Error("Map container unavailable");
     mapHost.querySelectorAll(".leaflet-container").forEach(el=>el.remove());
-    map=L.map("map",{zoomControl:false,preferCanvas:true}).setView(demoCenter,15);
-    // Exactly one native Leaflet zoom control. The custom rail below is recenter-only.
+    map=L.map("map",{
+      zoomControl:false,preferCanvas:true,minZoom:3,maxZoom:19,
+      zoomSnap:.5,zoomDelta:1,worldCopyJump:true
+    }).setView(lastRoverPoint||demoCenter,lastRoverPoint?17:15);
     L.control.zoom({position:"topleft"}).addTo(map);
-    streetLayer=L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"© OpenStreetMap contributors"});
-    satelliteLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless_3857/default/g/{z}/{y}/{x}.jpg",{minZoom:7,maxZoom:13,attribution:'EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH (Contains modified Copernicus Sentinel data 2016)'});
-    hybridOverlayLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/overlay/default/g/{z}/{y}/{x}.png",{minZoom:0,maxZoom:19,opacity:0.9,attribution:"EOxMaps overlay"});
-    satelliteLayer.addTo(map);
-    hybridOverlayLayer.addTo(map);
-    satelliteOn=true;
-    hybridOn=true;
-    document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode==="hybrid"));
-    setText("mapMode","Hybrid");
-    geofence=L.circle(demoCenter,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
+    streetLayer=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
+      minZoom:3,maxZoom:19,maxNativeZoom:19,keepBuffer:4,
+      updateWhenIdle:true,updateWhenZooming:false,
+      attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'
+    });
+    satelliteLayer=L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
+      minZoom:3,maxZoom:19,maxNativeZoom:19,keepBuffer:4,
+      updateWhenIdle:true,updateWhenZooming:false,
+      attribution:'Sources: Esri, Vantor, Earthstar Geographics, and the GIS User Community'
+    });
+    hybridOverlayLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/overlay_3857/default/g/{z}/{y}/{x}.jpg",{
+      minZoom:0,maxZoom:18,maxNativeZoom:18,keepBuffer:4,opacity:.88,
+      updateWhenIdle:true,updateWhenZooming:false,
+      attribution:'Data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, rendering © <a href="https://eox.at" target="_blank" rel="noopener">EOX</a> and MapServer'
+    });
+    const watchLayer=(layer,label)=>{
+      layer.on("loading",()=>setText("mapTileStatus",label+" LOADING"));
+      layer.on("load",()=>{mapTileErrorCount=0;setText("mapTileStatus",label+" READY");});
+      layer.on("tileerror",()=>{mapTileErrorCount++;setText("mapTileStatus",mapTileErrorCount>2?"SOME TILES UNAVAILABLE":"RETRYING TILES");});
+    };
+    watchLayer(streetLayer,"STREET");watchLayer(satelliteLayer,"SATELLITE");watchLayer(hybridOverlayLayer,"ROAD OVERLAY");
     const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
-    rover=L.marker(demoCenter,{icon:roverIcon}).addTo(map).bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
-    hide("mapFallback");hide("mapFrame");
+    rover=L.marker(lastRoverPoint||demoCenter,{icon:roverIcon,opacity:roverGpsValid?1:0,keyboard:true,title:"ROVER-01"}).addTo(map);
+    rover.bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
+    if(roverGpsValid&&lastRoverPoint)geofence=L.circle(lastRoverPoint,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
     mapReady=true;
+    setMapMode("hybrid",false);
     map.on("click",handleBaseMapClick);
+    map.on("dragstart",()=>{if(followRover)setMapFollow(false,false);});
     renderReturnBase();
-    setText("conn","CONNECTED");
-    setText("serverHeader","Server");
-    setTimeout(()=>map.invalidateSize(),100);
+    hide("mapFallback");hide("mapFrame");
+    setText("conn","CONNECTED");setText("serverHeader","Server");
+    updateMapFollowButton();
+    if(trackPts.length>1)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.9}).addTo(map);
+    setTimeout(()=>map&&map.invalidateSize(true),100);
+    setTimeout(()=>map&&map.invalidateSize(true),550);
     window.dispatchEvent(new Event("rover-map-ready"));
   }catch(err){
-    show("mapFallback");
-    setText("conn","DEGRADED");
+    show("mapFallback");setText("conn","DEGRADED");setText("mapTileStatus","MAP INITIALIZATION FAILED");
+    console.error("DEFENX map initialization failed",err);
   }
 }
-function setMapMode(mode){
-  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
-  [streetLayer,satelliteLayer,hybridOverlayLayer].forEach(layer=>{if(layer&&map.hasLayer(layer))map.removeLayer(layer)});
-  hybridOn=false;
-  if(mode==="satellite"){satelliteLayer.addTo(map);satelliteOn=true}
-  else if(mode==="hybrid"){satelliteLayer.addTo(map);hybridOverlayLayer.addTo(map);hybridOn=true;satelliteOn=true}
-  else {streetLayer.addTo(map);satelliteOn=false}
+function setMapMode(mode,writeLog=true){
+  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return;}
+  const normalized=mode==="street"?"map":mode;
+  if(!["map","satellite","hybrid"].includes(normalized))return;
+  [streetLayer,satelliteLayer,hybridOverlayLayer].forEach(layer=>{if(layer&&map.hasLayer(layer))map.removeLayer(layer);});
+  hybridOn=false;satelliteOn=false;
+  if(normalized==="satellite"){satelliteLayer.addTo(map);satelliteOn=true;}
+  else if(normalized==="hybrid"){satelliteLayer.addTo(map);hybridOverlayLayer.addTo(map);hybridOn=true;satelliteOn=true;}
+  else streetLayer.addTo(map);
+  mapModeCurrent=normalized;mapTileErrorCount=0;
   const names={map:"Street",satellite:"Satellite",hybrid:"Hybrid"};
-  setText("mapMode",names[mode]||"Street");
-  document.querySelectorAll(".mapTab").forEach(b=>b.classList.toggle("active",b.dataset.mapmode===mode));
-  recordActivity("MAP_SATELLITE",(names[mode]||"Street")+" view");
-  addLog("MAP",(names[mode]||"Street")+" view enabled");
+  setText("mapMode",names[normalized]);setText("mapTileStatus",names[normalized].toUpperCase()+" LOADING");
+  document.querySelectorAll(".mapTab").forEach(button=>button.classList.toggle("active",button.dataset.mapmode===normalized));
+  if(writeLog){recordActivity("MAP_LAYER",names[normalized]+" view");addLog("MAP",names[normalized]+" view enabled");}
+  updateMapFollowButton();
+  setTimeout(()=>map&&map.invalidateSize(true),80);
 }
-function toggleSatellite(){
-  setMapMode(satelliteOn?"map":"satellite");
-}
+function toggleSatellite(){setMapMode(mapModeCurrent==="satellite"?"hybrid":"satellite");}
 function centerRover(){
-  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
-  if(rover)map.setView(rover.getLatLng(),16);else map.setView(demoCenter,16);
-  recordActivity("MAP_CENTER","Centered map on ROVER-01");
+  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return;}
+  if(demoMode&&rover){map.flyTo(rover.getLatLng(),17,{animate:true,duration:.65});return;}
+  if(!roverGpsValid||!lastRoverPoint){setText("mapTileStatus","WAITING FOR ROVER GPS");addLog("MAP","A verified rover GPS fix is required to recenter");return;}
+  map.flyTo(lastRoverPoint,Math.max(map.getZoom(),17),{animate:true,duration:.65});
+  setMapFollow(true,false);recordActivity("MAP_CENTER","Centered map on ROVER-01");
 }
 function fitTrack(){
-  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return}
-  if(trackLine&&trackPts.length>1){
-    map.fitBounds(trackLine.getBounds(),{padding:[30,30]});
-    recordActivity("MAP_FIT","Fitted map to rover track");
-  }else{
-    centerRover();
-  }
+  if(!mapReady||!map){addLog("MAP","Interactive map is still loading");return;}
+  if(demoMode){setText("mapTileStatus","SIMULATION · NO LIVE TRACK");return;}
+  if(!roverGpsValid||!trackLine||trackPts.length<2){setText("mapTileStatus","ROVER TRACK NOT AVAILABLE");addLog("MAP","A verified rover GPS track is required");return;}
+  map.fitBounds(trackLine.getBounds(),{padding:[36,36],maxZoom:18});recordActivity("MAP_FIT","Fitted map to rover track");
 }
 async function openDevices(){
   $("deviceModal").classList.remove("hidden");
@@ -352,30 +433,42 @@ function connectRealtime(){
   }
 }
 function updateUI(input){
-  window.defenxLatestTelemetry = input && typeof input === "object" ? input : null;
-  // Privacy lock: randomized coordinates only, regardless of incoming GPS telemetry.
+  const rawInput=input&&typeof input==="object"?input:{};
+  const deviceGps=!demoMode&&String(rawInput.gps_source||"")==="ROVER_DEVICE"&&rawInput.gps_fix===true&&isValidMapPoint(rawInput.lat,rawInput.lon);
   const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
-  const rawTarget=input&&input.target?input.target:{},deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE";
-  const safeTarget=Object.assign({},rawTarget,{type:deviceTarget?(rawTarget.type||"Object"):"Object",detected:deviceTarget&&rawTarget.detected===true,range_m:deviceTarget?(rawTarget.range_m||0):0,speed_kmh:deviceTarget?(rawTarget.speed_kmh||0):0,confidence:deviceTarget?(rawTarget.confidence||0):0,lat:simTarget.lat,lon:simTarget.lon});
-  const d={...input,lat:simPoint.lat,lon:simPoint.lon,gps_fix:false,gps_sats:0,gps_source:"SIMULATION",gps_accuracy_m:null,track:[],target:safeTarget};
+  const displayPoint=demoMode?simPoint:(deviceGps?{lat:Number(rawInput.lat),lon:Number(rawInput.lon)}:null);
+  const rawTarget=rawInput.target&&typeof rawInput.target==="object"?rawInput.target:{};
+  const deviceTarget=String(rawInput.target_source||"")==="ROVER_DEVICE";
+  const safeTarget=Object.assign({},rawTarget,{
+    type:deviceTarget?(rawTarget.type||"Object"):"Object",
+    detected:deviceTarget&&rawTarget.detected===true,
+    range_m:deviceTarget?(rawTarget.range_m||0):0,
+    speed_kmh:deviceTarget?(rawTarget.speed_kmh||0):0,
+    confidence:deviceTarget?(rawTarget.confidence||0):0,
+    lat:simTarget.lat,lon:simTarget.lon
+  });
+  const validTrack=deviceGps&&Array.isArray(rawInput.track)?rawInput.track.filter(point=>point&&isValidMapPoint(point.lat,point.lon)).slice(-300):[];
+  const d={...rawInput,lat:displayPoint?displayPoint.lat:null,lon:displayPoint?displayPoint.lon:null,gps_fix:deviceGps,gps_sats:deviceGps?Number(rawInput.gps_sats||0):0,gps_source:deviceGps?"ROVER_DEVICE":(demoMode?"SIMULATION":"NO_FIX"),gps_accuracy_m:deviceGps?rawInput.gps_accuracy_m??null:null,track:validTrack,target:safeTarget};
+  window.defenxLatestTelemetry=d;window.roverTelemetry=d;
   const gpsQuality=d.gps_fix?(Number(d.gps_sats||0)>=8?"Excellent":Number(d.gps_sats||0)>=5?"Good":"Fair"):"No Fix";
   setText("battery",Math.round(Number(d.battery||0))+"%");setText("deviceBattery",Math.round(Number(d.battery||0))+"%");
   setText("signal",Math.round(Number(d.signal||0))+"%");setText("signalDevice",Number(d.signal||0)>=70?"Strong":Number(d.signal||0)>=45?"Medium":"Weak");
   setText("gps",d.gps_fix?"Good":"No Fix");setText("gpsHeader",d.gps_fix?"GPS":"GPS");setText("sats",(d.gps_sats??"--")+" sats");
   const speed=Number(d.speed_kmh||0),heading=((Number(d.heading||0)%360)+360)%360;
   setText("speed",speed.toFixed(1)+" km/h");setText("heading","Heading "+Math.round(heading)+"°");updateCompass(heading);
-  setText("lat",Number(d.lat).toFixed(6));setText("lon",Number(d.lon).toFixed(6));setText("updated",new Date(d.updated).toLocaleTimeString());
+  setText("lat",liveGps?Number(d.lat).toFixed(6):"--");setText("lon",liveGps?Number(d.lon).toFixed(6):"--");setText("updated",d.updated?new Date(d.updated).toLocaleTimeString():"--");
   setText("deviceOnline",d.device_online===false?"● OFFLINE":"● ONLINE");
   setLastKnownLoss(d.last_known_loss||null);
-  setText("mapCoords",Number(d.lat).toFixed(4)+"° N  "+Number(d.lon).toFixed(4)+"° E");
+  setText("mapCoords",liveGps?Number(d.lat).toFixed(4)+"° "+(Number(d.lat)>=0?"N":"S")+"  "+Number(d.lon).toFixed(4)+"° "+(Number(d.lon)>=0?"E":"W"):(demoMode?"SIMULATION · NOT LIVE":"ROVER GPS NOT FIXED"));
   const gpsSource=String(d.gps_source||"SIMULATION");
   const gpsAccuracy=Number(d.gps_accuracy_m);
-  const liveGps=(gpsSource==="LIVE_GPS"||gpsSource==="ROVER_DEVICE")&&Number.isFinite(gpsAccuracy);
+  const hasGpsAccuracy=d.gps_accuracy_m!==null&&d.gps_accuracy_m!==undefined&&Number.isFinite(gpsAccuracy);
+  const liveGps=gpsSource==="ROVER_DEVICE"&&d.gps_fix===true&&isValidMapPoint(d.lat,d.lon);
   window.ROVER_GPS_SOURCE=gpsSource;
   setText("gps",liveGps?"LIVE":(d.gps_fix?"DEMO":"NO FIX"));
-  setText("gpsHeader",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS LIVE":(liveGps?"GPS LIVE":"GPS"));setText("gpsHeaderSub",liveGps?"Fix reported · ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION · NOT LIVE":"NO VERIFIED GPS FIX"));
-  setText("gpsSignalText",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER GPS • ±"+Math.round(gpsAccuracy)+" m":liveGps?"OPERATOR GPS • ±"+Math.round(gpsAccuracy)+" m":(gpsSource==="SIMULATION"?"SIMULATION • NOT REAL GPS":gpsQuality));
-  setText("deviceGpsState",gpsSource==="ROVER_DEVICE"&&liveGps?"ROVER • ±"+Math.round(gpsAccuracy)+" m":(liveGps?"OPERATOR • ±"+Math.round(gpsAccuracy)+" m":(d.gps_fix?"DEMO":"SEARCHING")));
+  setText("gpsHeader",liveGps?"ROVER GPS LIVE":"GPS");setText("gpsHeaderSub",liveGps?(hasGpsAccuracy?"ROVER FIX · ±"+Math.round(gpsAccuracy)+" m":"ROVER FIX · ACCURACY N/A"):(demoMode?"SIMULATION · NOT LIVE":"ROVER GPS NOT FIXED"));
+  setText("gpsSignalText",liveGps?(hasGpsAccuracy?"ROVER GPS • ±"+Math.round(gpsAccuracy)+" m":"ROVER GPS • FIXED"):(demoMode?"SIMULATION • NOT REAL GPS":"NO VERIFIED ROVER GPS"));
+  setText("deviceGpsState",liveGps?(hasGpsAccuracy?"ROVER • ±"+Math.round(gpsAccuracy)+" m":"ROVER • FIXED"):(demoMode?"SIMULATED":"SEARCHING"));
   setText("modeBadge",d.mode||"MANUAL");
   const liveCommand=String(d.last_command||"STOP").toUpperCase();
   setText("cmd",liveCommand);
@@ -417,19 +510,35 @@ function updateUI(input){
   if(!detected)hide("targetHud");else show("targetHud");
   setText("topName",me?.display_name||"Admin");setText("topRole",me?.role==="admin"?"Administrator":"Operator");
   setText("onlineUsers","Presence unavailable");setText("onlineUsersSub","Live user count not reported");
-  if(rover){rover.setLatLng([Number(d.lat),Number(d.lon)]);const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";}
-  const tl=Number(t.lat),tn=Number(t.lon);
-  if(map&&Number.isFinite(tl)&&Number.isFinite(tn)&&detected){
-    const targetIcon=L.divIcon({className:"targetMarkerLabel",html:'<div class="targetMapMarker">◎</div><span>TARGET</span>',iconSize:[46,46],iconAnchor:[23,23]});
-    if(!targetMarker)targetMarker=L.marker([tl,tn],{icon:targetIcon}).addTo(map);else targetMarker.setLatLng([tl,tn]);
-    if(rover){
-      const rp=rover.getLatLng();
-      const pts=[[rp.lat,rp.lng],[tl,tn]];
-      if(!targetLine)targetLine=L.polyline(pts,{color:"#ff4858",weight:2,dashArray:"7 6",opacity:.95}).addTo(map);else targetLine.setLatLngs(pts);
+  if(rover){
+    if(liveGps&&isValidMapPoint(d.lat,d.lon)){
+      lastRoverPoint=[Number(d.lat),Number(d.lon)];roverGpsValid=true;
+      rover.setLatLng(lastRoverPoint);rover.setOpacity(1);
+      const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";
+      if(geofence)geofence.setLatLng(lastRoverPoint);
+      else if(mapReady)geofence=L.circle(lastRoverPoint,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
+      if(map&&followRover&&liveTracking)map.panTo(lastRoverPoint,{animate:true,duration:.4});
+    }else if(demoMode&&isValidMapPoint(d.lat,d.lon)){
+      rover.setLatLng([Number(d.lat),Number(d.lon)]);rover.setOpacity(.72);
+      const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";
+    }else{
+      roverGpsValid=false;lastRoverPoint=null;rover.setOpacity(0);
+      if(geofence&&map){map.removeLayer(geofence);geofence=null;}
     }
-  }else{if(targetMarker&&map){map.removeLayer(targetMarker);targetMarker=null}if(targetLine&&map){map.removeLayer(targetLine);targetLine=null}}
-  trackPts=(d.track||[]).map(x=>[x.lat,x.lon]);
-  if(map&&trackPts.length>1){if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.85}).addTo(map);else trackLine.setLatLngs(trackPts)}
+  }
+  if(targetMarker&&map){map.removeLayer(targetMarker);targetMarker=null;}
+  if(targetLine&&map){map.removeLayer(targetLine);targetLine=null;}
+  if(liveGps&&lastRoverPoint){
+    const incoming=(d.track||[]).map(point=>[Number(point.lat),Number(point.lon)]).filter(point=>isValidMapPoint(point[0],point[1])).slice(-300);
+    if(incoming.length)trackPts=incoming;
+    const previous=trackPts[trackPts.length-1];
+    if(!previous||Math.abs(previous[0]-lastRoverPoint[0])>0.000001||Math.abs(previous[1]-lastRoverPoint[1])>0.000001)trackPts.push(lastRoverPoint.slice());
+    if(trackPts.length>300)trackPts=trackPts.slice(-300);
+  }else if(!demoMode){trackPts=[];}
+  if(map&&trackPts.length>1){
+    if(!trackLine)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.9}).addTo(map);
+    else trackLine.setLatLngs(trackPts);
+  }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
   addSample(d);
 }
 function updateCompass(heading){
@@ -1158,6 +1267,9 @@ function bindUI(){
   $("openModeBtn")?.addEventListener("click",()=>scrollToSection("controlPanel"));
   document.querySelectorAll(".control").forEach(b=>{const c=b.dataset.cmd;if(!c)return;b.addEventListener("click",async()=>{await sendCommand(c);})});
   document.querySelectorAll(".mapTab").forEach(b=>b.addEventListener("click",()=>setMapMode(b.dataset.mapmode)));
+  $("mapFollowBtn")?.addEventListener("click",()=>setMapFollow(!followRover));
+  $("mapFullscreenBtn")?.addEventListener("click",toggleMapFullscreen);
+  document.addEventListener("fullscreenchange",syncMapFullscreenUI);
   $("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
   $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",()=>{recording=!recording;const b=$("camRecordBtn");b.classList.toggle("active",recording);addLog("CAMERA",recording?"Recording started":"Recording stopped");recordActivity("CAMERA_RECORD",recording?"Recording started":"Recording stopped")});
   $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(el?.requestFullscreen)el.requestFullscreen().catch(()=>{});});
