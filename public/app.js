@@ -841,7 +841,7 @@ function previewReturnRoute(simulateObstacle=false){
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
   // This is a visual software simulation only. It deliberately does not use
   // randomized display coordinates as live rover location and sends no commands.
-  const origin=rover&&typeof rover.getLatLng==="function"?rover.getLatLng():null;
+  const origin=roverGpsValid&&lastRoverPoint?L.latLng(lastRoverPoint[0],lastRoverPoint[1]):null;
   if(!origin){setText("returnBaseStatus","ROUTE PREVIEW UNAVAILABLE");addLog("ROUTE","No map marker is available for the simulated rover");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   const a=[origin.lat,origin.lng],b=[returnBase.lat,returnBase.lon];
