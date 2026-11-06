@@ -5,6 +5,7 @@ Run after scripts/build_assets.py so embedded WebP images have been externalized
 These are source-size guardrails, not a substitute for browser or load testing.
 """
 from pathlib import Path
+import gzip
 import re
 import sys
 
@@ -13,10 +14,12 @@ BUDGETS = {
     "public/app.js": 90_000,  # map layers, verified rover tracking, and road-route preview
     "public/style.css": 120_000,
     "public/ai-vision.js": 14_000,
-    "public/face-recognition.js": 40_000,
+    "public/face-recognition.js": 44_000,  # local camera test controls and face-analysis logic
     "public/face-recognition.css": 8_000,
     "public/index.html": 30_000,
 }
+# The face script is also checked after gzip compression, which better represents transfer size.
+COMPRESSED_BUDGETS = {"public/face-recognition.js": 16_000}
 failed = False
 
 for relative, budget in BUDGETS.items():
@@ -30,6 +33,13 @@ for relative, budget in BUDGETS.items():
     print(f"{status} {relative}: {size:,} bytes / {budget:,}-byte budget")
     if size > budget:
         failed = True
+    compressed_budget = COMPRESSED_BUDGETS.get(relative)
+    if compressed_budget is not None:
+        compressed_size = len(gzip.compress(path.read_bytes(), compresslevel=9, mtime=0))
+        compressed_status = "PASS" if compressed_size <= compressed_budget else "FAIL"
+        print(f"{compressed_status} {relative} gzip: {compressed_size:,} bytes / {compressed_budget:,}-byte budget")
+        if compressed_size > compressed_budget:
+            failed = True
 
 app_js = ROOT / "public/app.js"
 if app_js.is_file():
