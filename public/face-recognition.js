@@ -214,17 +214,21 @@
     head.appendChild(ui.state);
     section.appendChild(head);
     const cameraTools = el("div", "faceRow");
+    ui.scanStart = el("button", "faceBtn primary", "START FACE SCAN");
+    ui.scanStart.type = "button";
     ui.cameraStart = el("button", "faceBtn", "USE THIS DEVICE CAMERA (TEST)");
     ui.cameraStart.type = "button";
     ui.cameraStop = el("button", "faceBtn danger", "STOP DEVICE CAMERA");
     ui.cameraStop.type = "button";
     ui.cameraStop.hidden = true;
+    cameraTools.appendChild(ui.scanStart);
     cameraTools.appendChild(ui.cameraStart);
     cameraTools.appendChild(ui.cameraStop);
     ui.cameraStatus = el("small", "faceHint",
       "Optional test mode. Camera starts only after you tap the button. Frames stay in this browser; face-template numbers are sent for matching.");
     section.appendChild(cameraTools);
     section.appendChild(ui.cameraStatus);
+    ui.scanStart.addEventListener("click", startFaceScan);
     ui.cameraStart.addEventListener("click", startLocalCamera);
     ui.cameraStop.addEventListener("click", stopLocalCamera);
     ui.notice = el("div", "faceNotice");
@@ -762,6 +766,27 @@
       row.appendChild(toggle); row.appendChild(del);
       ui.people.appendChild(row);
     });
+  }
+
+  /* ---------------- explicit face scan controls ---------------- */
+  async function startFaceScan() {
+    if (!enabled) {
+      ui.cameraStatus.textContent = "Face verification is not configured. The administrator must set FACE_DATA_KEY on the preview Worker.";
+      return;
+    }
+    ui.scanStart.disabled = true;
+    ui.cameraStatus.textContent = "Starting face scan…";
+    if (sourceReady(source)) {
+      loopStopped = false;
+      clearTimeout(timer);
+      setChip("STARTING FACE SCAN", "idle");
+      await tick();
+      ui.cameraStatus.textContent = "Face scan requested on the active camera. Keep the face clearly visible.";
+      ui.scanStart.disabled = false;
+      return;
+    }
+    await startLocalCamera();
+    ui.scanStart.disabled = false;
   }
 
   /* ---------------- explicit local camera test mode ---------------- */
