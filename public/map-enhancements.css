@@ -1,0 +1,44 @@
+/* DEFENX map controls, tile attribution and responsive fullscreen layout */
+.mapCard{min-width:0;overflow:hidden}
+.mapHeader{display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px!important;flex-wrap:wrap!important}
+.mapHeader>div:first-child{display:flex;align-items:center;gap:10px;min-width:max-content}
+.mapControls{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex:1 1 500px;min-width:0;flex-wrap:wrap}
+.mapTabs{display:flex!important;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+.mapUtilityControls{display:flex;align-items:center;justify-content:flex-end;gap:7px;flex-wrap:wrap}
+.mapUtilityBtn{min-height:38px;padding:7px 11px;border-radius:10px!important;border:1px solid rgba(113,155,174,.34)!important;background:linear-gradient(180deg,#152a35,#0b1922)!important;color:#c7d8df!important;font-family:inherit;font-size:10px;font-weight:800;letter-spacing:.045em;white-space:nowrap;touch-action:manipulation}
+.mapUtilityBtn.active{background:linear-gradient(180deg,#1b6359,#103b37)!important;border-color:rgba(67,215,181,.68)!important;color:#d9fff3!important}
+.mapTileStatus{display:inline-flex;align-items:center;min-height:28px;padding:5px 8px;border:1px solid rgba(113,155,174,.22);border-radius:8px;color:#9cb0b8;font:700 9px/1.2 ui-monospace,monospace;letter-spacing:.035em;white-space:nowrap}
+.mapCard>.mapArea{position:relative!important;width:100%!important;height:clamp(390px,56vh,650px)!important;min-height:390px!important;max-height:650px!important;overflow:hidden!important;border-radius:0 0 12px 12px}
+.mapCard>.mapArea>#map{position:absolute!important;inset:0!important;width:100%!important;height:100%!important;min-height:0!important;max-height:none!important;z-index:1}
+.mapCard .mapfallback{z-index:3}
+.mapCard .leaflet-container{width:100%!important;height:100%!important;background:#101b22}
+.mapCard .leaflet-control-attribution{max-width:calc(100vw - 40px);padding:2px 6px!important;border-radius:5px 0 0 0;background:rgba(3,10,15,.82)!important;color:#d9e4e8!important;font-size:9px!important;line-height:1.35!important}
+.mapCard .leaflet-control-attribution a{color:#8edbc9!important}
+.mapCard .leaflet-control-zoom{border:1px solid rgba(120,166,184,.45)!important;box-shadow:0 5px 16px rgba(0,0,0,.3)!important}
+.mapCard .leaflet-control-zoom a{background:#0c1c26!important;color:#d8e9ee!important;border-color:rgba(120,166,184,.24)!important}
+.mapCard .mapCompass,.mapCard .mapTargetHud,.mapCard .mapCoordsHud,.mapCard .mapPathLabel,.mapCard .mapToolRail{z-index:500!important}
+.mapCard .mapToolRail{top:12px!important;right:12px!important;bottom:auto!important}
+.mapCard.mapFullscreenFallback{position:fixed!important;inset:0!important;z-index:99999!important;width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;border-radius:0!important;display:flex!important;flex-direction:column!important;background:#050c12!important;overflow:hidden!important}
+.mapCard.mapFullscreenFallback>.cardHeader{flex:0 0 auto!important}
+.mapCard.mapFullscreenFallback>.mapArea{flex:1 1 auto!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;border-radius:0!important}
+.mapCard.mapFullscreenFallback>.mapReadout{flex:0 0 auto!important}
+.mapCard:fullscreen{width:100vw!important;height:100dvh!important;max-width:none!important;max-height:none!important;margin:0!important;padding:0!important;border-radius:0!important;display:flex!important;flex-direction:column!important;background:#050c12!important;overflow:hidden!important}
+.mapCard:fullscreen>.cardHeader{flex:0 0 auto!important}
+.mapCard:fullscreen>.mapArea{flex:1 1 auto!important;width:100%!important;height:auto!important;min-height:0!important;max-height:none!important;border-radius:0!important}
+.mapCard:fullscreen>.mapReadout{flex:0 0 auto!important}
+@media(max-width:760px){
+  .mapHeader{align-items:flex-start!important}
+  .mapHeader>div:first-child{width:100%;justify-content:space-between}
+  .mapControls{width:100%;flex:1 1 100%;justify-content:flex-start}
+  .mapTabs{width:100%;flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;padding:2px 0 5px}
+  .mapTabs .mapTab{flex:0 0 auto;min-width:72px}
+  .mapUtilityControls{width:100%;justify-content:space-between}
+  .mapUtilityBtn{flex:1 1 auto;min-width:0}
+  .mapTileStatus{flex:1 1 100%;justify-content:center}
+  .mapCard>.mapArea{height:62vh!important;min-height:330px!important;max-height:520px!important}
+}
+@media(max-width:420px){
+  .mapCard>.mapArea{height:58vh!important;min-height:310px!important}
+  .mapUtilityBtn{font-size:9px;padding:7px 8px}
+  .mapCard .leaflet-control-attribution{font-size:8px!important}
+}
