@@ -842,6 +842,7 @@
   /* ---------------- camera source discovery ---------------- */
   function findSource() {
     const e = document.getElementById("roverRealCamera");
+    if (localCameraActive && e !== localCameraVideo) stopLocalCamera();
     if (e === source) return;
     source = e; loopStopped = false; tracks = []; clearOverlay();
     if (e && e.tagName === "IFRAME") { setChip("EMBEDDED CAMERA \u2022 USE DIRECT MJPEG / VIDEO", "error"); source = null; }
@@ -859,6 +860,8 @@
     if (!status.configured) {
       setChip("NOT CONFIGURED \u2022 SET FACE_DATA_KEY", "off");
       ui.list.appendChild(el("div", "faceEmpty", "Face verification is disabled until the administrator configures FACE_DATA_KEY on the server."));
+      ui.cameraStart.disabled = true;
+      ui.cameraStatus.textContent = "Camera test is disabled until FACE_DATA_KEY is configured.";
       return;
     }
     enabled = true;
