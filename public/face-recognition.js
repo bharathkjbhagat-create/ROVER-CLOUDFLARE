@@ -168,7 +168,7 @@
   let status = null, isAdmin = false, enabled = false;
   let source = null, faceapi = null, modelsPromise = null, ssdLoaded = false;
   let localCameraStream = null, localCameraActive = false, localCameraVideo = null;
-  let busy = false, timer = 0, tracks = [], nextTrackId = 1, lastFaceSeen = 0;
+  let busy = false, timer = 0, tracks = [], nextTrackId = 1, lastFaceSeen = 0, forceFaceScan = false;
   let noFaceSince = 0, noFaceCategory = null, noFaceReportedAt = 0, noFaceInflight = false;
   let events = [], knownAlertIds = new Set(), alertsPrimed = false, loopStopped = false;
   const snapshotTried = new Map();
@@ -641,7 +641,7 @@
       tracks = []; clearOverlay(); setChip("WAITING FOR LIVE CAMERA", "idle"); return next(1200);
     }
     const now = Date.now(), persons = freshPersons();
-    const want = (persons && persons.boxes.length > 0) || (tracks.length > 0 && now - lastFaceSeen < 3000);
+    const want = forceFaceScan || (persons && persons.boxes.length > 0) || (tracks.length > 0 && now - lastFaceSeen < 3000);
     if (!want) {
       if (tracks.length) { tracks = []; clearOverlay(); }
       noFaceSince = 0; noFaceCategory = null;
@@ -775,6 +775,7 @@
       return;
     }
     ui.scanStart.disabled = true;
+    forceFaceScan = true;
     ui.cameraStatus.textContent = "Starting face scan…";
     if (sourceReady(source)) {
       loopStopped = false;
@@ -861,6 +862,7 @@
     localCameraVideo = null;
     localCameraActive = false;
     tracks = [];
+    forceFaceScan = false;
     clearOverlay();
     const scene = document.getElementById("camera3DScene");
     if (scene) scene.style.display = "";
