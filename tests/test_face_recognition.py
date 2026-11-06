@@ -326,6 +326,8 @@ class ApiTests(unittest.TestCase):
     def test_invalid_input_rejected(self):
         self.assertEqual(self.client.post("/api/faces/people", json={"label": "", "descriptors": [vec(1)]}).status_code, 400)
         self.assertEqual(self.client.post("/api/faces/people", json={"label": "A", "descriptors": []}).status_code, 400)
+        self.assertEqual(self.client.post("/api/faces/people", json={"label": "A", "descriptors": [vec(2)]}).status_code, 400)
+        self.assertEqual(self.client.post("/api/faces/people", json={"label": "A", "descriptors": [vec(2), vec(3)]}).status_code, 400)
         self.assertEqual(self.client.post("/api/faces/people", json={"label": "A", "descriptors": [[0.1] * 5]}).status_code, 400)
         self.assertEqual(self.client.post("/api/faces/observe", json={"descriptors": [[1] * 5]}).status_code, 400)
         self.assertEqual(self.client.post("/api/faces/observe", json={"descriptors": [vec(1)] * 6}).status_code, 400)
