@@ -260,7 +260,7 @@ function initMap(){
     satelliteLayer=L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
       minZoom:3,maxZoom:19,maxNativeZoom:19,keepBuffer:4,
       updateWhenIdle:true,updateWhenZooming:false,
-      attribution:'Sources: Esri, Vantor, Earthstar Geographics, and the GIS User Community'
+      attribution:'Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community'
     });
     hybridOverlayLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/overlay_3857/default/g/{z}/{y}/{x}.jpg",{
       minZoom:0,maxZoom:18,maxNativeZoom:18,keepBuffer:4,opacity:.88,
