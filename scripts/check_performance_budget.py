@@ -13,6 +13,8 @@ BUDGETS = {
     "public/app.js": 90_000,  # map layers, verified rover tracking, and road-route preview
     "public/style.css": 120_000,
     "public/ai-vision.js": 14_000,
+    "public/face-recognition.js": 40_000,
+    "public/face-recognition.css": 8_000,
     "public/index.html": 30_000,
 }
 failed = False
