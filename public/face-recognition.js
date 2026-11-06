@@ -28,10 +28,15 @@
     if (x1 <= x0 || y1 <= y0) return null;
     let n = 0, sy = 0, scb = 0, scr = 0, syy = 0;
     for (let y = y0; y < y1; y++) {
-      for (let x = x0; x < x1; x++) {
-        const i = (y * width + x) * 4;
-        const c = rgbToYcc(data[i], data[i + 1], data[i + 2]);
-        sy += c.y; scb += c.cb; scr += c.cr; syy += c.y * c.y; n++;
+      let i = (y * width + x0) * 4;
+      for (let x = x0; x < x1; x++, i += 4) {
+        const r = data[i], g = data[i + 1], b = data[i + 2];
+        const yy = 0.299 * r + 0.587 * g + 0.114 * b;
+        sy += yy;
+        scb += 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+        scr += 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+        syy += yy * yy;
+        n++;
       }
     }
     const my = sy / n;
@@ -169,6 +174,10 @@
   const snapshotTried = new Map();
   const work = document.createElement("canvas");
   const workCtx = work.getContext("2d", { willReadFrequently: true });
+  const qualityCanvas = document.createElement("canvas");
+  qualityCanvas.width = 48; qualityCanvas.height = 48;
+  const qualityCtx = qualityCanvas.getContext("2d", { willReadFrequently: true });
+  const qualityGray = new Float32Array(48 * 48);
   const overlay = document.createElement("canvas");
   overlay.className = "faceOverlayCanvas";
   overlay.setAttribute("aria-hidden", "true");
@@ -462,13 +471,14 @@
     const occ = decideOcclusion(regions);
 
     // Lighting + sharpness from a 48x48 grayscale crop of the face box.
-    const crop = document.createElement("canvas");
-    crop.width = 48; crop.height = 48;
-    const cctx = crop.getContext("2d", { willReadFrequently: true });
-    cctx.drawImage(work, box.x * f, box.y * f, Math.max(1, box.width * f), Math.max(1, box.height * f), 0, 0, 48, 48);
-    const px = cctx.getImageData(0, 0, 48, 48).data, gray = new Float32Array(48 * 48);
+    qualityCtx.drawImage(work, box.x * f, box.y * f, Math.max(1, box.width * f), Math.max(1, box.height * f), 0, 0, 48, 48);
+    const px = qualityCtx.getImageData(0, 0, 48, 48).data, gray = qualityGray;
     let luma = 0;
-    for (let i = 0; i < 48 * 48; i++) { gray[i] = rgbToYcc(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]).y; luma += gray[i]; }
+    for (let i = 0; i < 48 * 48; i++) {
+      const p = i * 4;
+      const y = 0.299 * px[p] + 0.587 * px[p + 1] + 0.114 * px[p + 2];
+      gray[i] = y; luma += y;
+    }
     luma /= 48 * 48;
     const quality = qualityCheck({
       boxW: box.width, boxH: box.height, score: det.detection.score, yaw: yawRatio(pts),
@@ -547,14 +557,13 @@
       .slice(0, 4);
     const boxes = dets.map(d => d.detection.box);
     const map = assign(tracks, boxes);
-    const touched = new Set();
     dets.forEach((det, i) => {
       let track = map[i] >= 0 ? tracks[map[i]] : null;
       if (!track) {
         track = { id: nextTrackId++, box: boxes[i], obs: [], firstSeen: now, lastSeen: now, category: null, lastReport: 0, inflight: false };
         tracks.push(track);
       }
-      track.box = boxes[i]; track.lastSeen = now; touched.add(track);
+      track.box = boxes[i]; track.lastSeen = now;
       let analysis;
       try { analysis = analyseFace(det, f); } catch (err) {
         if (/taint|cross.origin|security/i.test(String(err && err.message || err))) throw err;
