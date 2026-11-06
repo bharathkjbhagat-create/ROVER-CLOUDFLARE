@@ -188,9 +188,9 @@ def write_shared_login_event(user, details="", action="LOGIN"):
 
 def read_shared_login_events(limit=20, since=None):
     try:
-        safe_limit = min(max(int(limit), 1), 100)
+        safe_limit = min(max(int(limit), 1), 5000)
     except (TypeError, ValueError):
-        safe_limit = 20
+        safe_limit = 100
     events = _realtime_call("get_login_events", safe_limit)
     if not isinstance(events, list):
         return [], None
@@ -1616,7 +1616,7 @@ def audit_logs():
         shared_rows, _ = read_shared_login_events(limit=limit, since=None)
         rows.extend(shared_rows)
     with lock:
-        rows.extend(recent_actions[:limit])
+        rows.extend(x for x in recent_actions[:limit] if _audit_event_is_recent(x))
     dedup = {}
     for item in rows:
         dedup[str(item.get("id"))] = item
@@ -1654,7 +1654,9 @@ def login_events():
                         cur.execute(
                             """SELECT id,username,display_name,role,action,details,ip_address,user_agent,session_id,created_at
                                FROM audit_log
-                               WHERE action IN ('LOGIN','LOGOUT') AND created_at > %s
+                               WHERE action IN ('LOGIN','LOGOUT')
+                                 AND created_at > %s
+                                 AND created_at >= NOW() - INTERVAL '7 days'
                                ORDER BY created_at DESC LIMIT %s""",
                             (since_dt, limit),
                         )
