@@ -1,5 +1,6 @@
-"""Regression tests for DEFENX auth ordering and runtime account IDs."""
+"""Regression tests for DEFENX admin-only authentication."""
 from __future__ import annotations
+
 import os
 from pathlib import Path
 import sys
@@ -18,56 +19,73 @@ import app as rover_app  # noqa: E402
 class AuthenticationRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = rover_app.app.test_client()
-
-    def setUp(self):
-        self.client = rover_app.app.test_client()
-        self.old_hash = rover_app.runtime_password_hashes.get("DHANUSH")
-        rover_app.runtime_password_hashes["DHANUSH"] = rover_app.generate_password_hash("test-only-old-password")
         rover_app.clear_login_failures("127.0.0.1")
 
     def tearDown(self):
-        if self.old_hash is None:
-            rover_app.runtime_password_hashes.pop("DHANUSH", None)
-        else:
-            rover_app.runtime_password_hashes["DHANUSH"] = self.old_hash
         rover_app.clear_login_failures("127.0.0.1")
 
-    def test_runtime_account_id_login_works_without_database(self):
+    def test_configured_admin_can_login_without_database(self):
         with patch.object(rover_app, "DATABASE_URL", None), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
              patch.object(rover_app, "ensure_db", return_value=None):
-            runtime_id = rover_app.runtime_users["DHANUSH"]["id"]
             response = self.client.post("/api/login", json={
-                "username": runtime_id, "password": "test-only-old-password"
+                "username": rover_app.ADMIN_USERNAME,
+                "password": rover_app.ADMIN_PASSWORD,
             })
-            self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-            self.assertTrue(response.get_json()["ok"])
-            self.assertIn("rover_auth=", "; ".join(response.headers.getlist("Set-Cookie")))
-            self.assertEqual(self.client.get("/api/bootstrap").status_code, 200)
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertTrue(response.get_json()["ok"])
+        self.assertEqual(self.client.get("/api/me").status_code, 200)
 
-    def test_runtime_injected_session_secret_allows_login(self):
-        with patch.object(rover_app, "SESSION_SECRET_CONFIGURED", False), \
-             patch.dict(rover_app.app.config, {"SECRET_KEY": "runtime-injected-test-session"}), \
+    def test_regular_user_credentials_are_rejected_even_if_stale_runtime_data_exists(self):
+        legacy_user = {
+            "id": "legacy-friend-id",
+            "username": "DHANUSH",
+            "display_name": "Legacy Friend",
+            "role": "user",
+            "enabled": True,
+            "can_control": True,
+            "can_manage_users": False,
+        }
+        with patch.dict(rover_app.runtime_users, {"DHANUSH": legacy_user}), \
+             patch.dict(rover_app.runtime_password_hashes, {
+                 "DHANUSH": rover_app.generate_password_hash("test-only-old-password")
+             }), \
              patch.object(rover_app, "DATABASE_URL", None), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
              patch.object(rover_app, "ensure_db", return_value=None):
             response = self.client.post("/api/login", json={
-                "username": "ROVERADMIN", "password": "test-only-admin-password"
+                "username": "DHANUSH",
+                "password": "test-only-old-password",
             })
-            self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-            self.assertTrue(response.get_json()["ok"])
+        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
+        self.assertEqual(self.client.get("/api/me").status_code, 401)
 
-    def test_database_configured_disables_stale_runtime_fallback(self):
+    def test_old_regular_user_fallback_session_is_rejected_without_user_cache(self):
+        with self.client.session_transaction() as session:
+            session["fallback_user"] = {
+                "id": "old-user-session",
+                "username": "DHANUSH",
+                "display_name": "Legacy Friend",
+                "role": "user",
+                "enabled": True,
+                "can_control": True,
+                "can_manage_users": False,
+            }
+        response = self.client.get("/api/me")
+        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
+
+    def test_database_configured_still_rejects_regular_users(self):
         with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
              patch.object(rover_app, "ensure_db", return_value=None):
-            response = rover_app.app.test_client().post("/api/login", json={
-                "username": "DHANUSH", "password": "test-only-old-password"
+            response = self.client.post("/api/login", json={
+                "username": "DHANUSH",
+                "password": "test-only-old-password",
             })
-            self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
+        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
 
     def test_worker_checks_database_auth_before_legacy_auth(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
@@ -78,7 +96,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
             handler.index("fallback_response = await wsgi.fetch"),
             handler.index("legacy_user = await self._legacy_authenticate"),
         )
-        self.assertIn("if not database_configured and key in admin_aliases:", source)
+        self.assertIn("if self._normalize_login(username) not in admin_aliases:", source)
 
     def test_worker_signed_session_keeps_auth_source_metadata(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
@@ -95,10 +113,13 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("self._needs_revocation_check(url.path)", source)
         self.assertIn("if await self.is_session_revoked(session_hash):", source)
 
-    def test_mamleswar_supports_the_configured_plaintext_password_secret(self):
+    def test_database_cleanup_preserves_one_admin_and_removes_other_users(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn('"password": _config("FRIEND4_PASSWORD")', source)
-        self.assertIn("if not friend.get(\"password_hash\") and not friend.get(\"password\"):", source)
+        self.assertIn("DELETE FROM users", source)
+        self.assertIn("UPPER(username)=UPPER(%s)", source)
+        self.assertIn("role='admin',enabled=TRUE", source)
+        self.assertIn("runtime_users = {}", source)
+        self.assertIn("runtime_password_hashes = {}", source)
 
 
 if __name__ == "__main__":
