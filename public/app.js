@@ -520,7 +520,7 @@ function showLoginToast(logins){
   const wrap=document.createElement("div");
   wrap.className="loginToast";
   playNotificationSound().catch(()=>{});
-  wrap.innerHTML="<b>🔔 FRIEND LOGIN</b><span>"+esc(item.display_name||item.username)+" ("+esc(item.username)+") logged in just now.</span>";
+  wrap.innerHTML="<b>🔔 ACCOUNT LOGIN</b><span>"+esc(item.display_name||item.username)+" ("+esc(item.username)+") logged in just now.</span>";
   document.body.appendChild(wrap);
   setTimeout(()=>wrap.classList.add("hide"),4200);
   setTimeout(()=>wrap.remove(),4800);
@@ -561,7 +561,7 @@ async function pollLoginAlerts(){
       unreadLogins+=fresh.length;
       renderAlertCount();
       fresh.forEach(x=>showLoginToast([x]));
-      addLog("LOGIN",fresh.length===1?((fresh[0].display_name||fresh[0].username)+" logged in"):fresh.length+" friends logged in");
+      addLog("LOGIN",fresh.length===1?((fresh[0].display_name||fresh[0].username)+" logged in"):fresh.length+" accounts logged in");
     }
   }catch(_){} finally { loginAlertBusy=false; }
 }
