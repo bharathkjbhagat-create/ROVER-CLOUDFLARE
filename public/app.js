@@ -754,7 +754,20 @@ async function initRealCameraStream(){
     const r=await api("/api/camera-config");
     const d=await r.json();
     if(phoneCameraActive)return;
-    if(!r.ok||!d.enabled||!d.url)return;
+    if(!r.ok||!d.enabled||!d.url){
+      realCameraActive=false;
+      if(scene)scene.style.display="none";
+      const placeholder=$("camPlaceholder"),message=$("camPlaceholderMsg");
+      if(message)message.textContent="NO CAMERA FEED • CONNECT ROVER CAMERA OR TAP USE PHONE CAMERA";
+      if(placeholder){
+        placeholder.hidden=false;
+        placeholder.style.cssText="position:absolute;inset:0;z-index:12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;background:rgba(2,8,14,.96);color:#ffd18a;font:800 11px/1.6 ui-monospace,monospace;letter-spacing:.7px";
+      }
+      setText("cameraSceneLabel","NO LIVE CAMERA FEED");
+      setText("cameraStatus","No camera connected");
+      return;
+    }
+    const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;
     mediaType=String(d.type||"mjpeg").toLowerCase();
     if(mediaType==="iframe"){
       const frame=document.createElement("iframe");
@@ -1327,7 +1340,14 @@ function bindUI(){
   document.addEventListener("fullscreenchange",syncMapFullscreenUI);
   $("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
   $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",toggleCameraRecording);
-  $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(el?.requestFullscreen)el.requestFullscreen().catch(()=>{});});
+  $("camFullscreenBtn")?.addEventListener("click",async()=>{
+    const el=$("cameraViewport");if(!el)return;
+    try{
+      if(document.fullscreenElement){await document.exitFullscreen();}
+      else if(el.requestFullscreen){await el.requestFullscreen();}
+      else{el.classList.toggle("camera-fullscreen");}
+    }catch(_){el.classList.toggle("camera-fullscreen");}
+  });
   $("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");hide("usersTab");show("auditTab");loadAudit()}else scrollToSection("eventLogSection")});
   $("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[data-user]");if(b)userAction(b)});
   $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
