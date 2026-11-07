@@ -261,7 +261,7 @@
       }
       return;
     }
-    scheduleNext(850);
+    scheduleNext(detectionDelay);
   }
 
   async function startDetection() {
