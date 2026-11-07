@@ -75,10 +75,12 @@
   function sourceReady(element) {
     if (!element) return false;
     if (element.tagName === "VIDEO") {
-      return element.readyState >= 2 && element.videoWidth > 0 && element.videoHeight > 0;
+      const tracks = element.srcObject && typeof element.srcObject.getVideoTracks === "function" ? element.srcObject.getVideoTracks() : [];
+      const liveTrack = tracks.some(track => track.readyState === "live" && track.enabled);
+      return element.dataset.defenxLiveStream === "1" && !element.paused && element.readyState >= 2 && element.videoWidth > 0 && element.videoHeight > 0 && (liveTrack || Boolean(element.currentSrc || element.src));
     }
     if (element.tagName === "IMG") {
-      return element.complete && element.naturalWidth > 0 && element.naturalHeight > 0;
+      return element.dataset.defenxLiveStream === "1" && element.complete && element.naturalWidth > 0 && element.naturalHeight > 0;
     }
     return false;
   }
@@ -302,7 +304,7 @@
       setState("unsupported", "EMBEDDED CAMERA • USE DIRECT MJPEG / VIDEO STREAM");
       return;
     }
-    if (element.tagName !== "IMG" && element.tagName !== "VIDEO") {
+    if ((element.tagName !== "IMG" && element.tagName !== "VIDEO") || element.dataset.defenxLiveStream !== "1") {
       setState("waiting", "WAITING FOR LIVE CAMERA STREAM");
       return;
     }
