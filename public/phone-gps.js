@@ -1,5 +1,5 @@
 (()=>{"use strict";
-let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null;
+let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null,renderQueued=false;
 const $=id=>document.getElementById(id);
 const set=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 const valid=(lat,lon)=>Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180;
