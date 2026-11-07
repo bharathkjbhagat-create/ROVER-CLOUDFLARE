@@ -16,7 +16,7 @@
   var OSM = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
   var st = {
-    open: false, built: false, cfg: null, cfgBusy: false, cfgAt: 0,
+    open: false, built: false, cfg: null, cfgBusy: false, cfgAt: 0, cfgRetryTimer: null, cfgRetryDelay: 5000,
     tel: null, telAt: 0,
     cam: { state: "idle", attempts: 0, timer: null },
     prevKey: "", prevLink: "",
@@ -137,9 +137,27 @@
     st.cfgBusy = true; st.cfgAt = Date.now();
     fetch("/api/camera-config", { credentials: "same-origin", cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
-      .then(function (d) { if (d) st.cfg = { enabled: !!(d.enabled && d.url), type: d.type || "" }; })
+      .then(function (d) {
+        if (d) {
+          st.cfg = { enabled: !!(d.enabled && d.url), type: d.type || "" };
+          st.cfgRetryDelay = 5000;
+          if (st.cfgRetryTimer) clearTimeout(st.cfgRetryTimer);
+          st.cfgRetryTimer = null;
+        }
+      })
       .catch(function () {})
-      .then(function () { st.cfgBusy = false; render(); });
+      .then(function () {
+        st.cfgBusy = false;
+        render();
+        if (!st.cfg && !st.cfgRetryTimer) {
+          var delay = st.cfgRetryDelay;
+          st.cfgRetryDelay = Math.min(30000, st.cfgRetryDelay * 2);
+          st.cfgRetryTimer = setTimeout(function () {
+            st.cfgRetryTimer = null;
+            loadCfg();
+          }, delay);
+        }
+      });
   }
   // Effective camera state, derived only from real signals.
   function camView() {
@@ -563,13 +581,35 @@
     var ph = $("camPlaceholder"); if (ph) { var rb = $("camPlaceholderRetry"); if (rb) rb.addEventListener("click", function () { reconnect(true); }); }
     if (window.defenxLatestTelemetry) onTelemetry(window.defenxLatestTelemetry);
     loadCfg();
-    setInterval(function () {
+    // Bind the camera when it is first inserted or replaced. The old 2.5s
+    // polling loop repeatedly rendered the whole monitor and refreshed map
+    // layers even while the full-screen monitor was closed.
+    function checkCamera() {
       var el = camEl();
-      if (el) { attachCam(el); if (st.open) adopt(); }
-      if (!st.cfg) loadCfg();
-      if (st.open && !st.map) ensureMap();
-      render();
-    }, 2500);
+      if (!el) return;
+      var newlyBound = !el.__mvBound;
+      attachCam(el);
+      if (st.open) adopt();
+      if (newlyBound) render();
+    }
+    checkCamera();
+    if (document.body && window.MutationObserver) {
+      var cameraObserver = new MutationObserver(function (records) {
+        for (var i = 0; i < records.length; i++) {
+          var nodes = records[i].addedNodes;
+          for (var j = 0; j < nodes.length; j++) {
+            var node = nodes[j];
+            if (node.nodeType !== 1) continue;
+            if (node.id === "roverRealCamera" ||
+                (node.querySelector && node.querySelector("#roverRealCamera"))) {
+              checkCamera();
+              return;
+            }
+          }
+        }
+      });
+      cameraObserver.observe(document.body, { childList: true, subtree: true });
+    }
     render();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
