@@ -569,7 +569,7 @@
       if (!st.cfg) loadCfg();
       if (st.open && !st.map) ensureMap();
       render();
-    }, 1000);
+    }, 2500);
     render();
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init); else init();
