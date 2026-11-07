@@ -26,6 +26,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
+        cls.css = (ROOT / "public" / "style.css").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
         parser = _Ids()
@@ -91,10 +92,20 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('window.__defenxSetPhoneCameraActive?.(true)', self.phone_camera)
         self.assertIn('window.__defenxSetPhoneCameraActive?.(false)', self.phone_camera)
         self.assertIn('id="phoneCameraBtn"', self.html)
-        self.assertIn('src="/phone-camera.js?v=20261107-06"', self.html)
+        self.assertIn('src="/phone-camera.js?v=20261107-07"', self.html)
         self.assertIn('href="/phone-camera.css?v=20261107-01"', self.html)
         self.assertIn("if(phoneCameraActive)return;", self.js)
         self.assertIn("!phoneCameraActive", self.js)
+
+    def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
+        self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)
+        self.assertIn('frame.dataset.defenxLiveStream="1";', self.js)
+
+    def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
+        self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE = !!active", self.face)
+        self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE", self.ai)
+        self.assertIn("scheduleNext(850);", self.ai)
+        self.assertIn("schedule(850);", self.face)
 
     def test_person_detection_only_accepts_configured_live_camera_sources(self):
         self.assertIn('dataset.defenxLiveStream === "1"', self.ai)
