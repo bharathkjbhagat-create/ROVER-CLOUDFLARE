@@ -23,6 +23,7 @@ class FrontendControlTests(unittest.TestCase):
     def setUpClass(cls):
         cls.html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
+        cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
         parser = _Ids()
@@ -64,6 +65,16 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn("DEMO ROAD ROUTE · ", self.js)
         self.assertIn("DEMO MODE · ROVER MOVEMENT DISABLED", self.js)
         self.assertIn('if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}', self.js)
+
+    def test_ai_controls_are_enabled_on_authenticated_root_dashboard(self):
+        self.assertIn('window.location.pathname === "/demo"', self.ai)
+        self.assertNotIn('window.location.pathname === "/"', self.ai)
+        self.assertIn('toggle.textContent = paused ? "RESUME AI" : canRetry ? "RETRY AI" : "PAUSE AI";', self.ai)
+
+    def test_ai_error_state_allows_retry_when_camera_is_ready(self):
+        self.assertIn('state === "error" && sourceReady(source) && !paused', self.ai)
+        self.assertIn('if (bar.dataset.state === "error" && !paused)', self.ai)
+        self.assertIn('startDetection();', self.ai)
 
     def test_camera_record_button_uses_real_video_recorder(self):
         self.assertIn("new MediaRecorder(stream", self.js)
