@@ -92,6 +92,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('window.__defenxSetPhoneCameraActive?.(false)', self.phone_camera)
         self.assertIn('id="phoneCameraBtn"', self.html)
         self.assertIn('src="/phone-camera.js?v=20261107-02"', self.html)
+        self.assertIn('href="/phone-camera.css?v=20261107-01"', self.html)
         self.assertIn("if(phoneCameraActive)return;", self.js)
         self.assertIn("!phoneCameraActive", self.js)
 

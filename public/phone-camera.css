@@ -1,0 +1,5 @@
+/* Temporary smartphone camera control */
+.cameraFooter .phoneCameraBtn{width:auto!important;min-width:112px!important;max-width:148px;flex:0 0 auto!important;padding:0 9px!important;border-color:#28748c!important;background:linear-gradient(180deg,#123445,#091c28)!important;color:#c7f2ff!important;font:800 8px/1 ui-monospace,monospace!important;letter-spacing:.45px;white-space:nowrap;}
+.cameraFooter .phoneCameraBtn.active{border-color:#c85a68!important;background:linear-gradient(180deg,#48202a,#24131a)!important;color:#ffe0e4!important;}
+.cameraFooter .phoneCameraBtn:disabled{opacity:.58;cursor:wait;}
+@media(max-width:600px){.cameraFooter .phoneCameraBtn{min-width:98px!important;max-width:118px;font-size:7px!important;padding:0 6px!important;}}
