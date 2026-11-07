@@ -46,7 +46,7 @@ function start(){
  if(watchId!==null)return;
  set("gpsHeader","PHONE GPS");set("gpsHeaderSub","Requesting location permission…");set("gpsSignalText","WAITING FOR PHONE GPS");
  if(!navigator.geolocation){onError({code:2});return;}
- try{watchId=navigator.geolocation.watchPosition(onPosition,onError,{enableHighAccuracy:true,maximumAge:0,timeout:20000});}
+ try{watchId=navigator.geolocation.watchPosition(onPosition,onError,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}
  catch(_){watchId=null;onError({code:2});}
 }
 window.DEFENX_PHONE_GPS_CONTROL=active=>active?start():stop();
