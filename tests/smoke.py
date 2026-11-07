@@ -73,7 +73,13 @@ assert resp.status_code == 200, resp.get_data(as_text=True)
 app_js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
 assert "/api/camera-config" in app_js
 assert "navigator.geolocation" not in app_js
-assert "SIMULATION • RANDOM LOCATION" in app_js
+phone_gps_js = (ROOT / "public" / "phone-gps.js").read_text(encoding="utf-8")
+assert "navigator.geolocation.watchPosition" in phone_gps_js
+assert "enableHighAccuracy:true" in phone_gps_js
+assert 'bindTooltip("PHONE LOCATION"' in phone_gps_js
+assert "L.circle" in phone_gps_js
+assert "DEFENX_PHONE_GPS_CONTROL" in phone_gps_js
+assert "fetch(" not in phone_gps_js  # Phone coordinates stay on-device; they are not uploaded.
 assert "randomDemoPoint" in app_js
 assert '$("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay)' in app_js
 assert "updateWarningControlUI({obstacle_cm:d.obstacle_cm,target:{detected}})" in app_js
