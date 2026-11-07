@@ -58,7 +58,10 @@ async function start(){
   created.controls=false;
   created.setAttribute("aria-label","Temporary phone camera preview");
   created.style.cssText="display:block!important;visibility:visible!important;opacity:1!important;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:7";
-  created.onloadedmetadata=()=>{const scene=$("camera3DScene");if(scene)scene.style.display="none";label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");label("cameraStatus","PHONE CAMERA LIVE");};
+  const showLivePreview=()=>{if(created.readyState<2||!created.videoWidth||!created.videoHeight)return;const scene=$("camera3DScene");if(scene)scene.style.display="none";const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;const badge=document.querySelector("#liveCamera .liveBadge");if(badge){badge.innerHTML="<i></i> LIVE";badge.classList.remove("mvOff");}label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");label("cameraStatus","PHONE CAMERA LIVE");};
+  created.onloadedmetadata=showLivePreview;
+  created.onloadeddata=showLivePreview;
+  created.onplaying=showLivePreview;
   created.onerror=()=>{label("cameraSceneLabel","PHONE CAMERA VIDEO ERROR");};
   created.srcObject=acquired;
   originalSource=old||null;videoNode=created;
