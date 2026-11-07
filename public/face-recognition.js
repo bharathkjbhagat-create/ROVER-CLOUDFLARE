@@ -187,7 +187,14 @@
 
   function findSource() {
     const node = document.getElementById("roverRealCamera");
-    if (node === source) return;
+    // The camera element is often inserted before its first frame arrives.
+    // Its load/loadeddata callback re-enters here with the same node.
+    if (node === source) {
+      if (source && !scanning && sourceReady(source)) {
+        setState("ready", "LIVE CAMERA READY • START WHEN YOU CHOOSE");
+      }
+      return;
+    }
     stop(false);
     source = node || null;
     generation += 1;
