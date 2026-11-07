@@ -218,6 +218,10 @@
 
   async function detectFrame() {
     if (!running || paused) return;
+    if (window.DEFENX_FACE_SCAN_ACTIVE) {
+      scheduleNext(1000);
+      return;
+    }
     if (document.hidden) {
       scheduleNext(1200);
       return;
@@ -234,8 +238,12 @@
       const generation = sourceGeneration;
       const dimensions = sourceSize(activeSource);
       checkReadable(activeSource);
-      const predictions = await model.detect(activeSource, 20, 0.5);
+      const predictions = await model.detect(activeSource, 10, 0.5);
       if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
+      if (window.DEFENX_FACE_SCAN_ACTIVE) {
+        scheduleNext(1000);
+        return;
+      }
       const visible = drawDetections(predictions, dimensions.width, dimensions.height);
       publishCounts(visible);
       setState("active", visible.length
@@ -252,7 +260,7 @@
       }
       return;
     }
-    scheduleNext(500);
+    scheduleNext(850);
   }
 
   async function startDetection() {
