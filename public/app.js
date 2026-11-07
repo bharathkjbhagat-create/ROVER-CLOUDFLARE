@@ -561,9 +561,17 @@ function bearingToDirection(deg){
   const dirs=["N","NE","E","SE","S","SW","W","NW"];
   return dirs[Math.round(((Number(deg)%360)+360)%360/45)%8];
 }
-function addSample(d){samples.push({b:d.battery,s:d.signal});if(samples.length>60)samples.shift();drawChart()}
+let chartRenderQueued=false;
+function scheduleDrawChart(){
+  if(chartRenderQueued)return;
+  chartRenderQueued=true;
+  requestAnimationFrame(()=>{chartRenderQueued=false;drawChart()});
+}
+function addSample(d){samples.push({b:d.battery,s:d.signal});if(samples.length>60)samples.shift();scheduleDrawChart()}
 function drawChart(){
-  const c=$("chart");if(!c)return;const x=c.getContext("2d"),w=c.clientWidth*devicePixelRatio,h=150*devicePixelRatio;c.width=w;c.height=h;x.clearRect(0,0,w,h);if(!samples.length)return;
+  const c=$("chart");if(!c)return;const w=Math.max(1,Math.round(c.clientWidth*devicePixelRatio)),h=Math.max(1,Math.round(150*devicePixelRatio));
+  if(c.width!==w)c.width=w;if(c.height!==h)c.height=h;
+  const x=c.getContext("2d");if(!x)return;x.clearRect(0,0,w,h);if(!samples.length)return;
   x.strokeStyle="#1e3444";x.lineWidth=devicePixelRatio;for(let i=1;i<5;i++){let y=h*i/5;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()}
   const draw=(k,col)=>{x.strokeStyle=col;x.lineWidth=2*devicePixelRatio;x.beginPath();samples.forEach((v,i)=>{const xx=i/Math.max(1,samples.length-1)*w,yy=h-(v[k]/100)*h;i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke()};draw("b","#22d3a6");draw("s","#4aa3ff");
 }
