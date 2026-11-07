@@ -91,10 +91,18 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('window.__defenxSetPhoneCameraActive?.(true)', self.phone_camera)
         self.assertIn('window.__defenxSetPhoneCameraActive?.(false)', self.phone_camera)
         self.assertIn('id="phoneCameraBtn"', self.html)
-        self.assertIn('src="/phone-camera.js?v=20261107-02"', self.html)
+        self.assertIn('src="/phone-camera.js?v=20261107-05"', self.html)
         self.assertIn('href="/phone-camera.css?v=20261107-01"', self.html)
         self.assertIn("if(phoneCameraActive)return;", self.js)
         self.assertIn("!phoneCameraActive", self.js)
+
+    def test_person_detection_only_accepts_configured_live_camera_sources(self):
+        self.assertIn('dataset.defenxLiveStream === "1"', self.ai)
+        self.assertIn('dataset.defenxLiveStream === "1"', self.face)
+        self.assertIn('img.dataset.defenxLiveStream="1"', self.js)
+        self.assertIn('video.dataset.defenxLiveStream="1"', self.js)
+        self.assertNotIn('if (element.tagName === "IMG") {\\n      return element.complete &&', self.ai)
+        self.assertNotIn('if (node.tagName === "IMG") return node.complete', self.face)
 
     def test_camera_record_button_uses_real_video_recorder(self):
         self.assertIn("new MediaRecorder(stream", self.js)
