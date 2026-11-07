@@ -28,7 +28,7 @@ function onPosition(position){
  set("gpsSignalText","PHONE GPS • ±"+Math.round(accuracy)+" m");
  set("mapCoords",lat.toFixed(6)+"° "+(lat>=0?"N":"S")+"  "+lon.toFixed(6)+"° "+(lon>=0?"E":"W"));
  set("mapTileStatus","PHONE GPS FIX • ±"+Math.round(accuracy)+" m");set("deviceGpsState","PHONE • ±"+Math.round(accuracy)+" m");
- render();
+ scheduleRender();
 }
 function onError(error){
  const message=error?.code===1?"Location permission denied":error?.code===2?"Phone location unavailable":"Phone GPS timed out";
