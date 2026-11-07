@@ -11,6 +11,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
 let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,cameraRecorder=null,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",mapModeCurrent="hybrid",followRover=localStorage.getItem("defenx_map_follow")!=="off",roverGpsValid=false,lastRoverPoint=null,mapTileErrorCount=0;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
+let phoneCameraStream=null,phoneCameraActive=false,phoneCameraPreviousElement=null;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
 let notificationSoundEnabled=localStorage.getItem("rover_notification_sound")!=="off";
@@ -489,7 +490,7 @@ function updateUI(input){
   }
   setText("cameraStatus",d.camera===false?"Offline":(String(d.camera_source||"SIMULATION")==="ROVER_DEVICE"?"ROVER CAMERA":"Working"));
   setText("tempText",(d.temp_c??32)+"°C");
-  if(realCameraActive&&d.camera===false){
+  if(realCameraActive&&d.camera===false&&!phoneCameraActive){
     const media=$("roverRealCamera");if(media){media.pause?.();media.src="";}
     if($("camera3DScene"))$("camera3DScene").style.display="";
     realCameraActive=false;
@@ -791,6 +792,89 @@ async function initRealCameraStream(){
     realCameraActive=false;
   }
 }
+
+async function startPhoneCamera(){
+  if(phoneCameraActive)return true;
+  if(!navigator.mediaDevices?.getUserMedia){
+    setText("cameraSceneLabel","PHONE CAMERA UNAVAILABLE • USE HTTPS / SUPPORTED BROWSER");
+    return false;
+  }
+  const button=$("phoneCameraBtn");
+  if(button){button.disabled=true;button.textContent="CONNECTING…";}
+  try{
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},
+      audio:false
+    });
+    const viewport=$("cameraViewport"),scene=$("camera3DScene");
+    if(!viewport)throw new Error("Camera view is unavailable");
+    const current=$("roverRealCamera");
+    phoneCameraPreviousElement=current||null;
+    const video=document.createElement("video");
+    video.id="roverRealCamera";
+    video.autoplay=true;video.muted=true;video.playsInline=true;video.controls=false;
+    video.setAttribute("aria-label","Temporary phone camera preview");
+    video.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:5";
+    if(current)current.replaceWith(video);else viewport.insertBefore(video,viewport.firstChild);
+    video.srcObject=stream;
+    await video.play();
+    phoneCameraStream=stream;
+    phoneCameraActive=true;
+    realCameraActive=true;
+    if(scene)scene.style.display="none";
+    setText("cameraSceneLabel","TEMPORARY PHONE CAMERA • LOCAL PREVIEW");
+    setText("cameraStatus","PHONE CAMERA");
+    if(button){button.disabled=false;button.textContent="STOP PHONE CAMERA";}
+    return true;
+  }catch(error){
+    if(phoneCameraStream)phoneCameraStream.getTracks().forEach(track=>track.stop());
+    phoneCameraStream=null;phoneCameraActive=false;
+    if(button){button.disabled=false;button.textContent="USE PHONE CAMERA";}
+    setText("cameraSceneLabel",error&&error.name==="NotAllowedError"
+      ?"PHONE CAMERA PERMISSION DENIED"
+      :"PHONE CAMERA COULD NOT START");
+    return false;
+  }
+}
+function stopPhoneCamera(){
+  if(phoneCameraStream)phoneCameraStream.getTracks().forEach(track=>track.stop());
+  phoneCameraStream=null;
+  const current=$("roverRealCamera");
+  if(current&&current.tagName==="VIDEO"&&current.srcObject){
+    current.pause();
+    current.srcObject=null;
+    if(phoneCameraPreviousElement&&phoneCameraPreviousElement.isConnected===false){
+      current.replaceWith(phoneCameraPreviousElement);
+    }else{
+      current.remove();
+    }
+  }
+  phoneCameraPreviousElement=null;
+  phoneCameraActive=false;
+  realCameraActive=false;
+  const scene=$("camera3DScene");
+  if(scene)scene.style.display="";
+  setText("cameraSceneLabel","ROVER CAMERA • RECONNECTING");
+  setText("cameraStatus","Checking");
+  const button=$("phoneCameraBtn");
+  if(button){button.disabled=false;button.textContent="USE PHONE CAMERA";}
+  // Rebuild the configured rover stream after the temporary local source ends.
+  realCameraInitialized=false;
+  initRealCameraStream();
+}
+function bindPhoneCameraControl(){
+  const button=$("phoneCameraBtn");
+  if(!button||button.dataset.bound==="1")return;
+  button.dataset.bound="1";
+  button.addEventListener("click",()=>{
+    if(phoneCameraActive)stopPhoneCamera();
+    else startPhoneCamera();
+  });
+}
+bindPhoneCameraControl();
+window.addEventListener("pagehide",()=>{
+  if(phoneCameraStream)phoneCameraStream.getTracks().forEach(track=>track.stop());
+});
 
 // Privacy mode: do not request or publish browser geolocation.
 function randomDemoPoint(){return {lat:12.9716+(Math.random()-0.5)*0.018,lon:77.5946+(Math.random()-0.5)*0.022};}
