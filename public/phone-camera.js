@@ -30,36 +30,53 @@ async function start(){
  if(active||pending)return;
  const viewport=$("cameraViewport");
  if(!viewport){label("cameraSceneLabel","CAMERA VIEW UNAVAILABLE");return;}
- if(!navigator.mediaDevices?.getUserMedia){
-  label("cameraSceneLabel","PHONE CAMERA REQUIRES HTTPS / SUPPORTED BROWSER");
+ if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia){
+  label("cameraSceneLabel","OPEN DEFENX IN CHROME USING HTTPS TO ENABLE CAMERA");
+  label("cameraStatus","Camera unavailable");
   return;
  }
  pending=true;setButton();
  let acquired=null,created=null,old=null;
  try{
-  acquired=await navigator.mediaDevices.getUserMedia({
-   video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}},
-   audio:false
-  });
+  try{
+   acquired=await navigator.mediaDevices.getUserMedia({
+    audio:false,
+    video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
+   });
+  }catch(firstError){
+   if(firstError?.name!=="OverconstrainedError"&&firstError?.name!=="NotFoundError")throw firstError;
+   acquired=await navigator.mediaDevices.getUserMedia({audio:false,video:true});
+  }
   if(!viewport.isConnected)throw new Error("Camera view is no longer available");
   old=$("roverRealCamera");
   created=document.createElement("video");
   created.id="roverRealCamera";
-  created.autoplay=true;created.muted=true;created.playsInline=true;created.controls=false;
+  created.autoplay=true;created.muted=true;created.defaultMuted=true;
+  created.playsInline=true;created.setAttribute("playsinline","");
+  created.setAttribute("webkit-playsinline","");
+  created.controls=false;
   created.setAttribute("aria-label","Temporary phone camera preview");
-  created.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:5";
+  created.style.cssText="display:block!important;visibility:visible!important;opacity:1!important;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:7";
+  created.onloadedmetadata=()=>{const scene=$("camera3DScene");if(scene)scene.style.display="none";label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");label("cameraStatus","PHONE CAMERA LIVE");};
+  created.onerror=()=>{label("cameraSceneLabel","PHONE CAMERA VIDEO ERROR");};
   created.srcObject=acquired;
-  originalSource=old||null;
-  videoNode=created;
-  if(old)old.replaceWith(created);
-  else viewport.insertBefore(created,viewport.firstChild);
+  originalSource=old||null;videoNode=created;
+  if(old)old.replaceWith(created);else viewport.insertBefore(created,viewport.firstChild);
   stream=acquired;active=true;
-  window.__defenxSetPhoneCameraActive?.(true);
-  await created.play();
   const scene=$("camera3DScene");if(scene)scene.style.display="none";
-  label("cameraSceneLabel","TEMPORARY PHONE CAMERA • LOCAL PREVIEW");
-  label("cameraStatus","PHONE CAMERA");
+  window.__defenxSetPhoneCameraActive?.(true);
   setButton();
+  try{await created.play();}catch(playError){
+   // Some mobile browsers reject the play promise even though the granted stream is attached.
+   if(playError?.name!=="NotAllowedError"&&playError?.name!=="AbortError")throw playError;
+  }
+  if(created.readyState>=2){
+   label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");
+   label("cameraStatus","PHONE CAMERA LIVE");
+  }else{
+   label("cameraSceneLabel","CAMERA CONNECTED • WAITING FOR VIDEO");
+   label("cameraStatus","Starting camera");
+  }
  }catch(error){
   stopTracks(acquired);
   if(created?.isConnected){
@@ -68,9 +85,11 @@ async function start(){
   }
   stream=null;active=false;videoNode=null;originalSource=null;
   window.__defenxSetPhoneCameraActive?.(false);
-  const message=error?.name==="NotAllowedError"?"PHONE CAMERA PERMISSION DENIED":
+  const message=error?.name==="NotAllowedError"?"ALLOW CAMERA PERMISSION IN CHROME":
    error?.name==="NotFoundError"?"NO PHONE CAMERA FOUND":
-   error?.name==="NotReadableError"?"PHONE CAMERA IS BUSY":"PHONE CAMERA COULD NOT START";
+   error?.name==="NotReadableError"?"PHONE CAMERA IS BUSY — CLOSE OTHER CAMERA APPS":
+   error?.name==="SecurityError"?"OPEN DEFENX USING HTTPS":
+   "PHONE CAMERA COULD NOT START — RELOAD AND TRY AGAIN";
   label("cameraSceneLabel",message);
   label("cameraStatus","Unavailable");
  }finally{
