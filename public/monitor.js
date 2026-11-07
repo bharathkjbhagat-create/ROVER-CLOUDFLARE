@@ -8,7 +8,7 @@
   if (window.__defenxMonitor) return;
   window.__defenxMonitor = true;
 
-  var demo = location.pathname === "/" || location.pathname === "/demo" ||
+  var demo = location.pathname === "/demo" ||
     new URLSearchParams(location.search).get("demo") === "1";
   var $ = function (id) { return document.getElementById(id); };
 
@@ -73,7 +73,9 @@
   /* ---------- camera ---------- */
   function camEl() {
     var e = $("roverRealCamera");
-    return (e && e.getAttribute("src")) ? e : null;
+    if (!e) return null;
+    if (e.tagName === "VIDEO") return (e.srcObject || e.currentSrc || e.getAttribute("src")) ? e : null;
+    return (e.getAttribute("src") || e.currentSrc) ? e : null;
   }
   function setCam(s) { st.cam.state = s; }
   function camFail() {
@@ -96,7 +98,7 @@
       el.removeAttribute("src");
       setTimeout(function () { el.setAttribute("src", u); }, 60);
     } else if (tag === "VIDEO") {
-      try { el.load(); var p = el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
+      try { if (!el.srcObject) el.load(); var p = el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {}
     } else if (tag === "IFRAME") {
       el.setAttribute("src", el.getAttribute("src"));
     }
@@ -134,6 +136,11 @@
   // Effective camera state, derived only from real signals.
   function camView() {
     var t = st.tel;
+    var activeEl = camEl();
+    if (activeEl && activeEl.tagName === "VIDEO" && activeEl.srcObject) {
+      if (activeEl.readyState >= 2 && activeEl.videoWidth > 0) return { k: "live", label: "PHONE LIVE", ok: true };
+      return { k: "connecting", label: "PHONE CAMERA", msg: "Phone camera connected — waiting for video frames…", bad: true };
+    }
     if (demo) return { k: "demo", label: "DEMO", msg: "Demo mode — no live camera", bad: true };
     if (!st.cfg) return { k: "checking", label: "CHECKING", msg: "Checking camera configuration…", bad: true };
     if (!st.cfg.enabled) return { k: "none", label: "NO FEED", msg: "No camera stream is configured", bad: true };
