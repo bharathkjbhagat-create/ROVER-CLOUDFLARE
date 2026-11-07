@@ -1589,3 +1589,6 @@ body.light .deviceTag{color:#0a6f58}
 #cameraViewport:fullscreen #roverRealCamera,#cameraViewport.camera-fullscreen #roverRealCamera{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:contain!important;z-index:7!important;}
 #cameraViewport:fullscreen:before,#cameraViewport:fullscreen:after,#cameraViewport.camera-fullscreen:before,#cameraViewport.camera-fullscreen:after{display:none!important;}
 #cameraViewport:fullscreen .cameraOverlayTop,#cameraViewport:fullscreen .cameraOverlayBottom,#cameraViewport:fullscreen .cameraSceneLabel{z-index:10!important;}
+
+/* Keep an authenticated live camera visible in the regular dashboard viewport as well as the full-screen monitor. */
+#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;inset:0!important;z-index:7!important;}
