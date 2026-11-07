@@ -29,7 +29,7 @@ footer{padding:4px 14px 16px;text-align:center;color:var(--muted);font-size:9px}
   body{padding-bottom:max(0px,env(safe-area-inset-bottom))}
 }
 
-/* Fast/mobile header refinement */
+
 .topbar-left{display:flex;align-items:center;gap:10px;min-width:0}
 .profileTop{min-height:36px;padding:7px 10px;font-size:9px;white-space:nowrap}
 .topbar{contain:layout paint}
@@ -52,7 +52,7 @@ footer{padding:4px 14px 16px;text-align:center;color:var(--muted);font-size:9px}
 @media(max-width:1000px){.mapcard #map{height:390px;min-height:390px}}
 @media(max-width:650px){.mapcard #map{height:60vw;min-height:300px;max-height:430px}}
 
-/* ROVER-01 reliability and UI fixes */
+
 body.light{--bg:#eef3f6;--card:#ffffff;--line:#cfdae1;--text:#172630;--muted:#5e7480;background:linear-gradient(180deg,#f5f8fa,#e9f0f4);color:var(--text)}
 body.light .topbar,body.light .card,body.light .modalbox{background:#fff;color:var(--text);box-shadow:0 5px 16px rgba(20,40,55,.08)}
 body.light button{background:#edf4f7;color:#172630;border-color:#c6d4dc}
@@ -63,12 +63,12 @@ body.light .mapfallback{background:repeating-linear-gradient(0deg,#e7eef2 0,#e7e
 @media(max-width:1000px){.mapcard{min-height:0}.mapcard #map{height:450px;min-height:450px}}
 @media(max-width:650px){.mapcard #map{height:60vw;min-height:300px;max-height:430px}}
 
-/* 2026 ROVER command-centre upgrade */
+
 .devicecard{position:relative}.devicephoto{margin:10px;border-radius:12px;overflow:hidden;border:1px solid #294354;background:#071018;position:relative;box-shadow:inset 0 0 30px #0008}.devicephoto img{display:block;width:100%;height:210px;object-fit:cover}.devicephotoTag{position:absolute;left:10px;bottom:10px;padding:6px 9px;border:1px solid #2cd3aa88;border-radius:999px;background:#041019cc;color:#92ffe8;font-size:9px;font-weight:900;letter-spacing:.5px}.devicechips{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:0 10px 10px}.devicechips span{padding:8px 9px;border:1px solid var(--line);border-radius:8px;background:#091520;color:var(--muted);font-size:8px;font-weight:800}.devicechips b{float:right;color:var(--accent)}.safetycard .cardhead span{color:var(--accent)}.missiongrid{display:grid;grid-template-columns:1fr 1fr}.missiongrid>div{padding:10px;border-bottom:1px solid var(--line)}.missiongrid strong{font-size:14px;color:var(--text)}.emergency{width:calc(100% - 20px);margin:10px;border-color:#7c2634;background:linear-gradient(180deg,#451b24,#2b1119);color:#ffabb1;min-height:43px;font-size:11px;letter-spacing:.3px;box-shadow:0 0 0 1px #ff5b6520 inset}.emergency:hover:not(:disabled){border-color:#ff5b65;box-shadow:0 0 18px #ff5b6533}.safetycard{border-color:#375361}.devicecard .cardhead span{color:var(--accent)}
 body.light .devicephoto{background:#edf4f7}.devicephotoTag{backdrop-filter:blur(4px)}
 @media(max-width:650px){.devicephoto img{height:230px}.devicechips{grid-template-columns:1fr 1fr}.missiongrid strong{font-size:13px}}
 
-/* Advanced ROVER visual identity */
+
 body{background:#04090f;overflow-x:hidden;background-image:radial-gradient(circle at 15% 10%,#0e3440aa 0,transparent 30%),radial-gradient(circle at 85% 15%,#0a2740aa 0,transparent 28%),linear-gradient(#071018,#03070c 70%)}
 body:before,body:after{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1}body:before{background:linear-gradient(90deg,transparent 0,rgba(34,211,166,.035) 50%,transparent 100%);animation:ambient 10s ease-in-out infinite alternate}@keyframes ambient{from{transform:translateX(-5%)}to{transform:translateX(5%)}}
 .roverHero{grid-column:1/-1;position:relative;min-height:132px;border:1px solid #1c4654;border-radius:16px;overflow:hidden;background:linear-gradient(135deg,#07131d 0%,#0a202b 48%,#07131b 100%);box-shadow:0 0 40px #061117 inset,0 10px 30px #0007}.heroGrid{position:absolute;inset:0;opacity:.35;background-image:linear-gradient(#3b687522 1px,transparent 1px),linear-gradient(90deg,#3b687522 1px,transparent 1px);background-size:28px 28px;transform:perspective(240px) rotateX(58deg) scale(1.3) translateY(35px)}.heroText{position:absolute;left:26px;top:22px;z-index:2}.heroKicker{font-size:9px;font-weight:900;letter-spacing:3px;color:#6e97a5}.heroText h1{margin:6px 0 0;font-size:44px;line-height:1;font-weight:1000;letter-spacing:8px;color:#ecfbff;text-shadow:0 0 22px #22d3a644}.heroText h1 span{color:var(--accent)}.heroText p{margin:8px 0 0;color:#7f9aaa;font-size:10px;font-weight:900;letter-spacing:2px}.heroRings{position:absolute;right:44px;top:18px;width:115px;height:115px;border:1px solid #27d8b255;border-radius:50%;box-shadow:0 0 22px #22d3a622 inset,0 0 22px #22d3a622}.heroRings:before,.heroRings:after{content:"";position:absolute;inset:17px;border:1px solid #27d8b244;border-radius:50%}.heroRings:after{inset:36px;border-color:#27d8b266}.heroRings i{position:absolute;left:50%;top:50%;width:5px;height:5px;background:var(--accent);border-radius:50%;box-shadow:0 0 14px var(--accent);transform-origin:0 0}.heroRings i:nth-child(1){animation:sweep 3.4s linear infinite}.heroRings i:nth-child(2){animation:sweep 3.4s linear infinite 1.1s}.heroRings i:nth-child(3){animation:sweep 3.4s linear infinite 2.2s}@keyframes sweep{from{transform:rotate(0deg) translateX(0)}to{transform:rotate(360deg) translateX(0)}}.heroPulse{position:absolute;right:92px;top:69px;width:7px;height:7px;border-radius:50%;background:#fff;box-shadow:0 0 18px #fff,0 0 35px var(--accent);animation:pulseDot 1.5s ease-in-out infinite}@keyframes pulseDot{50%{transform:scale(1.8);opacity:.45}}
@@ -76,7 +76,7 @@ body:before,body:after{content:"";position:fixed;inset:0;pointer-events:none;z-i
 @media(max-width:650px){.roverHero{min-height:118px}.heroText{left:15px;top:18px}.heroText h1{font-size:31px;letter-spacing:4px}.heroText p{font-size:8px;letter-spacing:1.2px}.heroRings{right:12px;top:14px;width:90px;height:90px}.heroRings:before{inset:14px}.heroRings:after{inset:29px}.heroPulse{right:54px;top:56px}}
 body.light .roverHero{background:linear-gradient(135deg,#d8eef0,#f7fbfc 55%,#dceef3);border-color:#b8d4dc}.heroText h1{color:#ecfbff}body.light .heroText h1{color:#19323c;text-shadow:none}
 
-/* ROVER-01 ULTIMATE HUD LAYER — 2026-10-05 */
+
 .roverHero{min-height:168px!important;background:
  radial-gradient(circle at 78% 50%,rgba(34,211,166,.14),transparent 22%),
  radial-gradient(circle at 15% 20%,rgba(48,140,255,.14),transparent 28%),
@@ -123,10 +123,7 @@ body.light .heroMeta b,.light .heroMeta b{background:rgba(255,255,255,.64);color
 
 
 
-/* =====================================================================
-   ROVER COMMAND CENTRE — REFERENCE UI IMPLEMENTATION
-   Dense navy/black HUD, cyan-blue controls, emerald live states.
-   ===================================================================== */
+
 :root{
   --rc-bg:#02070d;
   --rc-bg2:#07131e;
@@ -249,7 +246,7 @@ body.light:after{opacity:.16}body.light .topbar,body.light .sidebar{background:r
 .mapArea #map{z-index:1}
 .mapArea #map .leaflet-container{z-index:1}
 
-/* ROVER map expansion: eliminate the visual dead zone beneath the map. */
+
 @media (min-width: 1201px){
   .dashboardGrid{align-items:stretch}
   .mapCard{height:850px;min-height:850px}
@@ -266,7 +263,7 @@ body.light:after{opacity:.16}body.light .topbar,body.light .sidebar{background:r
 .deviceView img,.sidePromo img{object-fit:contain!important;width:100%;height:100%;display:block;filter:drop-shadow(0 8px 18px rgba(0,0,0,.45))}
 
 
-/* FINAL UI STABILITY PASS — keep the reference theme, remove layout jitter/clipping */
+
 @media (min-width:1201px){
   .mapCard{height:auto!important;min-height:850px!important;display:flex!important;flex-direction:column!important}
   .mapCard .cardHeader{flex:0 0 44px!important}
@@ -293,7 +290,7 @@ html{scroll-behavior:smooth;scroll-padding-top:76px}
 @media(max-width:650px){html{scroll-padding-top:128px}.card:hover{transform:none!important}}
 
 
-/* FINAL MAP/LAYOUT SAFETY OVERRIDES */
+
 .mapCard{min-width:0!important}
 .mapCard .mapArea{position:relative!important;overflow:hidden!important}
 .mapCard .mapReadout{position:relative!important;z-index:3!important;overflow:visible!important}
@@ -312,7 +309,7 @@ html{scroll-behavior:smooth;scroll-padding-top:76px}
   .mapCard .mapReadout>div{min-height:52px!important}
 }
 
-/* MOBILE LAYOUT STABILITY — 2026-10-06 */
+
 html,body{max-width:100%;overflow-x:hidden}
 .grid,.card,.side,.topbar,.topbar-left,.topstats,.roverHero,.heroText,.heroMeta,.quickCard,.safetyStrip{min-width:0}
 img,canvas,video,iframe{max-width:100%}
@@ -395,12 +392,12 @@ img,canvas,video,iframe{max-width:100%}
   .drivegrid button{width:54px;height:48px}
 }
 
-/* DYNAMIC ROVER COMPASS — 2026-10-06 */
+
 .mapCompass{transform:none!important}
 .mapCompass #compassNeedle{position:absolute;left:50%;top:50%;width:0;height:0;margin:0;transform-origin:50% 50%;transition:transform .35s ease;color:#ff5766;font-size:22px;line-height:1;text-shadow:0 0 9px rgba(255,87,102,.65);z-index:3}
 .roverMapMarker{transition:transform .35s ease;transform-origin:50% 50%}
 
-/* COMPASS CARDINAL LABEL FIX — 2026-10-06 */
+
 .mapCompass .compassN,.mapCompass .compassE,.mapCompass .compassS,.mapCompass .compassW{
   position:absolute!important;
   margin:0!important;
@@ -419,7 +416,7 @@ img,canvas,video,iframe{max-width:100%}
 .mapCompass #compassNeedle{z-index:3}
 
 
-/* MOBILE HAMBURGER NAV + COMPASS SPACING — 2026-10-06 */
+
 .mobileMenuBtn,.mobileNavPanel{display:none}
 .mapCompass{width:78px!important;height:78px!important;overflow:hidden!important}
 .mapCompass .compassN{top:5px!important;bottom:auto!important}
@@ -451,7 +448,7 @@ img,canvas,video,iframe{max-width:100%}
 }
 
 
-/* FINAL MOBILE MENU + COMPASS HARDENING — 2026-10-06 */
+
 @media(max-width:650px){
   .brandCluster{min-width:0;flex:1 1 auto;align-items:flex-start}
   .brandWords{min-width:0}
@@ -467,7 +464,7 @@ img,canvas,video,iframe{max-width:100%}
 }
 
 
-/* LIVE CAMERA VISUAL UPGRADE — 2026-10-06 */
+
 .cameraCard{min-width:0!important}
 .cameraViewport{
   position:relative!important;
@@ -554,10 +551,9 @@ img,canvas,video,iframe{max-width:100%}
 }
 
 
-/* MOBILE CAMERA + DEVICE REDESIGN — 2026-10-06
-   Mobile-only. Desktop layout/theme remains unchanged. */
+
 @media(max-width:650px){
-  /* Live camera: cleaner surveillance-feed presentation */
+  
   .cameraCard{
     border-color:#23566a!important;
     background:linear-gradient(180deg,#081720,#061119)!important;
@@ -683,7 +679,7 @@ img,canvas,video,iframe{max-width:100%}
     color:#7795a1!important;
   }
 
-  /* My Device: make the actual rover photo the focus and eliminate the giant empty area */
+  
   .deviceCard{
     border-color:#23566a!important;
     background:linear-gradient(180deg,#081720,#061119)!important;
@@ -793,12 +789,12 @@ img,canvas,video,iframe{max-width:100%}
 }
 
 
-/* MOBILE FINAL PASS — match current dashboard markup, 2026-10-06 */
+
 @media(max-width:650px){
   html,body{width:100%;max-width:100%;overflow-x:hidden}
   body{font-size:13px}
 
-  /* Compact mobile command header */
+  
   .topbar{
     width:100%;min-height:56px;height:auto!important;padding:7px 9px!important;
     display:flex!important;align-items:center!important;justify-content:flex-start!important;
@@ -822,7 +818,7 @@ img,canvas,video,iframe{max-width:100%}
   .mobileMenuBtn span{width:18px!important;height:2px!important;flex:0 0 2px!important}
   .topStatus,.topActions{display:none!important}
 
-  /* Mobile navigation */
+  
   .mobileNavPanel{
     position:fixed!important;top:58px!important;left:7px!important;right:7px!important;
     z-index:2000!important;max-height:calc(100dvh - 68px)!important;overflow:auto!important;
@@ -841,7 +837,7 @@ img,canvas,video,iframe{max-width:100%}
     background:#24131a!important;
   }
 
-  /* Main dashboard: actual current class names */
+  
   .appShell{display:block!important;width:100%!important;max-width:100%!important}
   .sidebar{display:none!important}
   .dashboard{width:100%!important;max-width:100%!important;min-width:0!important;padding:0 7px 12px!important}
@@ -862,7 +858,7 @@ img,canvas,video,iframe{max-width:100%}
   .cardHeader{min-width:0!important;min-height:40px!important;padding:9px 10px!important;gap:6px!important}
   .cardHeader>div{min-width:0!important}
 
-  /* Map */
+  
   .mapArea{height:72vw!important;min-height:285px!important;max-height:390px!important;width:100%!important}
   .mapCard #map{width:100%!important;height:100%!important;min-height:0!important;max-height:none!important}
   .mapReadout{
@@ -878,14 +874,14 @@ img,canvas,video,iframe{max-width:100%}
   .mapCoordsHud b{font-size:7px!important;white-space:nowrap!important}
   .mapToolRail{right:8px!important;bottom:58px!important}
 
-  /* Camera */
+  
   .cameraViewport{width:calc(100% - 16px)!important;height:56vw!important;min-height:220px!important;max-height:300px!important;margin:8px!important}
   .camTargetBox{left:56%!important;top:36%!important;width:62px!important;height:84px!important}
   .cameraFooter{min-height:48px!important;height:auto!important;padding:7px 8px!important}
   .cameraFooter button{width:36px!important;height:34px!important;flex:0 0 36px!important}
   .cameraFooter span{font-size:6px!important;max-width:145px!important}
 
-  /* Device + control */
+  
   .deviceView{height:190px!important;margin:8px!important}
   .deviceMetrics{grid-template-columns:1.2fr .8fr .9fr!important}
   .deviceMetrics>div{min-width:0!important;padding:8px!important}
@@ -898,21 +894,21 @@ img,canvas,video,iframe{max-width:100%}
   .modeRow{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:5px!important;padding:0 8px 8px!important}
   .modeRow button{min-width:0!important;padding:8px 4px!important;font-size:8px!important}
 
-  /* Tracking cards */
+  
   .statusBlocks{grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .targetBody{grid-template-columns:48px minmax(0,1fr)!important}
   .targetData{grid-template-columns:1fr 1fr!important}
   .recentList{max-height:230px!important}
   .adminLogTable{width:100%!important;overflow-x:auto!important}
 
-  /* Quick actions + safety */
+  
   .quickGrid{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:6px!important;padding:8px!important}
   .quickGrid button{min-width:0!important;min-height:52px!important}
   .safetyStrip{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:0!important}
   .safetyStrip>div{min-width:0!important;padding:9px!important}
   .safetyStrip b{font-size:8px!important}.safetyStrip small{font-size:6px!important}
 
-  /* Modals and forms */
+  
   .modal{padding:6px!important}
   .modalbox,.modalbox.wide{width:100%!important;max-width:100%!important;max-height:94dvh!important;padding:11px!important}
   .adminTabs{overflow-x:auto!important;flex-wrap:nowrap!important}
@@ -937,11 +933,11 @@ img,canvas,video,iframe{max-width:100%}
 }
 
 
-/* Hide account-role roster text from dashboard */
+
 #onlineUsersSub{display:none!important}
 
 
-/* DEFENX brand identity */
+
 
 
 
@@ -949,11 +945,11 @@ img,canvas,video,iframe{max-width:100%}
 @media(max-width:650px){.brandName.defenxBrandName{font-size:21px;letter-spacing:2px}.brandSub{font-size:8px;letter-spacing:.8px}}
 
 
-/* Exact uploaded DEFENX logo */
 
 
 
-/* TEMPORARY 360° CAMERA ROOM — isolated to LIVE CAMERA VIEW */
+
+
 .camera3DScene{
   position:absolute;inset:0;overflow:hidden;z-index:2;perspective:820px;
   background:radial-gradient(circle at 50% 42%,#173a47 0%,#091720 58%,#03080d 100%);
@@ -1023,10 +1019,7 @@ img,canvas,video,iframe{max-width:100%}
   .camera360Controls{max-width:calc(100% - 10px);overflow:auto}.camera360Hint{display:none}.camera360Controls button{flex:0 0 auto}
 }
 
-/* === AUDIT-ONLY USABILITY PASS — 11 REQUESTED FINDINGS ===
-   Visual/layout normalization only. Existing controls, map, camera, tracking,
-   authentication and data behaviour are intentionally left unchanged.
-*/
+
 :root{
   --ui-font:Inter,"Segoe UI",Roboto,Arial,sans-serif;
   --ui-text:#e8f2f8;
@@ -1055,7 +1048,7 @@ body button,body input,body select,body textarea{font-family:var(--ui-font)!impo
 }
 .profileWords b{font-size:12px!important}.profileWords small{font-size:11px!important}.brandSub{font-size:10px!important}
 
-/* Reduce visible text colour variety while preserving status/state colours. */
+
 .dashboard :where(.cardHeader b,.mapReadout b,.deviceMetrics b,.targetData b,.statusBlocks b,.quickGrid b,.missionBar h1),
 .sidebar :where(.sideTitle,.navItem),
 .topbar :where(.profileWords b,.statusBlock b),footer{color:var(--ui-text)!important}
@@ -1063,7 +1056,7 @@ body button,body input,body select,body textarea{font-family:var(--ui-font)!impo
 .sidebar :where(.brandSub,.sidePromo span),
 .topbar :where(.statusBlock small,.profileWords small),footer{color:var(--ui-muted)!important}
 
-/* Shared geometry / type scale for interactive controls. */
+
 button{border-radius:var(--ui-radius)!important;font-size:13px;line-height:1.1}
 .mapTabs .mapTab,.modeBtn,.modeOpen,.quickGrid button,.control{
   border-radius:var(--ui-radius-sm)!important;font-size:12px!important;
@@ -1074,7 +1067,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 }
 .targetPill,.greenPill,.commandChip,.onlineLabel,.liveBadge{border-radius:999px!important}
 
-/* Compact Quick Actions: same IDs/actions, less vertical and horizontal bulk. */
+
 .quickGrid{grid-template-columns:repeat(6,minmax(0,1fr))!important;gap:8px!important;padding:10px!important}
 .quickGrid button{
   width:auto!important;min-width:0!important;min-height:50px!important;
@@ -1089,7 +1082,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .quickGrid button span{font-size:15px!important}.quickGrid button b{font-size:11px!important}
 }
 
-/* Critical status/target data: larger values and more breathing room. */
+
 .statusBlocks{gap:1px!important}.statusBlocks>div{padding:12px!important}
 .statusBlocks small{display:block;line-height:1.25!important}
 .statusBlocks b{display:block;margin-top:3px!important}
@@ -1097,7 +1090,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 .targetData span{display:block;line-height:1.25!important}
 .targetData b{display:block;margin-top:3px!important}.deviceMetrics>div{line-height:1.25!important}
 
-/* Neutral Logout styling; directional controls become muted except Stop. */
+
 .topLogout,.sideLogout{
   color:#b8ccd5!important;border-color:#284555!important;background:#0b1a24!important;box-shadow:none!important;
 }
@@ -1109,7 +1102,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 .control:hover:not(:disabled){border-color:#4b7181!important;color:#f2fbff!important}
 .control.stop{background:#321820!important;border-color:#87404b!important;color:#ffb0b5!important}
 
-/* Direction-pad layout: physical-style arrow arrangement. */
+
 .drivePad{
   grid-template-columns:repeat(3,minmax(0,1fr))!important;
   grid-template-areas:
@@ -1186,7 +1179,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   transform:translateY(1px) scale(.98)!important;
 }
 
-/* Prototype photo: stable 16:9 framing, full device visible, no crop. */
+
 .deviceView{
   aspect-ratio:16 / 9!important;height:auto!important;min-height:0!important;max-height:none!important;
   display:grid!important;place-items:center!important;
@@ -1202,7 +1195,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .statusBlocks small,.targetData span,.deviceMetrics span{font-size:11px!important}
 }
 
-/* Restore previous Logout appearance — explicitly excluded from usability styling. */
+
 .topLogout{
   width:44px!important;
   color:#ff8e97!important;
@@ -1230,7 +1223,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 }
 .sideLogout:hover:not(:disabled){filter:brightness(1.16)!important}
 
-/* MAP GAP FIX — keep map and map readout flush with no unused strip */
+
 .mapCard .mapArea{
   margin:0!important;
   padding:0!important;
@@ -1257,10 +1250,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   flex-shrink:0!important;
 }
 
-/* FINAL MAP SIZE / SPACE FIX
-   Desktop: the map card stretches to the full height of the right-side stack.
-   The map itself flexes into all remaining vertical space between header/readout.
-*/
+
 @media (min-width:901px){
   .dashboardGrid{
     align-items:stretch!important;
@@ -1303,7 +1293,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   }
 }
 
-/* RIGHT-SIDE ROVER PHOTO — use the actual 4:3 rover photograph, fully visible */
+
 .deviceView{
   aspect-ratio:4 / 3!important;
   height:auto!important;
@@ -1334,7 +1324,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 }
 
 
-/* FINAL ROVER PHOTO FIT — 5:4 source image fills the device frame cleanly */
+
 .deviceView{
   aspect-ratio:5 / 4!important;
   height:auto!important;
@@ -1358,7 +1348,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 @media(max-width:650px){.deviceView{aspect-ratio:5 / 4!important;}}
 
 
-/* Persistent device-loss activity */
+
 .lastKnownRecent{border:1px solid rgba(255,76,92,.62)!important;background:linear-gradient(145deg,rgba(57,11,18,.82),rgba(15,18,25,.96))!important;box-shadow:inset 0 0 0 1px rgba(255,255,255,.018),0 8px 18px rgba(0,0,0,.14);align-items:center}
 .lastKnownRecent .lastKnownIcon{color:#ff7b87!important;border-color:rgba(255,76,92,.45)!important;background:rgba(70,11,20,.7)!important}
 .lastKnownRecent>div:nth-child(2){min-width:0}
@@ -1373,14 +1363,14 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
 
 .returnBaseControls{margin-top:12px;padding:12px;border:1px solid rgba(73,169,255,.28);border-radius:12px;background:rgba(7,23,38,.62);display:grid;gap:8px}.returnBaseStatus{font-size:10px;letter-spacing:.08em;font-weight:900;color:#9edbff;overflow-wrap:anywhere}.returnBaseActions{display:grid;grid-template-columns:1fr 1fr;gap:8px}.returnBaseActions button{min-height:40px;border-radius:8px;font-size:10px;font-weight:900;cursor:pointer}.selectBaseBtn{background:#102b42;color:#c7edff;border:1px solid #277cb1}.returnBaseBtn{background:#12382f;color:#b5ffe3;border:1px solid #1c9b78}.returnBaseControls small{font-size:10px;line-height:1.45;color:#a9bac7}.returnBaseMarker{width:30px;height:30px;display:grid;place-items:center;border:2px solid #70f3c5;border-radius:50%;background:#07372d;color:#b7ffe5;font-size:20px;box-shadow:0 0 0 5px rgba(66,236,179,.14),0 0 18px rgba(66,236,179,.5)}.returnBaseLabel>span{display:block;margin-top:-3px;color:#a4ffdf;font-size:8px;font-weight:900;text-align:center;text-shadow:0 0 5px #000}.leaflet-tooltip.returnBaseTooltip{background:#07372d!important;color:#b7ffe5!important;border:1px solid #36dba8!important;font-size:9px!important;font-weight:900!important}.leaflet-tooltip.returnBaseTooltip:before{display:none}@media(max-width:520px){.returnBaseActions{grid-template-columns:1fr}}
 
-/* Software-only Return to Base route preview controls */
+
 .routePreviewBtn{background:#102a39;border:1px solid #2b6074;color:#c8f3ff;border-radius:8px;padding:8px 10px;font-size:11px;font-weight:800;letter-spacing:.02em}.routePreviewBtn:hover{border-color:#22d3a6}
 
 @media (min-width:901px){
-  /* Alarm popup: bottom-right so it never hides the header, clock or camera */
+  
   #targetAlarmPopup{top:auto!important;bottom:20px!important;right:20px!important;width:min(380px,calc(100vw - 40px))!important}
 
-  /* Sidebar: nothing gets squashed; promo image hides on short screens */
+  
   .sidebar{overflow-y:auto;overscroll-behavior:contain;gap:10px}
   .sidebar>*{flex:none}
   .sideLogout{margin-top:auto;height:44px;font-size:13px}
@@ -1388,7 +1378,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .sideTitle{font-size:11px!important}
   @media (max-height:860px){.sidePromo{display:none}}
 
-  /* Readable type (many labels were 7-9px) */
+  
   .missionBar h1{font-size:28px!important}
   .missionBar .eyebrow{font-size:11px!important;letter-spacing:1.4px}
   .missionLive b{font-size:12px}.missionLive small{font-size:12px}
@@ -1419,22 +1409,22 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   footer{font-size:11px!important;gap:10px}
   footer .footerRight{margin-left:auto}
 
-  /* Target marker on the map must not sit on top of the compass */
+  
   .mapTargetHud{right:106px;top:14px}
   .mapCoordsHud,.mapPathLabel,.mapToolRail,.mapCompass{line-height:1.3}
   .mapCoordsHud b{margin-top:3px}
 
-  /* Camera: controls sit above the bottom labels instead of covering them */
+  
   .camera360Controls{left:8px;right:8px;bottom:34px;width:auto;transform:none;justify-content:center;flex-wrap:wrap;white-space:normal;gap:4px}
   .camera360Controls button{height:26px;padding:0 6px;font-size:10px!important}
   .camera360Hint{display:none}.camera360Controls b{font-size:11px;min-width:34px}
   .cameraSceneLabel{font-size:9px}
-  /* Whole 3D room visible instead of cropped (scaled to the viewport width) */
+  
   .cameraViewport{--room-zoom:.6}
   .camera3DRoom{zoom:var(--room-zoom)}
   .camera3DScene{perspective:calc(820px * var(--room-zoom))}
 
-  /* Control panel: drive pad left, modes + return-to-base right */
+  
   .controlCard{display:grid;grid-template-columns:minmax(250px,330px) minmax(0,1fr);grid-template-areas:"head head" "pad mode" "pad base" "note note";align-content:start}
   .controlCard>.cardHeader{grid-area:head}
   .controlCard>.drivePad{grid-area:pad;align-self:start}
@@ -1442,7 +1432,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .controlCard>.returnBaseControls{grid-area:base;margin:12px 14px 12px 0;align-self:start}
   .controlCard>.permissionNotice{grid-area:note;margin:0 14px 14px}
 
-  /* Device card fills its row; photo stays fully visible */
+  
   .deviceCard{display:flex;flex-direction:column}
   .deviceCard>.cardHeader,.deviceCard>.deviceMetrics,.deviceCard>.deviceChips{flex:none}
   .deviceCard .deviceView{position:relative;flex:1 1 0;aspect-ratio:auto!important;height:auto!important;min-height:250px}
@@ -1450,7 +1440,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .deviceChips{flex-wrap:wrap}
   .deviceChips span{flex:1 1 auto;gap:8px;white-space:nowrap}
 
-  /* Bottom strip: quick actions + system status */
+  
   .bottomGrid{display:grid;grid-template-columns:minmax(0,1fr);gap:14px;margin-top:14px;align-items:stretch}
   .bottomGrid>.card{margin-top:0}
   .quickCard{display:flex;flex-direction:column}
@@ -1467,7 +1457,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .warnBtn{font-size:11px;padding:7px 10px}
 }
 
-/* ---- Laptops and desktops: 1100px and wider ---- */
+
 @media (min-width:1100px){
   .appShell{grid-template-columns:clamp(200px,14vw,236px) minmax(0,1fr)}
   .dashboard{width:100%;max-width:1900px;margin-inline:auto;padding:18px clamp(16px,1.8vw,32px) 28px}
@@ -1481,7 +1471,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .dashboardGrid .controlCard{grid-area:control}
   .dashboardGrid .deviceCard{grid-area:device}
 
-  /* Lower cards: 3 across, event log full width; 4 across on big screens */
+  
   .lowerGrid{grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:14px}
   .lowerGrid>.adminLogCard{grid-column:1/-1}
   .adminLogTable{height:190px}
@@ -1511,7 +1501,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .adminLogTable{height:200px}
 }
 
-/* ---- Small laptops / tablets in landscape: 901-1099px ---- */
+
 @media (min-width:901px) and (max-width:1099px){
   .appShell{grid-template-columns:76px minmax(0,1fr)}
   .sidebar{padding:12px 8px;align-items:stretch}
@@ -1561,7 +1551,7 @@ input,select,textarea{border-radius:var(--ui-radius-sm)!important}
   .controlCard>.modeRow{padding:4px 14px 0}
   .controlCard>.returnBaseControls{margin:12px 14px}
 }
-/* Light theme: text colour variables were never overridden (white text on white) */
+
 body.light{--ui-text:#16313e;--ui-muted:#4d6773}
 body.light .topbar :where(.statusBlock b,.profileWords b),body.light .sidebar .navItem.active{color:inherit}
 body.light .sidebar .navItem.active,body.light .sidebar .navItem.active span{color:#fff!important}
@@ -1578,7 +1568,7 @@ body.light .recentItem span{color:#23404d}
 body.light .safetyStrip>div{border-color:#c9d7df}
 body.light .deviceTag{color:#0a6f58}
 
-/* DEFENX live human and vehicle detection overlay */
+
 
 .aiVisionCanvas{position:absolute;inset:0;z-index:7;width:100%;height:100%;pointer-events:none}
 .aiVisionBar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:9px 10px 8px;border-top:1px solid #193a4d;background:#07131d}
@@ -1594,7 +1584,7 @@ body.light .deviceTag{color:#0a6f58}
 @media(max-width:480px){.aiVisionBar{grid-template-columns:minmax(0,1fr) auto;gap:8px}.aiVisionCounts{grid-column:1;grid-row:2}.aiVisionBar button{grid-column:2;grid-row:1/3}.aiVisionNote{grid-column:1/-1}}
 
 
-/* CAMERA FEED: true edge-to-edge fullscreen on desktop and mobile */
+
 #cameraViewport:fullscreen,#cameraViewport.camera-fullscreen{position:fixed!important;inset:0!important;z-index:99999!important;width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;min-height:100vh!important;margin:0!important;border:0!important;border-radius:0!important;background:#02070b!important;}
 #cameraViewport:fullscreen #roverRealCamera,#cameraViewport.camera-fullscreen #roverRealCamera{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:contain!important;z-index:7!important;}
 #cameraViewport:fullscreen:before,#cameraViewport:fullscreen:after,#cameraViewport.camera-fullscreen:before,#cameraViewport.camera-fullscreen:after{display:none!important;}
