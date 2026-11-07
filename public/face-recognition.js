@@ -33,6 +33,14 @@
   let timer = 0;
   let generation = 0;
 
+  function publishScanState(active) {
+    window.DEFENX_FACE_SCAN_ACTIVE = !!active;
+    window.dispatchEvent(new CustomEvent("defenx-face-scan-state", {
+      detail: { active: !!active }
+    }));
+  }
+  publishScanState(false);
+
   function setState(state, message) {
     bar.dataset.state = state;
     status.textContent = message;
@@ -155,7 +163,7 @@
         : "FACE SCAN UNAVAILABLE • CHECK CAMERA / MODEL CONNECTION");
       return;
     }
-    schedule(650);
+    schedule(850);
   }
 
   async function start() {
@@ -164,6 +172,7 @@
       return;
     }
     scanning = true;
+    publishScanState(true);
     setState("loading", "LOADING FACE DETECTOR • FIRST USE");
     try {
       await ensureModel();
@@ -174,6 +183,7 @@
     } catch (_) {
       scanning = false;
       running = false;
+      publishScanState(false);
       clearOverlay();
       setState("error", "FACE MODEL COULD NOT LOAD • CHECK INTERNET");
     }
@@ -182,6 +192,7 @@
   function stop(updateStatus = true) {
     scanning = false;
     running = false;
+    publishScanState(false);
     generation += 1;
     if (timer) clearTimeout(timer);
     clearOverlay();
