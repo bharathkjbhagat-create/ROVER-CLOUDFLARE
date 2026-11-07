@@ -17,6 +17,7 @@ function render(){
  if(!centered){map.setView([lat,lon],Math.max(map.getZoom(),17),{animate:false});centered=true;lastCenter=[lat,lon];}
  else if(following&&lastCenter){const moved=Math.hypot((lastCenter[0]-lat)*111000,(lastCenter[1]-lon)*111000*Math.cos(lat*Math.PI/180));if(moved>=4){map.panTo([lat,lon],{animate:false});lastCenter=[lat,lon];}}
 }
+function scheduleRender(){if(renderQueued)return;renderQueued=true;requestAnimationFrame(()=>{renderQueued=false;render();});}
 function onPosition(position){
  const c=position?.coords;if(!c)return;
  const lat=Number(c.latitude),lon=Number(c.longitude),accuracy=Math.max(0,Number(c.accuracy)||0);
