@@ -82,6 +82,14 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('!scanning && sourceReady(source)', self.face)
         self.assertIn('LIVE CAMERA READY • START WHEN YOU CHOOSE', self.face)
 
+    def test_temporary_phone_camera_uses_local_stream_and_can_stop(self):
+        self.assertIn('navigator.mediaDevices.getUserMedia', self.js)
+        self.assertIn('facingMode:{ideal:"environment"}', self.js)
+        self.assertIn('video.srcObject=stream', self.js)
+        self.assertIn('track.stop()', self.js)
+        self.assertIn('id="phoneCameraBtn"', self.html)
+        self.assertIn('!phoneCameraActive', self.js)
+
     def test_camera_record_button_uses_real_video_recorder(self):
         self.assertIn("new MediaRecorder(stream", self.js)
         self.assertIn("video.captureStream", self.js)
