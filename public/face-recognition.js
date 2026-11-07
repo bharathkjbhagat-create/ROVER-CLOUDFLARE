@@ -42,8 +42,12 @@
 
   function sourceReady(node) {
     if (!node) return false;
-    if (node.tagName === "VIDEO") return node.readyState >= 2 && node.videoWidth > 0 && node.videoHeight > 0;
-    if (node.tagName === "IMG") return node.complete && node.naturalWidth > 0 && node.naturalHeight > 0;
+    if (node.tagName === "VIDEO") {
+      const tracks = node.srcObject && typeof node.srcObject.getVideoTracks === "function" ? node.srcObject.getVideoTracks() : [];
+      const liveTrack = tracks.some(track => track.readyState === "live" && track.enabled);
+      return node.dataset.defenxLiveStream === "1" && !node.paused && node.readyState >= 2 && node.videoWidth > 0 && node.videoHeight > 0 && (liveTrack || Boolean(node.currentSrc || node.src));
+    }
+    if (node.tagName === "IMG") return node.dataset.defenxLiveStream === "1" && node.complete && node.naturalWidth > 0 && node.naturalHeight > 0;
     return false;
   }
 
@@ -204,7 +208,7 @@
       setState("waiting", "WAITING FOR LIVE ROVER CAMERA");
     } else if (source.tagName === "IFRAME") {
       setState("unsupported", "EMBEDDED CAMERA CANNOT BE SCANNED");
-    } else if (source.tagName !== "IMG" && source.tagName !== "VIDEO") {
+    } else if ((source.tagName !== "IMG" && source.tagName !== "VIDEO") || source.dataset.defenxLiveStream !== "1") {
       setState("unsupported", "UNSUPPORTED CAMERA STREAM FORMAT");
     } else if (sourceReady(source)) {
       setState("ready", "LIVE CAMERA READY • START WHEN YOU CHOOSE");
