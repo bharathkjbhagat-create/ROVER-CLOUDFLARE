@@ -74,8 +74,16 @@
   function camEl() {
     var e = $("roverRealCamera");
     if (!e) return null;
-    if (e.tagName === "VIDEO") return (e.srcObject || e.currentSrc || e.getAttribute("src")) ? e : null;
+    if (e.tagName === "VIDEO") return e;
     return (e.getAttribute("src") || e.currentSrc) ? e : null;
+  }
+  function phoneVideoLive(el) {
+    if (!el || el.tagName !== "VIDEO") return false;
+    var stream = el.srcObject;
+    if (!stream || typeof stream.getVideoTracks !== "function") return false;
+    var tracks = stream.getVideoTracks();
+    return tracks.some(function (track) { return track.readyState === "live" && track.enabled; }) &&
+      el.readyState >= 2 && el.videoWidth > 0 && el.videoHeight > 0;
   }
   function setCam(s) { st.cam.state = s; }
   function camFail() {
@@ -137,9 +145,12 @@
   function camView() {
     var t = st.tel;
     var activeEl = camEl();
+    if (phoneVideoLive(activeEl)) return { k: "live", label: "LIVE", ok: true, phone: true };
     if (activeEl && activeEl.tagName === "VIDEO" && activeEl.srcObject) {
-      if (activeEl.readyState >= 2 && activeEl.videoWidth > 0) return { k: "live", label: "PHONE LIVE", ok: true };
-      return { k: "connecting", label: "PHONE CAMERA", msg: "Phone camera connected — waiting for video frames…", bad: true };
+      var tracks = activeEl.srcObject.getVideoTracks ? activeEl.srcObject.getVideoTracks() : [];
+      if (tracks.some(function (track) { return track.readyState === "live" && track.enabled; })) {
+        return { k: "connecting", label: "CONNECTING", msg: "Camera is connected — waiting for video frames…", bad: true, retry: true };
+      }
     }
     if (demo) return { k: "demo", label: "DEMO", msg: "Demo mode — no live camera", bad: true };
     if (!st.cfg) return { k: "checking", label: "CHECKING", msg: "Checking camera configuration…", bad: true };
@@ -351,7 +362,7 @@
     // dashboard camera badge + placeholder (kept honest outside the monitor too)
     var badge = document.querySelector("#liveCamera .liveBadge");
     if (badge) {
-      var want = v.label === "LIVE" ? "LIVE" : v.label;
+      var want = v.ok ? "LIVE" : v.label;
       if (badge.__mv !== want) {
         badge.__mv = want; badge.innerHTML = "<i></i> " + esc(want);
         badge.classList.toggle("mvOff", !v.ok);
@@ -419,7 +430,14 @@
     if (!el || !stage || stage.contains(el)) return;
     st.home = el.parentNode;
     stage.appendChild(el);
-    if (el.tagName === "VIDEO") { try { var p = el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
+    if (el.tagName === "VIDEO") {
+      try {
+        el.autoplay = true; el.muted = true; el.playsInline = true;
+        el.style.cssText += ";display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:contain!important;position:absolute!important;inset:0!important;z-index:8!important";
+        var p = el.play(); if (p && p.catch) p.catch(function () {});
+        attachCam(el);
+      } catch (e) {}
+    }
   }
   function release() {
     var el = $("roverRealCamera"), stage = $("mvStage");
