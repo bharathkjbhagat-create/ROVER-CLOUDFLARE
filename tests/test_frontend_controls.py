@@ -101,7 +101,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('dataset.defenxLiveStream === "1"', self.face)
         self.assertIn('img.dataset.defenxLiveStream="1"', self.js)
         self.assertIn('video.dataset.defenxLiveStream="1"', self.js)
-        self.assertNotIn('if (element.tagName === "IMG") {\\n      return element.complete &&', self.ai)
+        self.assertNotIn('return element.complete &&', self.ai)
         self.assertNotIn('if (node.tagName === "IMG") return node.complete', self.face)
 
     def test_camera_record_button_uses_real_video_recorder(self):
