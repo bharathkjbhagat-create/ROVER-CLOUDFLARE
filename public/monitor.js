@@ -85,10 +85,19 @@
     return tracks.some(function (track) { return track.readyState === "live" && track.enabled; }) &&
       el.readyState >= 2 && el.videoWidth > 0 && el.videoHeight > 0;
   }
+  // True when the element is actually holding a decoded picture (works before cfg/telemetry have loaded).
+  function decodedFrame(el) {
+    if (!el) return false;
+    if (el.tagName === "IMG") return el.complete && el.naturalWidth > 0;
+    if (el.tagName === "VIDEO") return el.readyState >= 2 && el.videoWidth > 0;
+    return false;
+  }
   function setCam(s) { st.cam.state = s; }
   function camFail() {
     if (st.cam.state === "fail") return;
     setCam("fail");
+    if (!st.cam.outageAt) st.cam.outageAt = Date.now(); // grace is measured from the start of an outage, not from each retry
+    setTimeout(render, 3100); // re-evaluate once the grace period ends
     st.cam.attempts++;
     var d = Math.min(30000, 2000 * Math.pow(2, Math.min(st.cam.attempts - 1, 4)));
     clearTimeout(st.cam.timer);
@@ -117,14 +126,15 @@
     if (el.__mvBound) return;
     el.__mvBound = true;
     var tag = el.tagName;
-    function live() { st.cam.attempts = 0; clearTimeout(st.cam.timer); setCam(tag === "IFRAME" ? "embedded" : "live"); render(); }
+    function live() { st.cam.attempts = 0; st.cam.outageAt = 0; clearTimeout(st.cam.timer); setCam(tag === "IFRAME" ? "embedded" : "live"); render(); }
     function bad() { camFail(); render(); }
     if (tag === "IMG") {
       el.addEventListener("load", live); el.addEventListener("error", bad);
       if (el.complete && el.naturalWidth > 0) live(); else setCam("connecting");
     } else if (tag === "VIDEO") {
       el.addEventListener("loadeddata", live); el.addEventListener("playing", live);
-      ["error", "ended", "abort", "emptied"].forEach(function (n) { el.addEventListener(n, bad); });
+      // "abort"/"emptied" fire during every load()/srcObject swap (including our own reconnect), so they are not failures.
+      ["error", "ended"].forEach(function (n) { el.addEventListener(n, bad); });
       if (el.readyState >= 2) live(); else setCam("connecting");
     } else {
       el.addEventListener("load", live);
@@ -171,11 +181,18 @@
       }
     }
     if (demo) return { k: "demo", label: "DEMO", msg: "Demo mode — no live camera", bad: true };
+    // A decoded frame that has not errored is the strongest proof the feed works; do not wait for config/telemetry.
+    if (activeEl && st.cam.state !== "fail" && decodedFrame(activeEl) && activeEl.tagName !== "IFRAME") {
+      if (t && t.device_online === false) return { k: "lost", label: "SIGNAL LOST", msg: "Rover signal lost — image may be frozen", bad: true, retry: true, overlay: true };
+      return { k: "live", label: "LIVE", ok: true };
+    }
     if (!st.cfg) return { k: "checking", label: "CHECKING", msg: "Checking camera configuration…", bad: true };
     if (!st.cfg.enabled) return { k: "none", label: "NO FEED", msg: "No camera stream is configured", bad: true };
     if (t && t.camera === false) return { k: "off", label: "CAMERA OFF", msg: "Rover reports its camera is off", bad: true, retry: true };
     var cs = st.cam.state;
-    if (cs === "fail") return { k: "reconnecting", label: "RECONNECTING", msg: "Stream disconnected — reconnecting" + (st.cam.attempts > 1 ? " (attempt " + st.cam.attempts + ")" : "…"), bad: true, retry: true };
+    var outageMs = st.cam.outageAt ? Date.now() - st.cam.outageAt : 0;
+    if (cs === "fail" && outageMs < 3000) return { k: "connecting", label: "CONNECTING", msg: "Connecting to camera stream…", bad: true, retry: true };
+    if (cs === "fail" || (cs === "connecting" && outageMs >= 3000)) return { k: "reconnecting", label: "RECONNECTING", msg: "Stream disconnected — reconnecting" + (st.cam.attempts > 1 ? " (attempt " + st.cam.attempts + ")" : "…"), bad: true, retry: true };
     if (cs === "live" || cs === "embedded") {
       if (t && t.device_online === false) return { k: "lost", label: "SIGNAL LOST", msg: "Rover signal lost — image may be frozen", bad: true, retry: true, overlay: true };
       return cs === "live" ? { k: "live", label: "LIVE", ok: true } : { k: "embedded", label: "EMBEDDED", ok: true };
@@ -414,9 +431,13 @@
         badge.classList.toggle("mvOff", !v.ok);
       }
     }
+    var vp = $("cameraViewport");
+    var genuine = v.k === "reconnecting" || v.k === "none" || v.k === "off";
+    var covering = decodedFrame(camEl()) && !genuine;   // footage visible and the problem is transient/informational
+    if (vp) { var feed = (v.ok || covering) ? "live" : v.k; if (vp.dataset.feed !== feed) vp.dataset.feed = feed; }
     var ph = $("camPlaceholder");
     if (ph) {
-      var showPh = !demo && !v.ok;
+      var showPh = !demo && !v.ok && !covering;
       ph.hidden = !showPh;
       if (showPh) setText("camPlaceholderMsg", v.msg || "");
     }
@@ -477,6 +498,7 @@
     var el = camEl(), stage = $("mvStage");
     if (!el || !stage || stage.contains(el)) return;
     st.home = el.parentNode;
+    st.camCss = el.getAttribute("style");
     stage.appendChild(el);
     if (el.tagName === "VIDEO") {
       try {
@@ -491,6 +513,8 @@
     var el = $("roverRealCamera"), stage = $("mvStage");
     if (!el || !stage || !stage.contains(el)) return;
     var home = $("cameraViewport") || st.home;
+    if (st.camCss !== undefined && st.camCss !== null) el.setAttribute("style", st.camCss); else el.removeAttribute("style");
+    st.camCss = null;
     if (home) home.insertBefore(el, home.firstChild);
     if (el.tagName === "VIDEO") { try { var p = el.play(); if (p && p.catch) p.catch(function () {}); } catch (e) {} }
   }

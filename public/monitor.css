@@ -125,3 +125,14 @@ body.mvReal .camera3DScene,body.mvReal .cameraSceneLabel,body.mvReal .cameraTarg
 .routeTools>summary{cursor:pointer;font-size:9px;font-weight:900;letter-spacing:1px;color:var(--muted);padding:4px 0}
 .routeTools .routePreviewBtn{margin:4px 4px 0 0}
 #warningOnBtn,#warningOffBtn{display:none!important}
+
+/* ---- Camera feed overlay fixes (live footage must never be covered by demo HUD or stale warnings) ---- */
+.camPlaceholder[hidden]{display:none!important}
+.camPlaceholder{z-index:11;pointer-events:auto}
+.cameraViewport[data-feed="live"]:before,.cameraViewport[data-feed="live"]:after,
+.cameraViewport[data-feed="live"] .camTargetBox,.cameraViewport[data-feed="live"] .cameraCrosshair,
+.cameraViewport[data-feed="live"] .cameraOverlayTop,.cameraViewport[data-feed="live"] .cameraOverlayBottom,
+.cameraViewport[data-feed="live"] .cameraSceneLabel,.cameraViewport[data-feed="live"] .camera3DScene,
+.cameraViewport[data-feed="live"] .cameraSky,.cameraViewport[data-feed="live"] .cameraRoad,.cameraViewport[data-feed="live"] .cameraField{display:none!important}
+.aiVisionCanvas,.faceScanCanvas{z-index:10!important;pointer-events:none}
+#mvStage .aiVisionCanvas,#mvStage .faceScanCanvas{z-index:12!important}

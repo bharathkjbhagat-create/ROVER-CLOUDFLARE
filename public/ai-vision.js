@@ -36,6 +36,8 @@
   let sourceGeneration = 0;
   let corsCheckedFor = null;
   let lastPredictions = [];
+  let failures = 0;
+  let inferenceMs = 0;
   const detectionDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1300 : 850;
 
   function setText(id, value) {
@@ -146,7 +148,9 @@
   }
 
   function drawDetections(predictions, width, height) {
-    const rect = viewport.getBoundingClientRect();
+    const host = source && source.parentElement ? source.parentElement : viewport;
+    if (canvas.parentElement !== host) host.appendChild(canvas);
+    const rect = host.getBoundingClientRect();
     const viewWidth = Math.max(1, Math.round(rect.width));
     const viewHeight = Math.max(1, Math.round(rect.height));
     if (canvas.width !== viewWidth || canvas.height !== viewHeight) {
@@ -155,8 +159,9 @@
     }
     context.clearRect(0, 0, viewWidth, viewHeight);
 
-    // Match the camera element's object-fit:cover crop so boxes stay aligned.
-    const scale = Math.max(viewWidth / width, viewHeight / height);
+    // Match object-fit (cover on card, contain in full screen).
+    const contain = source && getComputedStyle(source).objectFit === "contain";
+    const scale = (contain ? Math.min : Math.max)(viewWidth / width, viewHeight / height);
     const offsetX = (viewWidth - width * scale) / 2;
     const offsetY = (viewHeight - height * scale) / 2;
     const visible = predictions.filter(item =>
@@ -239,7 +244,10 @@
       const generation = sourceGeneration;
       const dimensions = sourceSize(activeSource);
       checkReadable(activeSource);
+      const startedAt = performance.now();
       const predictions = await model.detect(activeSource, 6, 0.5);
+      inferenceMs = performance.now() - startedAt;
+      failures = 0;
       if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
       if (window.DEFENX_FACE_SCAN_ACTIVE) {
         scheduleNext(1000);
@@ -251,20 +259,26 @@
         ? "LIVE AI • DETECTING HUMAN / VEHICLES"
         : "LIVE AI • SCANNING");
     } catch (error) {
+      const message = String(error && error.message || error);
+      const cors = /taint|cross.origin|securityerror/i.test(message);
+      // Tolerate a dropped frame; stop only after repeated failures.
+      if (!cors && ++failures < 3) {
+        scheduleNext(1000 * failures);
+        return;
+      }
       running = false;
       clearCounts();
-      const message = String(error && error.message || error);
-      if (/taint|cross.origin|securityerror/i.test(message)) {
-        setState("error", "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS");
-      } else {
-        setState("error", "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
-      }
+      setState("error", cors
+        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS"
+        : "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
       return;
     }
-    scheduleNext(detectionDelay);
+    // Pace to the device's inference speed.
+    scheduleNext(Math.max(detectionDelay, inferenceMs * 2));
   }
 
   async function startDetection() {
+    failures = 0;
     if (!source || !sourceReady(source) || paused) {
       setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
       return;

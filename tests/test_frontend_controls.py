@@ -104,8 +104,19 @@ class FrontendControlTests(unittest.TestCase):
     def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
         self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE = !!active", self.face)
         self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE", self.ai)
-        self.assertIn("scheduleNext(850);", self.ai)
-        self.assertIn("schedule(850);", self.face)
+        self.assertIn("scheduleNext(Math.max(detectionDelay, inferenceMs * 2))", self.ai)
+        self.assertIn("schedule(Math.max(scanDelay, inferenceMs * 2))", self.face)
+
+    def test_live_camera_is_never_covered_by_stale_overlays(self):
+        mon = (ROOT / "public/monitor.js").read_text(encoding="utf-8")
+        css = (ROOT / "public/monitor.css").read_text(encoding="utf-8")
+        # inline display:flex on the placeholder used to defeat the [hidden] attribute
+        self.assertNotIn("placeholder.style.cssText", self.js)
+        self.assertIn(".camPlaceholder[hidden]{display:none!important}", css)
+        # abort/emptied fire during normal load()/srcObject swaps and must not trigger reconnects
+        self.assertNotIn('"abort", "emptied"', mon)
+        self.assertIn('cameraViewport[data-feed="live"] .camTargetBox', css)
+        self.assertIn("decodedFrame(activeEl)", mon)
 
     def test_person_detection_only_accepts_configured_live_camera_sources(self):
         self.assertIn('dataset.defenxLiveStream === "1"', self.ai)

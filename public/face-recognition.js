@@ -16,7 +16,7 @@
   const toggle = document.getElementById("faceScanToggle");
   if (!viewport || !bar || !status || !count || !toggle) return;
 
-  const demoMode = new URLSearchParams(location.search).get("demo") === "1";
+  const demoMode = location.pathname === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
   const libraryUrl = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js";
   const modelUrl = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/";
   const canvas = document.createElement("canvas");
@@ -32,6 +32,8 @@
   let scanning = false;
   let timer = 0;
   let generation = 0;
+  let failures = 0;
+  let inferenceMs = 0;
   const scanDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1200 : 850;
 
   function publishScanState(active) {
@@ -72,7 +74,9 @@
   }
 
   function draw(detections, width, height) {
-    const rect = viewport.getBoundingClientRect();
+    const host = source && source.parentElement ? source.parentElement : viewport;
+    if (canvas.parentElement !== host) host.appendChild(canvas);
+    const rect = host.getBoundingClientRect();
     const w = Math.max(1, Math.round(rect.width));
     const h = Math.max(1, Math.round(rect.height));
     if (canvas.width !== w || canvas.height !== h) {
@@ -80,7 +84,8 @@
       canvas.height = h;
     }
     ctx.clearRect(0, 0, w, h);
-    const scale = Math.max(w / width, h / height);
+    const contain = source && getComputedStyle(source).objectFit === "contain";
+    const scale = (contain ? Math.min : Math.max)(w / width, h / height);
     const ox = (w - width * scale) / 2;
     const oy = (h - height * scale) / 2;
     detections.forEach(item => {
@@ -148,26 +153,32 @@
     const token = generation;
     try {
       const d = dimensions();
+      const startedAt = performance.now();
       const detections = await faceapi.detectAllFaces(
         activeSource,
         new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
       );
+      inferenceMs = performance.now() - startedAt;
+      failures = 0;
       if (!running || !scanning || token !== generation || activeSource !== source) return;
       draw(detections, d.width, d.height);
       setState("active", detections.length
         ? "LIVE SCAN • FACE PRESENT IN CAMERA VIEW"
         : "LIVE SCAN • NO FACE DETECTED");
     } catch (error) {
+      const cors = /taint|cross.origin|securityerror/i.test(String(error));
+      if (!cors && ++failures < 3) { schedule(1000 * failures); return; }  // tolerate a dropped frame
       stop(false);
-      setState("error", /taint|cross.origin|securityerror/i.test(String(error))
+      setState("error", cors
         ? "CAMERA CORS BLOCKS LOCAL SCANNING"
         : "FACE SCAN UNAVAILABLE • CHECK CAMERA / MODEL CONNECTION");
       return;
     }
-    schedule(scanDelay);
+    schedule(Math.max(scanDelay, inferenceMs * 2));
   }
 
   async function start() {
+    failures = 0;
     if (demoMode || !sourceReady(source)) {
       setState("waiting", "WAITING FOR AN AUTHENTICATED LIVE CAMERA");
       return;

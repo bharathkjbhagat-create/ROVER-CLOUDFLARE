@@ -769,8 +769,9 @@ async function initRealCameraStream(){
       const placeholder=$("camPlaceholder"),message=$("camPlaceholderMsg");
       if(message)message.textContent="NO CAMERA FEED • CONNECT ROVER CAMERA OR TAP USE PHONE CAMERA";
       if(placeholder){
+        // Layout lives in monitor.css; an inline display:flex here used to defeat the [hidden] attribute,
+        // leaving this panel on top of the phone/rover camera after it connected.
         placeholder.hidden=false;
-        placeholder.style.cssText="position:absolute;inset:0;z-index:12;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;text-align:center;background:rgba(2,8,14,.96);color:#ffd18a;font:800 11px/1.6 ui-monospace,monospace;letter-spacing:.7px";
       }
       setText("cameraSceneLabel","NO LIVE CAMERA FEED");
       setText("cameraStatus","No camera connected");
