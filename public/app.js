@@ -850,8 +850,6 @@ async function loop(){
   }finally{telemetryBusy=false;}
 }
 function scheduleTelemetry(){
-  // WebSocket is the primary path. HTTP is only a recovery/health path.
-  // Keeping the fallback slow prevents unnecessary backend/Durable Object reads.
   const delay=window.roverWS?.readyState===WebSocket.OPEN
     ? (document.hidden?60000:60000)
     : (document.hidden?8000:5000);
@@ -1378,7 +1376,6 @@ window.addEventListener("unhandledrejection",()=>{if(me)setText("conn","● DEGR
 window.addEventListener("offline",()=>{if(me)setText("conn","● DASHBOARD NETWORK OFFLINE")});
 window.addEventListener("online",()=>{if(me){setText("conn","● RECONNECTING");loadLastKnownLocation().catch(()=>{});loop()}});
 
-// Keep mobile sessions alive across page-cache restores.
 window.addEventListener("pageshow",event=>{
   if(event.persisted && me){
     setText("conn","● RECONNECTING");
@@ -1434,4 +1431,3 @@ if(document.readyState==="loading"){
 }
 document.addEventListener("click",function(e){if(e.target.closest("#selectReturnBaseBtn"))beginBaseSelection();if(e.target.closest("#returnToBaseBtn"))requestReturnToBase();if(e.target.closest("#previewReturnRouteBtn"))previewReturnRoute(false);if(e.target.closest("#simulateObstacleRouteBtn"))previewReturnRoute(true);if(e.target.closest("#clearReturnRouteBtn"))clearReturnRoutePreview();});
 })();
-// Production stability bundle marker: shared Admin live-state synchronization + smooth client polling are live.
