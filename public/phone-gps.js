@@ -1,5 +1,5 @@
 (()=>{"use strict";
-let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false;
+let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null;
 const $=id=>document.getElementById(id);
 const set=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 const valid=(lat,lon)=>Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180;
@@ -8,13 +8,14 @@ function render(){
  const map=window.__defenxGetMap?.(),L=window.L;
  if(!map||!L){if(!pendingRender){pendingRender=true;window.addEventListener("rover-map-ready",()=>{pendingRender=false;render();},{once:true});}return;}
  const {lat,lon,accuracy}=latest;
- const icon=L.divIcon({className:"phoneGpsMarkerWrap",html:'<div style="width:22px;height:22px;border:3px solid #fff;border-radius:50%;background:#168cff;box-shadow:0 0 0 7px rgba(22,140,255,.22),0 0 18px #168cff"></div>',iconSize:[22,22],iconAnchor:[11,11]});
- if(!marker)marker=L.marker([lat,lon],{icon,title:"PHONE GPS LOCATION",keyboard:true,zIndexOffset:1200}).addTo(map).bindTooltip("PHONE LOCATION",{permanent:true,direction:"top"});
- else marker.setLatLng([lat,lon]);
+ if(!phoneIcon)phoneIcon=L.divIcon({className:"phoneGpsMarkerWrap",html:'<div style="width:22px;height:22px;border:3px solid #fff;border-radius:50%;background:#168cff;box-shadow:0 0 0 7px rgba(22,140,255,.22),0 0 18px #168cff"></div>',iconSize:[22,22],iconAnchor:[11,11]});
+ if(!marker)marker=L.marker([lat,lon],{icon:phoneIcon,title:"PHONE GPS LOCATION",keyboard:true,zIndexOffset:1200}).addTo(map).bindTooltip("PHONE LOCATION",{permanent:true,direction:"top"});
+ else {const p=marker.getLatLng();if(Math.hypot((p.lat-lat)*111000,(p.lng-lon)*111000*Math.cos(lat*Math.PI/180))>0.8)marker.setLatLng([lat,lon]);}
  if(!accuracyCircle)accuracyCircle=L.circle([lat,lon],{radius:accuracy,color:"#168cff",weight:1.5,opacity:.8,fillColor:"#168cff",fillOpacity:.08}).addTo(map);
  else accuracyCircle.setLatLng([lat,lon]).setRadius(accuracy);
  if(!mapBound){map.on("dragstart",()=>{following=false;});mapBound=true;}
- if(!centered||following){map.flyTo([lat,lon],Math.max(map.getZoom(),17),{animate:true,duration:.45});centered=true;}
+ if(!centered){map.setView([lat,lon],Math.max(map.getZoom(),17),{animate:false});centered=true;lastCenter=[lat,lon];}
+ else if(following&&lastCenter){const moved=Math.hypot((lastCenter[0]-lat)*111000,(lastCenter[1]-lon)*111000*Math.cos(lat*Math.PI/180));if(moved>=4){map.panTo([lat,lon],{animate:false});lastCenter=[lat,lon];}}
 }
 function onPosition(position){
  const c=position?.coords;if(!c)return;
@@ -37,7 +38,7 @@ function stop(){
  watchId=null;latest=null;centered=false;following=true;window.DEFENX_PHONE_GPS_LATEST=null;
  const map=window.__defenxGetMap?.();
  if(map){if(marker)map.removeLayer(marker);if(accuracyCircle)map.removeLayer(accuracyCircle);}
- marker=null;accuracyCircle=null;mapBound=false;pendingRender=false;
+ marker=null;accuracyCircle=null;mapBound=false;pendingRender=false;lastCenter=null;phoneIcon=null;
  set("gpsHeader","GPS");set("gpsHeaderSub","Phone GPS stopped");set("gpsSignalText","PHONE GPS STOPPED");
 }
 function start(){
