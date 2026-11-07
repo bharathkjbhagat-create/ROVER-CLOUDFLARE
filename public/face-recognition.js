@@ -164,7 +164,7 @@
         : "FACE SCAN UNAVAILABLE • CHECK CAMERA / MODEL CONNECTION");
       return;
     }
-    schedule(850);
+    schedule(scanDelay);
   }
 
   async function start() {
