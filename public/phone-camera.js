@@ -51,6 +51,7 @@ async function start(){
   old=$("roverRealCamera");
   created=document.createElement("video");
   created.id="roverRealCamera";
+  created.dataset.defenxLiveStream="1";
   created.autoplay=true;created.muted=true;created.defaultMuted=true;
   created.playsInline=true;created.setAttribute("playsinline","");
   created.setAttribute("webkit-playsinline","");
