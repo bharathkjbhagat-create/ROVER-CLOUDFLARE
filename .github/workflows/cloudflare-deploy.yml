@@ -39,6 +39,11 @@ jobs:
         run: python -m py_compile src/app.py src/worker.py
       - name: Validate frontend JavaScript
         run: node --check public/app.js
+      - name: Validate camera and dashboard JavaScript
+        run: |
+          node --check public/phone-camera.js
+          node --check public/phone-gps.js
+          node --check public/dashboard-layout.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate opt-in face detection JavaScript
