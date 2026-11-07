@@ -97,5 +97,14 @@ assert '"person"' in ai_js
 assert '"motorcycle"' in ai_js
 assert "defenx-ai-detection" in ai_js
 assert "navigator.mediaDevices.getUserMedia" not in ai_js
+assert "const detectionDelay" in ai_js and "model.detect(activeSource, 6, 0.5)" in ai_js
+face_js = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
+assert "const scanDelay" in face_js and "faceapi.detectAllFaces" in face_js
+assert "publishScanState(true)" in face_js and "publishScanState(false)" in face_js
+assert "function scheduleRender()" in phone_gps_js and "requestAnimationFrame" in phone_gps_js
+assert "{enableHighAccuracy:true,maximumAge:1000,timeout:20000}" in phone_gps_js
+phone_camera_js = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
+assert "navigator.mediaDevices.getUserMedia" in phone_camera_js
+assert "facingMode:{ideal:\"environment\"}" in phone_camera_js
 
 print("DEFENX smoke tests: PASS")
