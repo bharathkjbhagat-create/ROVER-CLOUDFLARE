@@ -295,42 +295,70 @@
     if (deg == null) return '<div class="' + cls + '"><span class="dot"></span></div>';
     return '<div class="' + cls + '"><svg viewBox="0 0 40 40" style="transform:rotate(' + Math.round(deg) + 'deg)"><path d="M20 3l11 31-11-7-11 7z" fill="#22d3a6" stroke="#04110d" stroke-width="2" stroke-linejoin="round"/></svg></div>';
   }
+  function currentGpsFix() {
+    var phone = window.DEFENX_PHONE_GPS_LATEST;
+    if (phone && isFinite(phone.lat) && isFinite(phone.lon) &&
+        Math.abs(phone.lat) <= 90 && Math.abs(phone.lon) <= 180 &&
+        Date.now() - (phone.timestamp || 0) < 15000) {
+      return { point: [phone.lat, phone.lon], accuracy: num(phone.accuracy), source: "PHONE", stale: false };
+    }
+    var t = st.tel, fix = gpsFix(t);
+    if (t && t.device_online === false && (st.lastFix || fix))
+      return { point: st.lastFix || fix, accuracy: null, source: "ROVER", stale: true };
+    if (fix) return { point: fix, accuracy: num(t.gps_accuracy_m), source: "ROVER", stale: false };
+    if (st.lastFix) return { point: st.lastFix, accuracy: null, source: "ROVER", stale: true };
+    return null;
+  }
   function centerNow(zoom) {
-    if (!st.map || !st.lastFix) { toast("No live GPS position to center on", "warn"); return; }
-    if (zoom && st.map.getZoom() < 16) st.map.setView(st.lastFix, 17); else st.map.panTo(st.lastFix);
+    var current = currentGpsFix();
+    if (!st.map || !current) { toast("No live GPS position available", "warn"); return; }
+    st.follow = true;
+    if (zoom && st.map.getZoom() < 16) st.map.setView(current.point, 17);
+    else st.map.panTo(current.point, { animate: false });
   }
   function updateMap() {
-    var t = st.tel, fix = gpsFix(t), stale = false;
-    if (t && t.device_online === false && (st.lastFix || fix)) { fix = st.lastFix || fix; stale = true; }
-    else if (!fix && st.lastFix) { fix = st.lastFix; stale = true; }
+    var current = currentGpsFix();
     var msg = $("mvMapMsg"), coords = $("mvCoords");
-    if (!fix) {
-      if (msg) { msg.textContent = demo ? "Demo mode — no GPS" : "No live GPS fix from rover"; msg.style.display = "block"; }
+    if (!current) {
+      if (msg) { msg.textContent = demo ? "Demo mode — no GPS" : "Waiting for phone or rover GPS"; msg.style.display = "block"; }
       if (coords) coords.hidden = true;
+      setText("mvMapTag", st.useSat ? "SATELLITE" : "MAP");
       return;
     }
+    var fix = current.point, stale = current.stale, source = current.source;
     if (msg) {
-      if (stale) { msg.textContent = (t && t.device_online === false) ? "Last known position — rover offline" : "GPS fix lost — last known position"; msg.style.display = "block"; }
-      else msg.style.display = "none";
+      if (stale) { msg.textContent = "Last known rover position — signal unavailable"; msg.style.display = "block"; }
+      else { msg.textContent = source === "PHONE" ? "PHONE GPS LOCATION" : ""; msg.style.display = source === "PHONE" ? "block" : "none"; }
     }
-    if (coords) { coords.hidden = false; coords.textContent = fix[0].toFixed(5) + "°, " + fix[1].toFixed(5) + "°"; }
+    if (coords) { coords.hidden = false; coords.textContent = source + " • " + fix[0].toFixed(6) + "°, " + fix[1].toFixed(6) + "°" + (current.accuracy !== null ? " • ±" + Math.round(current.accuracy) + " m" : ""); }
+    setText("mvMapTag", source + (st.useSat ? " • SATELLITE" : " • MAP"));
     if (!st.map) return;
-    var spd = t ? num(t.speed_kmh) : null, hd = t ? num(t.heading) : null;
-    var deg = (!stale && spd !== null && spd > 0.5 && hd !== null) ? ((hd % 360) + 360) % 360 : st.bearing;
-    var icon = L.divIcon({ className: "mv-roverIcon", html: arrowHtml(deg, stale), iconSize: [40, 40], iconAnchor: [20, 20] });
-    if (!st.marker) st.marker = L.marker(fix, { icon: icon, keyboard: false, title: "ROVER-01" }).addTo(st.map);
-    else { st.marker.setLatLng(fix); st.marker.setIcon(icon); }
-    var acc = (!stale && t) ? num(t.gps_accuracy_m) : null;
+    var spd = source === "ROVER" && !stale && st.tel ? num(st.tel.speed_kmh) : null;
+    var hd = source === "ROVER" && !stale && st.tel ? num(st.tel.heading) : null;
+    var deg = (spd !== null && spd > 0.5 && hd !== null) ? ((hd % 360) + 360) % 360 : (source === "ROVER" ? st.bearing : null);
+    var icon = L.divIcon({ className: source === "PHONE" ? "mv-phoneGpsIcon" : "mv-roverIcon", html: source === "PHONE" ? '<div class="mv-phoneGpsDot"></div>' : arrowHtml(deg, stale), iconSize: [40, 40], iconAnchor: [20, 20] });
+    if (!st.marker) st.marker = L.marker(fix, { icon: icon, keyboard: false, title: source === "PHONE" ? "PHONE GPS LOCATION" : "ROVER-01" }).addTo(st.map);
+    else {
+      var previous = st.marker.getLatLng();
+      var moved = distM([previous.lat, previous.lng], fix) >= 0.8;
+      if (moved) st.marker.setLatLng(fix);
+      st.marker.setIcon(icon);
+    }
+    var acc = current.accuracy;
     if (acc !== null && acc > 0 && acc < 5000) {
-      if (!st.acc) st.acc = L.circle(fix, { radius: acc, color: "#22d3a6", weight: 1, fillOpacity: 0.12, interactive: false }).addTo(st.map);
+      if (!st.acc) st.acc = L.circle(fix, { radius: acc, color: source === "PHONE" ? "#168cff" : "#22d3a6", weight: 1, fillOpacity: 0.10, interactive: false }).addTo(st.map);
       else { st.acc.setLatLng(fix); st.acc.setRadius(acc); }
     } else if (st.acc) { st.map.removeLayer(st.acc); st.acc = null; }
-    if (st.trailPts.length > 1) {
+    if (source === "ROVER" && st.trailPts.length > 1) {
       if (!st.trail) st.trail = L.polyline(st.trailPts, { color: "#ffcf5a", weight: 3, opacity: 0.85, interactive: false }).addTo(st.map);
       else st.trail.setLatLngs(st.trailPts);
+    } else if (st.trail) { st.map.removeLayer(st.trail); st.trail = null; }
+    if (!st.firstFix || st.marker && !st.map.hasLayer(st.marker)) {
+      st.firstFix = true; st.map.setView(fix, 17, { animate: false });
+    } else if (st.follow) {
+      var center = st.map.getCenter();
+      if (distM([center.lat, center.lng], fix) >= 2) st.map.panTo(fix, { animate: false });
     }
-    if (!st.firstFix) { st.firstFix = true; st.map.setView(fix, 17); }
-    else if (st.follow && !stale) st.map.panTo(fix, { animate: true });
   }
 
   /* ---------- telemetry ---------- */
