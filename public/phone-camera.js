@@ -1,6 +1,6 @@
 (()=>{
 "use strict";
-let stream=null,active=false,pending=false,originalSource=null,videoNode=null;
+let stream=null,active=false,pending=false,originalSource=null,videoNode=null,frameTimer=null,playRetryTimer=null;
 const $=id=>document.getElementById(id);
 const label=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 function stopTracks(source){
@@ -41,7 +41,7 @@ async function start(){
   try{
    acquired=await navigator.mediaDevices.getUserMedia({
     audio:false,
-    video:{facingMode:{ideal:"environment"},width:{ideal:1280},height:{ideal:720}}
+    video:{facingMode:{ideal:"environment"},width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}
    });
   }catch(firstError){
    if(firstError?.name!=="OverconstrainedError"&&firstError?.name!=="NotFoundError")throw firstError;
@@ -58,11 +58,33 @@ async function start(){
   created.controls=false;
   created.setAttribute("aria-label","Temporary phone camera preview");
   created.style.cssText="display:block!important;visibility:visible!important;opacity:1!important;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:7";
-  const showLivePreview=()=>{if(created.readyState<2||!created.videoWidth||!created.videoHeight)return;const scene=$("camera3DScene");if(scene)scene.style.display="none";const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;const badge=document.querySelector("#liveCamera .liveBadge");if(badge){badge.innerHTML="<i></i> LIVE";badge.classList.remove("mvOff");}label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");label("cameraStatus","PHONE CAMERA LIVE");};
-  created.onloadedmetadata=showLivePreview;
-  created.onloadeddata=showLivePreview;
-  created.onplaying=showLivePreview;
-  created.onerror=()=>{label("cameraSceneLabel","PHONE CAMERA VIDEO ERROR");};
+  const showLivePreview=()=>{
+   if(created.readyState<2||!created.videoWidth||!created.videoHeight)return;
+   if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
+   if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
+   const scene=$("camera3DScene");if(scene)scene.style.display="none";
+   const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;
+   const badge=document.querySelector("#liveCamera .liveBadge");
+   if(badge){badge.innerHTML="<i></i> LIVE";badge.classList.remove("mvOff");}
+   label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");
+   label("cameraStatus","PHONE CAMERA LIVE");
+  };
+  const resumePreview=()=>{
+   if(!active||!created.isConnected||!created.srcObject)return;
+   if(created.paused){const p=created.play();if(p&&p.catch)p.catch(()=>{});}
+  };
+  created.addEventListener("loadedmetadata",resumePreview);
+  created.addEventListener("loadeddata",showLivePreview);
+  created.addEventListener("canplay",resumePreview);
+  created.addEventListener("playing",showLivePreview);
+  created.addEventListener("resize",showLivePreview);
+  created.onerror=()=>{label("cameraSceneLabel","PHONE CAMERA VIDEO ERROR");label("cameraStatus","Camera stream error");};
+  acquired.getVideoTracks().forEach(track=>{
+   track.addEventListener("unmute",resumePreview);
+   track.addEventListener("ended",()=>{
+    if(active){label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");}
+   });
+  });
   created.srcObject=acquired;
   originalSource=old||null;videoNode=created;
   if(old)old.replaceWith(created);else viewport.insertBefore(created,viewport.firstChild);
@@ -74,12 +96,23 @@ async function start(){
    // Some mobile browsers reject the play promise even though the granted stream is attached.
    if(playError?.name!=="NotAllowedError"&&playError?.name!=="AbortError")throw playError;
   }
-  if(created.readyState>=2){
-   label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");
-   label("cameraStatus","PHONE CAMERA LIVE");
+  if(created.readyState>=2&&created.videoWidth>0&&created.videoHeight>0){
+   showLivePreview();
   }else{
    label("cameraSceneLabel","CAMERA CONNECTED • WAITING FOR VIDEO");
    label("cameraStatus","Starting camera");
+   // Mobile browsers occasionally need a second play() after camera metadata arrives.
+   playRetryTimer=setTimeout(resumePreview,1200);
+   frameTimer=setTimeout(()=>{
+    frameTimer=null;
+    if(active&&created.isConnected&&!(created.readyState>=2&&created.videoWidth>0&&created.videoHeight>0)){
+     label("cameraSceneLabel","CAMERA PERMISSION GRANTED • NO VIDEO FRAMES RECEIVED");
+     label("cameraStatus","Camera stream not producing frames");
+    }
+   },8000);
+   if(typeof created.requestVideoFrameCallback==="function"){
+    created.requestVideoFrameCallback(()=>showLivePreview());
+   }
   }
  }catch(error){
   stopTracks(acquired);
@@ -102,6 +135,8 @@ async function start(){
 }
 function stop(){
  if(!active&&!pending)return;
+ if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
+ if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
  stopTracks(stream);stream=null;active=false;pending=false;
  restoreElement();
  window.__defenxSetPhoneCameraActive?.(false);
@@ -119,5 +154,5 @@ function bind(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind,{once:true});
 else bind();
-window.addEventListener("pagehide",()=>{stopTracks(stream);stream=null;active=false;});
+window.addEventListener("pagehide",()=>{if(frameTimer)clearTimeout(frameTimer);if(playRetryTimer)clearTimeout(playRetryTimer);stopTracks(stream);stream=null;active=false;});
 })();
