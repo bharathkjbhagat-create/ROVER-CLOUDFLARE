@@ -69,6 +69,7 @@ html.mv-lock,html.mv-lock body{overflow:hidden!important}
 #mvMap .leaflet-bottom.leaflet-left{margin-bottom:22px}
 #mvMap .leaflet-control-attribution{font-size:8px}
 .mv-roverIcon{background:none!important;border:0!important}
+.mv-phoneGpsIcon{background:none!important;border:0!important}.mv-phoneGpsDot{width:18px;height:18px;border:3px solid #fff;border-radius:50%;background:#168cff;box-shadow:0 0 0 7px rgba(22,140,255,.22),0 0 18px #168cff}
 .mv-rover{width:40px;height:40px;display:grid;place-items:center;filter:drop-shadow(0 0 4px #000a)}
 .mv-rover svg{width:34px;height:34px;transition:transform .4s}
 .mv-rover .dot{width:16px;height:16px;border-radius:50%;background:var(--mv-ok);border:3px solid #04110d;box-shadow:0 0 0 2px var(--mv-ok)}
