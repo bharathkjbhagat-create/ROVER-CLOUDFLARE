@@ -828,7 +828,6 @@ window.__defenxSetPhoneCameraActive=(active)=>{
 };
 function initLiveGPSFeed(){setText("gpsSignalText","WAITING FOR CAMERA GPS");setText("deviceGpsState","NOT ACTIVE");}
 function randomDemoPoint(){return {lat:12.9716+(Math.random()-0.5)*0.018,lon:77.5946+(Math.random()-0.5)*0.022};}
-function initLiveGPSFeed(){setText("gpsSignalText","WAITING FOR CAMERA GPS");setText("deviceGpsState","NOT ACTIVE");}
 async function loop(){
   if(telemetryBusy)return;
   telemetryBusy=true;
@@ -1379,9 +1378,7 @@ window.addEventListener("unhandledrejection",()=>{if(me)setText("conn","● DEGR
 window.addEventListener("offline",()=>{if(me)setText("conn","● DASHBOARD NETWORK OFFLINE")});
 window.addEventListener("online",()=>{if(me){setText("conn","● RECONNECTING");loadLastKnownLocation().catch(()=>{});loop()}});
 
-// Do not log out when the tab/app is backgrounded. Mobile browsers fire pagehide
-// during tab switches, app suspension and navigation-cache transitions. Logout is
-// now performed only by the explicit Logout actions or the server-side expiry.
+// Keep mobile sessions alive across page-cache restores.
 window.addEventListener("pageshow",event=>{
   if(event.persisted && me){
     setText("conn","● RECONNECTING");
