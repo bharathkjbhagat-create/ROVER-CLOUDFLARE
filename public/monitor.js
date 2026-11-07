@@ -433,10 +433,12 @@
     var bat = rep ? num(t.battery) : null;
     setText("mvBat", bat === null ? "—" : Math.round(bat) + "%");
     $("mvChipBat").className = "mv-chip " + (bat === null ? "" : (bat < 20 ? "bad" : (bat < 40 ? "warn" : "ok")));
+    var phoneFix = window.DEFENX_PHONE_GPS_LATEST;
     var fix = gpsFix(t), acc = fix ? num(t.gps_accuracy_m) : null;
-    var gtxt = demo ? "DEMO" : (fix ? (t.device_online === false ? "LAST KNOWN" : "FIX" + (acc !== null ? " ±" + Math.round(acc) + "m" : "")) : "NO FIX");
+    var phoneFresh = phoneFix && Date.now() - (phoneFix.timestamp || 0) < 15000;
+    var gtxt = demo ? "DEMO" : (phoneFresh ? "PHONE ±" + Math.round(phoneFix.accuracy || 0) + "m" : (fix ? (t.device_online === false ? "LAST KNOWN" : "FIX" + (acc !== null ? " ±" + Math.round(acc) + "m" : "")) : "NO FIX"));
     setText("mvGps", gtxt);
-    $("mvChipGps").className = "mv-chip " + (fix && t.device_online !== false ? "ok" : (demo ? "" : "warn"));
+    $("mvChipGps").className = "mv-chip " + (phoneFresh || (fix && t.device_online !== false) ? "ok" : (demo ? "" : "warn"));
 
     var ws = window.roverWS;
     setText("mvSrv", demo ? "DEMO" : (ws && ws.readyState === 1 ? "REALTIME" : (ws && ws.readyState === 0 ? "CONNECTING" : "HTTP FALLBACK")));
