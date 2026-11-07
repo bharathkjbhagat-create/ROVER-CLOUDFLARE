@@ -547,7 +547,7 @@ function updateUI(input){
     else trackLine.setLatLngs(trackPts);
   }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
   addSample(d);
-  if(phoneCameraActive&&phoneGpsLatest)renderPhoneGpsFix({coords:{latitude:phoneGpsLatest.lat,longitude:phoneGpsLatest.lon,accuracy:phoneGpsLatest.accuracy},timestamp:phoneGpsLatest.timestamp});
+  if(phoneCameraActive)window.DEFENX_PHONE_GPS_RENDER?.();
 }
 function updateCompass(heading){
   const compass=$("mapCompass");
@@ -810,57 +810,14 @@ async function initRealCameraStream(){
   }
 }
 
-let phoneGpsWatchId=null,phoneGpsMarker=null,phoneGpsAccuracyCircle=null,phoneGpsLatest=null,phoneGpsRequestActive=false;
-function renderPhoneGpsFix(position){
-  const coords=position&&position.coords;
-  if(!coords||!isValidMapPoint(coords.latitude,coords.longitude))return;
-  const lat=Number(coords.latitude),lon=Number(coords.longitude),accuracy=Math.max(0,Number(coords.accuracy)||0);
-  phoneGpsLatest={lat,lon,accuracy,timestamp:position.timestamp||Date.now()};
-  window.DEFENX_PHONE_GPS=phoneGpsLatest;
-  setText("gpsHeader","PHONE GPS LIVE");
-  setText("gpsHeaderSub","±"+Math.round(accuracy)+" m accuracy");
-  setText("gpsSignalText","PHONE GPS • ±"+Math.round(accuracy)+" m");
-  setText("mapCoords",lat.toFixed(6)+"° "+(lat>=0?"N":"S")+"  "+lon.toFixed(6)+"° "+(lon>=0?"E":"W"));
-  setText("mapTileStatus","PHONE GPS FIX • ±"+Math.round(accuracy)+" m");
-  setText("deviceGpsState","PHONE • ±"+Math.round(accuracy)+" m");
-  if(!mapReady||!map||!window.L){window.addEventListener("rover-map-ready",()=>renderPhoneGpsFix(position),{once:true});return;}
-  const icon=L.divIcon({className:"phoneGpsMarkerWrap",html:'<div style="width:22px;height:22px;border:3px solid #fff;border-radius:50%;background:#168cff;box-shadow:0 0 0 7px rgba(22,140,255,.22),0 0 18px #168cff"></div>',iconSize:[22,22],iconAnchor:[11,11]});
-  if(!phoneGpsMarker)phoneGpsMarker=L.marker([lat,lon],{icon,title:"PHONE GPS LOCATION",keyboard:true,zIndexOffset:1200}).addTo(map).bindTooltip("PHONE LOCATION",{permanent:true,direction:"top"});
-  else phoneGpsMarker.setLatLng([lat,lon]);
-  if(!phoneGpsAccuracyCircle)phoneGpsAccuracyCircle=L.circle([lat,lon],{radius:accuracy,color:"#168cff",weight:1.5,opacity:.8,fillColor:"#168cff",fillOpacity:.08}).addTo(map);
-  else phoneGpsAccuracyCircle.setLatLng([lat,lon]).setRadius(accuracy);
-  if(!phoneGpsRequestActive||!phoneGpsMarker._defenxCentered){map.flyTo([lat,lon],Math.max(map.getZoom(),17),{animate:true,duration:.6});phoneGpsMarker._defenxCentered=true;}
-}
-function startPhoneGPS(){
-  if(phoneGpsWatchId!==null||phoneGpsRequestActive)return;
-  phoneGpsRequestActive=true;
-  setText("gpsHeader","PHONE GPS");
-  setText("gpsHeaderSub","Requesting location permission…");
-  setText("gpsSignalText","WAITING FOR PHONE GPS");
-  if(!navigator.geolocation){setText("gpsHeaderSub","Location unavailable in this browser");setText("mapTileStatus","PHONE GPS UNAVAILABLE");phoneGpsRequestActive=false;return;}
-  const onError=error=>{
-    const message=error?.code===1?"Location permission denied":error?.code===2?"Phone location unavailable":"Phone GPS timed out";
-    setText("gpsHeader","PHONE GPS");setText("gpsHeaderSub",message);setText("gpsSignalText",message.toUpperCase());setText("mapTileStatus",message.toUpperCase());
-    if(phoneGpsWatchId===null)phoneGpsRequestActive=false;
-  };
-  const options={enableHighAccuracy:true,maximumAge:0,timeout:20000};
-  try{phoneGpsWatchId=navigator.geolocation.watchPosition(renderPhoneGpsFix,onError,options);}
-  catch(_){phoneGpsWatchId=null;phoneGpsRequestActive=false;onError({code:2});}
-}
-function stopPhoneGPS(){
-  if(phoneGpsWatchId!==null&&navigator.geolocation)navigator.geolocation.clearWatch(phoneGpsWatchId);
-  phoneGpsWatchId=null;phoneGpsRequestActive=false;phoneGpsLatest=null;
-  delete window.DEFENX_PHONE_GPS;
-  if(map){if(phoneGpsMarker)map.removeLayer(phoneGpsMarker);if(phoneGpsAccuracyCircle)map.removeLayer(phoneGpsAccuracyCircle);}
-  phoneGpsMarker=null;phoneGpsAccuracyCircle=null;
-  setText("gpsHeader","GPS");setText("gpsHeaderSub","Phone GPS stopped");setText("gpsSignalText","PHONE GPS STOPPED");
-}
+window.__defenxGetMap=()=>map;
 window.__defenxSetPhoneCameraActive=(active)=>{
   phoneCameraActive=!!active;
   realCameraActive=!!active;
-  if(active)startPhoneGPS();
-  else{stopPhoneGPS();realCameraInitialized=false;initRealCameraStream();}
+  window.DEFENX_PHONE_GPS_CONTROL?.(!!active);
+  if(!active){realCameraInitialized=false;initRealCameraStream();}
 };
+function initLiveGPSFeed(){setText("gpsSignalText","WAITING FOR CAMERA GPS");setText("deviceGpsState","NOT ACTIVE");}
 function randomDemoPoint(){return {lat:12.9716+(Math.random()-0.5)*0.018,lon:77.5946+(Math.random()-0.5)*0.022};}
 function initLiveGPSFeed(){setText("gpsSignalText","WAITING FOR CAMERA GPS");setText("deviceGpsState","NOT ACTIVE");}
 async function loop(){
