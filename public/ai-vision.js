@@ -36,6 +36,7 @@
   let sourceGeneration = 0;
   let corsCheckedFor = null;
   let lastPredictions = [];
+  const detectionDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1300 : 850;
 
   function setText(id, value) {
     const element = document.getElementById(id);
