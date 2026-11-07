@@ -53,6 +53,18 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('api("/api/mode"', self.js)
         self.assertIn('if(!r.ok||d.ok!==true)', self.js)
 
+    def test_settings_buttons_open_quick_settings(self):
+        self.assertIn("function openQuickSettings()", self.js)
+        self.assertIn('$("settingsBtn")?.addEventListener("click",openQuickSettings);', self.js)
+        self.assertIn('if(a==="settings"){openQuickSettings();return}', self.js)
+        self.assertIn('id="quickActionsSection"', self.html)
+
+    def test_demo_mode_can_preview_routes_but_never_move_rover(self):
+        self.assertIn("DEMO · SELECT A BASE LOCATION ON THE MAP", self.js)
+        self.assertIn("DEMO ROAD ROUTE · ", self.js)
+        self.assertIn("DEMO MODE · ROVER MOVEMENT DISABLED", self.js)
+        self.assertIn('if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}', self.js)
+
     def test_camera_record_button_uses_real_video_recorder(self):
         self.assertIn("new MediaRecorder(stream", self.js)
         self.assertIn("video.captureStream", self.js)

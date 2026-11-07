@@ -839,7 +839,7 @@ function renderReturnBase(){
 async function previewReturnRoute(simulateObstacle=false){
   if(!mapReady||!map){addLog("ROUTE","Interactive map is still loading");return;}
   if(!returnBase){setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");addLog("ROUTE","Select a base before previewing a route");return;}
-  const origin=roverGpsValid&&lastRoverPoint?L.latLng(lastRoverPoint[0],lastRoverPoint[1]):null;
+  const origin=roverGpsValid&&lastRoverPoint?L.latLng(lastRoverPoint[0],lastRoverPoint[1]):(demoMode?(rover?.getLatLng?.()||L.latLng(demoCenter[0],demoCenter[1])):null);
   if(!origin){setText("returnBaseStatus","VERIFIED ROVER GPS REQUIRED");addLog("ROUTE","A verified rover GPS fix is required for a road route");return;}
   if(returnRouteLine){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   const start=[origin.lat,origin.lng],destination=[returnBase.lat,returnBase.lon];
@@ -851,7 +851,7 @@ async function previewReturnRoute(simulateObstacle=false){
     returnRouteLine=L.polyline(detour,{color:"#f5b942",weight:5,opacity:.9,dashArray:"9 8"}).addTo(map);
     returnRouteMode="alternate";
     map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:16});
-    setText("returnBaseStatus","SIMULATED DETOUR · NOT A ROAD ROUTE");
+    setText("returnBaseStatus",demoMode?"DEMO DETOUR · VISUAL ONLY · NO ROVER COMMAND":"SIMULATED DETOUR · NOT A ROAD ROUTE");
     addLog("ROUTE","Visual detour simulation rendered; no rover command sent");
     return;
   }
@@ -889,21 +889,22 @@ async function previewReturnRoute(simulateObstacle=false){
   returnRouteMode="road";
   map.fitBounds(returnRouteLine.getBounds(),{padding:[36,36],maxZoom:18});
   const km=(Number(route.distance)/1000).toFixed(2),minutes=Math.max(1,Math.round(Number(route.duration)/60));
-  setText("returnBaseStatus","ROAD ROUTE · "+km+" KM · "+minutes+" MIN · PREVIEW ONLY");
+  setText("returnBaseStatus",(demoMode?"DEMO ROAD ROUTE · ":"ROAD ROUTE · ")+km+" KM · "+minutes+" MIN · PREVIEW ONLY");
   addLog("ROUTE","OpenStreetMap-based road route preview rendered; no rover command sent");
 }
 function clearReturnRoutePreview(){
   if(returnRouteLine&&map){map.removeLayer(returnRouteLine);returnRouteLine=null;}
   returnRouteMode="none";
-  if(returnBase) setText("returnBaseStatus","BASE SET · "+returnBase.lat.toFixed(5)+", "+returnBase.lon.toFixed(5));
+  if(demoMode)setText("returnBaseStatus","DEMO PREVIEW CLEARED · "+(returnBase?"BASE SAVED":"BASE NOT SET"));
+  else if(returnBase) setText("returnBaseStatus","BASE SET · "+returnBase.lat.toFixed(5)+", "+returnBase.lon.toFixed(5));
   else setText("returnBaseStatus","BASE NOT SET");
   addLog("ROUTE","Simulation preview cleared");
 }
 function beginBaseSelection(){
-  if(demoMode){addLog("DEMO","Base selection is disabled in the read-only demo");return;}
-  if(!mapReady||!map){addLog("BASE","Wait for the live map to load");return;}
-  returnBaseSelection=true;setText("returnBaseStatus","SELECT A BASE LOCATION ON THE MAP");
-  addLog("BASE","Tap the map to save the return base");
+  if(!mapReady||!map){setText("returnBaseStatus","MAP STILL LOADING · TRY AGAIN");addLog("BASE","Wait for the live map to load");return;}
+  returnBaseSelection=true;
+  setText("returnBaseStatus",demoMode?"DEMO · SELECT A BASE LOCATION ON THE MAP":"SELECT A BASE LOCATION ON THE MAP");
+  addLog("BASE",demoMode?"Tap the map to save a simulated base; no rover movement is enabled":"Tap the map to save the return base");
 }
 function handleBaseMapClick(e){
   if(!returnBaseSelection||!e?.latlng)return;
@@ -911,10 +912,12 @@ function handleBaseMapClick(e){
   if(!Number.isFinite(lat)||lat < -90||lat > 90||!Number.isFinite(lon)||lon < -180||lon > 180){setText("returnBaseStatus","INVALID BASE LOCATION · TRY AGAIN");addLog("BASE","Rejected invalid base coordinates");return;}
   returnBase={lat,lon,saved_at:new Date().toISOString()};
   try{localStorage.setItem("defenx_return_base",JSON.stringify(returnBase));}catch(_){}
-  returnBaseSelection=false;renderReturnBase();addLog("BASE","Base location saved on this browser");
+  returnBaseSelection=false;renderReturnBase();
+  if(demoMode)setText("returnBaseStatus","DEMO BASE SET · ROUTE PREVIEW ONLY");
+  addLog("BASE",demoMode?"Simulated base saved in this browser; no rover movement is enabled":"Base location saved on this browser");
 }
 async function requestReturnToBase(){
-  if(demoMode){addLog("DEMO","Return request is disabled in the read-only demo; route preview remains available on the authenticated dashboard");return;}
+  if(demoMode){setText("returnBaseStatus","DEMO MODE · ROVER MOVEMENT DISABLED");addLog("DEMO","Return-to-base movement is disabled in the read-only demo; preview controls remain available");return;}
   if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return;}}
   if(!returnBase){addLog("RETURN","Set the base first using SELECT BASE ON MAP");setText("returnBaseStatus","BASE REQUIRED · SELECT BASE ON MAP");return;}
   // Fail closed: current firmware/controller capability is unknown. Do not issue
@@ -1111,6 +1114,12 @@ function toggleNightMode(){
   const b=$("nightModeBtn");if(b)b.classList.toggle("active",on);
   addLog("UI",on?"Night mode enabled":"Night mode disabled");recordActivity("NIGHT_MODE",on?"Night mode enabled":"Night mode disabled");
 }
+function openQuickSettings(){
+  const panel=document.querySelector(".foldCard");
+  if(panel){panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"center"});}
+  const button=$("settingsBtn");if(button)button.setAttribute("aria-pressed","true");
+  addLog("UI","Quick settings opened");
+}
 function setLiveTracking(){
   liveTracking=!liveTracking;
   const b=$("liveTrackBtn");if(b)b.classList.toggle("active",liveTracking);
@@ -1279,7 +1288,7 @@ function initCamera3DRoom(){
 function bindUI(){
   $("themeBtn")?.addEventListener("click",toggleTheme);
   applyTheme();
-  $("settingsBtn")?.addEventListener("click",()=>scrollToSection("controlPanel"));
+  $("settingsBtn")?.addEventListener("click",openQuickSettings);
   $("profileBtn")?.addEventListener("click",()=>{if(!me){openModal("profileModal");setText("profileMsg","Authenticating…");return;}$("profileUsername").value=me.username;$("profileName").value=me.display_name;$("profilePassword").value="";setText("profileMsg","");openModal("profileModal");recordActivity("PROFILE_OPENED","Profile opened");});
   $("adminBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Admin activity centre opened");await loadUsers();await loadAudit();pollLoginAlerts();});
   $("deviceBtn")?.addEventListener("click",()=>{recordActivity("DEVICES_OPENED","Device management opened");openDevices()});
@@ -1317,7 +1326,7 @@ function bindUI(){
   $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
   $("devicesTabBtn")?.addEventListener("click",async()=>{closeModal("adminModal");await openDevices()});
   $("auditTabBtn")?.addEventListener("click",async()=>{hide("usersTab");show("auditTab");await loadAudit()});
-  document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){scrollToSection("controlPanel");return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
+  document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){openQuickSettings();return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
   initMobileNav();
   initCamera3DRoom();
   initRealCameraStream();
