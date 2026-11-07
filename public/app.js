@@ -782,6 +782,7 @@ async function initRealCameraStream(){
     }else if(mediaType==="mjpeg"||mediaType==="image"){
       const img=document.createElement("img");
       img.id="roverRealCamera";
+      img.dataset.defenxLiveStream="1";
       img.alt="ROVER-01 live camera";
       img.decoding="async";
       img.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
@@ -793,6 +794,7 @@ async function initRealCameraStream(){
     }else{
       const video=document.createElement("video");
       video.id="roverRealCamera";
+      video.dataset.defenxLiveStream="1";
       video.autoplay=true;video.muted=true;video.playsInline=true;video.controls=false;
       video.style.cssText="display:block;width:100%;height:100%;object-fit:cover;background:#02070b;position:absolute;inset:0;z-index:4";
       video.onloadeddata=()=>{realCameraActive=true;if(scene)scene.style.display="none";setText("cameraSceneLabel","LIVE CAMERA • ROVER STREAM");setText("cameraStatus","Working")};
