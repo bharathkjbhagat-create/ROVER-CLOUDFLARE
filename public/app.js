@@ -773,6 +773,7 @@ async function initRealCameraStream(){
     if(mediaType==="iframe"){
       const frame=document.createElement("iframe");
       frame.id="roverRealCamera";
+      frame.dataset.defenxLiveStream="1";
       frame.title="ROVER-01 live camera";
       frame.allow="autoplay; fullscreen";
       frame.src=d.url;
