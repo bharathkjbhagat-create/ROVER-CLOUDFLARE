@@ -9,7 +9,7 @@ window.ROVER_LEFT_IMAGE="data:image/webp;base64,UklGRgAGAABXRUJQVlA4IPQFAABwIwCd
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
-let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",mapModeCurrent="hybrid",followRover=localStorage.getItem("defenx_map_follow")!=="off",roverGpsValid=false,lastRoverPoint=null,mapTileErrorCount=0;
+let me=null,map=null,rover=null,targetMarker=null,targetLine=null,trackLine=null,geofence=null,satelliteOn=false,satelliteLayer=null,streetLayer=null,hybridOverlayLayer=null,trackPts=[],samples=[],telemetryBusy=false,loginAlertBusy=false,logoutSent=false,mapReady=false,motionStopTimer=null,hybridOn=false,liveTracking=true,recording=false,cameraRecorder=null,lastLiveCommand="",lastKnownLoss=null,lastKnownLossKey="",mapModeCurrent="hybrid",followRover=localStorage.getItem("defenx_map_follow")!=="off",roverGpsValid=false,lastRoverPoint=null,mapTileErrorCount=0;
 let gpsWatchId=null,gpsPublishBusy=false,gpsLastPublishedAt=0,gpsSourceId=localStorage.getItem("rover_gps_source_id")||"",realCameraInitialized=false,realCameraActive=false;
 if(!gpsSourceId){gpsSourceId="gps-"+(crypto.randomUUID?crypto.randomUUID():Date.now()+"-"+Math.random().toString(16).slice(2));localStorage.setItem("rover_gps_source_id",gpsSourceId)}
 let lastLoginAt=localStorage.getItem("rover_last_login_at")||"",unreadLogins=0;
@@ -933,52 +933,29 @@ async function requestReturnToBase(){
 
 async function sendCommand(command){
   if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}
-  if(!me){
-    try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return false}
-  }
-  const requested=String(command||"STOP").toUpperCase();
+  if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return false;}}
+  const requested=String(command||"STOP").toUpperCase(),telemetry=window.defenxLatestTelemetry||window.roverTelemetry||null;
+  if(requested!=="STOP"&&telemetry?.device_online===false){addLog("DENIED","Rover is offline; movement command was not sent");setText("permissionNotice","ROVER OFFLINE • MOVEMENT COMMAND NOT SENT");return false;}
   try{
-    // Primary path: a live WebSocket message is broadcast to every connected device.
-    if(window.roverWS?.readyState===WebSocket.OPEN){
-      setText("cmd",requested);
-      if(window.ROVER_CAMERA_CONTROL)window.ROVER_CAMERA_CONTROL(requested);
-      const camera=$("cameraSceneLabel");
-      if(camera){const labels={FORWARD:"CAMERA • FORWARD",REVERSE:"CAMERA • REVERSE",LEFT:"CAMERA • LEFT",RIGHT:"CAMERA • RIGHT",STOP:"CAMERA • STABILIZED"};camera.textContent=labels[requested]||"DEMO CAMERA VIEW • SIMULATION";}
-      window.roverWS.send(JSON.stringify({type:"command",command:requested}));
-      addLog("COMMAND","Broadcast "+requested);
-      return true;
-    }
-    const r=await api("/api/command",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({command:requested})});
-    const d=await r.json();
-    addLog(r.ok?"COMMAND":"DENIED",r.ok?requested:(d.error||"Rejected"));
-    if(r.ok){
-      if(d.telemetry)updateUI(d.telemetry);
-      else setText("cmd",requested);
-      if(requested==="STOP"&&motionStopTimer){clearTimeout(motionStopTimer);motionStopTimer=null}
-    }
-    return r.ok;
-  }catch(e){addLog("RECONNECT","Command is queued by the client and will be re-sent on the next operator action");return false}
+    const r=await api("/api/command",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({command:requested})}),d=await r.json();
+    if(!r.ok||d.ok!==true){addLog("DENIED",d.error||"Control centre rejected the command");return false;}
+    if(d.telemetry)updateUI(d.telemetry);else setText("cmd",requested);
+    if(window.ROVER_CAMERA_CONTROL)window.ROVER_CAMERA_CONTROL(requested);
+    addLog("COMMAND","Control centre accepted "+requested);
+    if(requested==="STOP"&&motionStopTimer){clearTimeout(motionStopTimer);motionStopTimer=null;}
+    return true;
+  }catch(_){addLog("RECONNECT","Command was not sent; check the connection and retry");return false;}
 }
 async function setMode(mode){
-  if(demoMode){addLog("DEMO","Operating modes are disabled in the read-only demo");return;}
-  if(!me){
-    try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return}
-  }
+  if(demoMode){addLog("DEMO","Operating modes are disabled in the read-only demo");return false;}
+  if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return false;}}
   try{
-    if(window.roverWS?.readyState===WebSocket.OPEN){
-      window.roverWS.send(JSON.stringify({type:"mode",mode:String(mode).toUpperCase()}));
-      setText("modeBadge",mode);document.querySelectorAll(".modeBtn").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
-      addLog("MODE","Broadcast "+mode);
-      return;
-    }
-    const r=await api("/api/mode",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode})});
-    const d=await r.json();
-    addLog(r.ok?"MODE":"DENIED",r.ok?mode:(d.error||"Rejected"));
-    if(r.ok){
-      if(d.telemetry)updateUI(d.telemetry);else setText("modeBadge",mode);
-      document.querySelectorAll(".modeBtn").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
-    }
-  }catch(e){addLog("RECONNECT","Mode update could not reach the control centre")}
+    const r=await api("/api/mode",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode})}),d=await r.json();
+    if(!r.ok||d.ok!==true){addLog("DENIED",d.error||"Control centre rejected the mode");return false;}
+    if(d.telemetry)updateUI(d.telemetry);else setText("modeBadge",mode);
+    document.querySelectorAll(".modeBtn").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
+    addLog("MODE","Control centre accepted "+mode);return true;
+  }catch(_){addLog("RECONNECT","Mode change was not sent; check the connection and retry");return false;}
 }
 async function simulate(){if(me)await api("/api/simulate",{method:"POST"})}
 async function logoutAction(){
@@ -1105,6 +1082,29 @@ async function captureScreen(){
     }catch(_){}
   }
   window.print();
+}
+function toggleCameraRecording(){
+  const button=$("camRecordBtn");
+  if(recording){recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";cameraRecorder?.stop();return;}
+  const video=$("roverRealCamera");
+  if(!window.MediaRecorder||video?.tagName!=="VIDEO"||!video.captureStream||video.readyState<2||!video.videoWidth){
+    setText("cameraSceneLabel","RECORDING UNAVAILABLE • LIVE VIDEO STREAM REQUIRED");addLog("CAMERA","Recording not started; a live recordable video stream is not connected");return;
+  }
+  try{
+    const stream=video.captureStream(),chunks=[],types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"],mime=types.find(type=>MediaRecorder.isTypeSupported?.(type));
+    const recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);cameraRecorder=recorder;
+    recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+    recorder.onstop=()=>{
+      recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";
+      const blob=new Blob(chunks,{type:recorder.mimeType||"video/webm"});stream.getTracks().forEach(track=>track.stop());cameraRecorder=null;
+      if(blob.size){const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="defenx-camera-"+Date.now()+".webm";document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setText("cameraSceneLabel","CAMERA RECORDING SAVED");}
+      else setText("cameraSceneLabel","RECORDING EMPTY • NO VIDEO DATA");
+      addLog("CAMERA",blob.size?"Live camera recording saved":"No video data was received");recordActivity("CAMERA_RECORD","Recording stopped");
+    };
+    recorder.onerror=()=>{recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";setText("cameraSceneLabel","CAMERA RECORDING FAILED");addLog("CAMERA","Browser recorder reported an error");};
+    recorder.start(1000);recording=true;button?.classList.add("active");button?.setAttribute("aria-pressed","true");
+    if(button)button.title="Stop camera recording";setText("cameraSceneLabel","LIVE CAMERA • RECORDING");addLog("CAMERA","Live camera recording started");recordActivity("CAMERA_RECORD","Recording started");
+  }catch(_){cameraRecorder=null;recording=false;setText("cameraSceneLabel","RECORDING UNAVAILABLE • CHECK CAMERA STREAM");addLog("CAMERA","Recording could not start for this camera stream");}
 }
 function toggleNightMode(){
   const on=document.body.classList.toggle("night-mode");
@@ -1284,7 +1284,7 @@ function bindUI(){
   $("adminBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Admin activity centre opened");await loadUsers();await loadAudit();pollLoginAlerts();});
   $("deviceBtn")?.addEventListener("click",()=>{recordActivity("DEVICES_OPENED","Device management opened");openDevices()});
   $("createDeviceBtn")?.addEventListener("click",createDevice);
-  $("alertBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Login alerts opened");await loadAudit();});
+  $("alertBtn")?.addEventListener("click",async()=>{openModal("adminModal");hide("usersTab");show("auditTab");recordActivity("ALERTS_OPENED","Login alerts opened");await loadAudit();pollLoginAlerts();});
   $("enableAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
   $("soundBtn")?.addEventListener("click",toggleNotificationSound);
   $("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay);
@@ -1310,12 +1310,12 @@ function bindUI(){
   $("mapFullscreenBtn")?.addEventListener("click",toggleMapFullscreen);
   document.addEventListener("fullscreenchange",syncMapFullscreenUI);
   $("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
-  $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",()=>{recording=!recording;const b=$("camRecordBtn");b.classList.toggle("active",recording);addLog("CAMERA",recording?"Recording started":"Recording stopped");recordActivity("CAMERA_RECORD",recording?"Recording started":"Recording stopped")});
+  $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",toggleCameraRecording);
   $("camFullscreenBtn")?.addEventListener("click",()=>{const el=$("cameraViewport");if(el?.requestFullscreen)el.requestFullscreen().catch(()=>{});});
-  $("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");loadAudit()}else scrollToSection("eventLogSection")});
+  $("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");hide("usersTab");show("auditTab");loadAudit()}else scrollToSection("eventLogSection")});
   $("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[data-user]");if(b)userAction(b)});
   $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
-  $("devicesTabBtn")?.addEventListener("click",loadDevices);
+  $("devicesTabBtn")?.addEventListener("click",async()=>{closeModal("adminModal");await openDevices()});
   $("auditTabBtn")?.addEventListener("click",async()=>{hide("usersTab");show("auditTab");await loadAudit()});
   document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){scrollToSection("controlPanel");return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
   initMobileNav();
