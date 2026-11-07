@@ -524,7 +524,7 @@ function updateUI(input){
       const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";
       if(geofence)geofence.setLatLng(lastRoverPoint);
       else if(mapReady)geofence=L.circle(lastRoverPoint,{radius:600,color:"#18d6a3",fill:false,weight:1,dashArray:"6 6"}).addTo(map);
-      if(map&&followRover&&liveTracking)map.panTo(lastRoverPoint,{animate:true,duration:.4});
+      if(map&&followRover&&liveTracking){const center=map.getCenter();const moved=Math.hypot((center.lat-lastRoverPoint[0])*111000,(center.lng-lastRoverPoint[1])*111000*Math.cos(lastRoverPoint[0]*Math.PI/180));if(moved>=4)map.panTo(lastRoverPoint,{animate:false});}
     }else if(demoMode&&isValidMapPoint(d.lat,d.lon)){
       rover.setLatLng([Number(d.lat),Number(d.lon)]);rover.setOpacity(.72);
       const markerEl=$("roverMapMarker");if(markerEl)markerEl.style.transform="rotate("+heading+"deg)";
