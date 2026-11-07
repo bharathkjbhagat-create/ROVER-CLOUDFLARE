@@ -13,8 +13,9 @@
   const vehicleCount = document.getElementById("aiVehicleCount");
   if (!viewport || !bar || !statusText || !toggle) return;
 
-  const demoMode = window.location.pathname === "/" ||
-    window.location.pathname === "/demo" ||
+  // The production dashboard and login share "/". Only explicit demo routes
+  // disable real AI; treating "/" as demo permanently hid the operator control.
+  const demoMode = window.location.pathname === "/demo" ||
     new URLSearchParams(window.location.search).get("demo") === "1";
   const canvas = document.createElement("canvas");
   canvas.className = "aiVisionCanvas";
@@ -45,9 +46,11 @@
     bar.dataset.state = state;
     statusText.textContent = message;
     window.ROVER_AI_VISION_STATUS = state;
+    const canRetry = state === "error" && sourceReady(source) && !paused;
     toggle.disabled = state === "loading" || state === "waiting" ||
-      state === "unsupported" || state === "error" || state === "demo";
-    toggle.textContent = paused ? "RESUME AI" : "PAUSE AI";
+      state === "unsupported" || state === "demo" ||
+      (state === "error" && !canRetry);
+    toggle.textContent = paused ? "RESUME AI" : canRetry ? "RETRY AI" : "PAUSE AI";
     setText("deviceAiState", state === "active" ? "AI LIVE" :
       state === "paused" ? "PAUSED" : state === "loading" ? "LOADING" : "WAITING");
   }
@@ -311,6 +314,11 @@
   }
 
   toggle.addEventListener("click", () => {
+    if (bar.dataset.state === "error" && !paused) {
+      setState("loading", "RETRYING AI VISION");
+      startDetection();
+      return;
+    }
     paused = !paused;
     if (paused) {
       running = false;
