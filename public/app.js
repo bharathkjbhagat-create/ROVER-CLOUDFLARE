@@ -547,6 +547,7 @@ function updateUI(input){
     else trackLine.setLatLngs(trackPts);
   }else if(trackLine&&map){map.removeLayer(trackLine);trackLine=null;}
   addSample(d);
+  if(phoneCameraActive&&phoneGpsLatest)renderPhoneGpsFix({coords:{latitude:phoneGpsLatest.lat,longitude:phoneGpsLatest.lon,accuracy:phoneGpsLatest.accuracy},timestamp:phoneGpsLatest.timestamp});
 }
 function updateCompass(heading){
   const compass=$("mapCompass");
