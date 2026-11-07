@@ -239,7 +239,7 @@
       const generation = sourceGeneration;
       const dimensions = sourceSize(activeSource);
       checkReadable(activeSource);
-      const predictions = await model.detect(activeSource, 10, 0.5);
+      const predictions = await model.detect(activeSource, 6, 0.5);
       if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
       if (window.DEFENX_FACE_SCAN_ACTIVE) {
         scheduleNext(1000);
