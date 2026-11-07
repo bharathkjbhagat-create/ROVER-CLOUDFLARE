@@ -32,6 +32,7 @@
   let scanning = false;
   let timer = 0;
   let generation = 0;
+  const scanDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1200 : 850;
 
   function publishScanState(active) {
     window.DEFENX_FACE_SCAN_ACTIVE = !!active;
