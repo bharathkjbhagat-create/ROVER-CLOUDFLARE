@@ -25,6 +25,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
+        cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
         parser = _Ids()
@@ -83,12 +84,16 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('LIVE CAMERA READY • START WHEN YOU CHOOSE', self.face)
 
     def test_temporary_phone_camera_uses_local_stream_and_can_stop(self):
-        self.assertIn('navigator.mediaDevices.getUserMedia', self.js)
-        self.assertIn('facingMode:{ideal:"environment"}', self.js)
-        self.assertIn('video.srcObject=stream', self.js)
-        self.assertIn('track.stop()', self.js)
+        self.assertIn("navigator.mediaDevices?.getUserMedia", self.phone_camera)
+        self.assertIn('facingMode:{ideal:"environment"}', self.phone_camera)
+        self.assertIn("created.srcObject=acquired", self.phone_camera)
+        self.assertIn("stopTracks(acquired)", self.phone_camera)
+        self.assertIn('window.__defenxSetPhoneCameraActive?.(true)', self.phone_camera)
+        self.assertIn('window.__defenxSetPhoneCameraActive?.(false)', self.phone_camera)
         self.assertIn('id="phoneCameraBtn"', self.html)
-        self.assertIn('!phoneCameraActive', self.js)
+        self.assertIn('src="/phone-camera.js?v=20261107-02"', self.html)
+        self.assertIn("if(phoneCameraActive)return;", self.js)
+        self.assertIn("!phoneCameraActive", self.js)
 
     def test_camera_record_button_uses_real_video_recorder(self):
         self.assertIn("new MediaRecorder(stream", self.js)

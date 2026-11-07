@@ -1592,3 +1592,9 @@ body.light .deviceTag{color:#0a6f58}
 .aiVisionBar button{min-height:28px;padding:0 9px;border:1px solid #2a8872;border-radius:6px;background:#0d2923;color:#bafbe4;font-size:8px;font-weight:900;letter-spacing:.4px}.aiVisionBar button:disabled{opacity:.45;cursor:not-allowed}
 .aiVisionNote{grid-column:1/-1;color:#698692;font-size:7px;line-height:1.3}
 @media(max-width:480px){.aiVisionBar{grid-template-columns:minmax(0,1fr) auto;gap:8px}.aiVisionCounts{grid-column:1;grid-row:2}.aiVisionBar button{grid-column:2;grid-row:1/3}.aiVisionNote{grid-column:1/-1}}
+
+/* Temporary smartphone camera control */
+.cameraFooter .phoneCameraBtn{width:auto!important;min-width:112px!important;max-width:148px;flex:0 0 auto!important;padding:0 9px!important;border-color:#28748c!important;background:linear-gradient(180deg,#123445,#091c28)!important;color:#c7f2ff!important;font:800 8px/1 ui-monospace,monospace!important;letter-spacing:.45px;white-space:nowrap;}
+.cameraFooter .phoneCameraBtn.active{border-color:#c85a68!important;background:linear-gradient(180deg,#48202a,#24131a)!important;color:#ffe0e4!important;}
+.cameraFooter .phoneCameraBtn:disabled{opacity:.58;cursor:wait;}
+@media(max-width:600px){.cameraFooter .phoneCameraBtn{min-width:98px!important;max-width:118px;font-size:7px!important;padding:0 6px!important;}}
