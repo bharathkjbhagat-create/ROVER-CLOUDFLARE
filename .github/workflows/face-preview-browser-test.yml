@@ -1,0 +1,38 @@
+name: DEFENX isolated face preview browser test
+
+on:
+  push:
+    branches:
+      - feature/face-verification-registry
+    paths:
+      - 'tests/face-preview-browser.mjs'
+      - '.github/workflows/face-preview-browser-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: defenx-face-preview-browser-test
+  cancel-in-progress: true
+
+jobs:
+  browser-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      WORKER_URL: https://defenx-face-preview.bindukjagadish.workers.dev
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Install Playwright
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test face-scan button with synthetic camera
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+        run: node tests/face-preview-browser.mjs
