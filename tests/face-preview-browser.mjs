@@ -38,7 +38,7 @@ try {
     const video = document.getElementById("roverRealCamera");
     return video && video.tagName === "VIDEO" && video.srcObject &&
       video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
-  }, { timeout: 20000 });
+  }, undefined, { timeout: 20000 });
   const cameraStatus = await faceSection.locator(".faceHint").innerText();
   if (!cameraStatus.includes("LOCAL DEVICE CAMERA ACTIVE")) {
     throw new Error("Camera status did not confirm the test camera: " + cameraStatus);
