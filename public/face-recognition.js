@@ -65,32 +65,7 @@
     return modelPromise;
   }
 
-  /* ---------------- enrolled-user storage (server first, IndexedDB fallback) ---------------- */
-  const idb = {
-    open() {
-      return new Promise((resolve, reject) => {
-        let req;
-        try { req = indexedDB.open("defenx_faces", 1); } catch (e) { reject(e); return; }
-        req.onupgradeneeded = () => req.result.createObjectStore("enrollments", { keyPath: "id" });
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-      });
-    },
-    async run(mode, fn) {
-      const db = await idb.open();
-      try {
-        return await new Promise((resolve, reject) => {
-          const tx = db.transaction("enrollments", mode), store = tx.objectStore("enrollments");
-          const out = fn(store);
-          tx.oncomplete = () => resolve(out && "result" in out ? out.result : undefined);
-          tx.onerror = () => reject(tx.error);
-        });
-      } finally { db.close(); }
-    },
-    all() { return idb.run("readonly", s => s.getAll()); },
-    put(item) { return idb.run("readwrite", s => s.put(item)); },
-    del(id) { return idb.run("readwrite", s => s.delete(id)); }
-  };
+  /* ---------------- encrypted server-only enrollment storage ---------------- */
   async function fetchJson(url, options) {
     const response = await fetch(url, Object.assign({ credentials: "same-origin", cache: "no-store" }, options || {}));
     let data = null;
@@ -101,14 +76,18 @@
     if (demoMode) { enrolled = []; storageMode = "none"; return; }
     try {
       const { response, data } = await fetchJson("/api/face-enrollments");
-      if (response.ok && data.ok) { enrolled = data.enrollments || []; storageMode = "server"; return; }
-      if (response.status === 401 || response.status === 403) { enrolled = []; storageMode = "none"; return; }
-    } catch (_) { /* fall through to local storage */ }
-    try {
-      const rows = await idb.all();
-      enrolled = (rows || []).map(r => ({ id: r.id, name: r.name, descriptor: r.descriptor }));
-      storageMode = "local";
-    } catch (_) { enrolled = []; storageMode = "none"; }
+      if (response.ok && data.ok && data.storage === "server-encrypted") {
+        enrolled = data.enrollments || [];
+        storageMode = "server";
+        return;
+      }
+      enrolled = [];
+      storageMode = "none";
+    } catch (_) {
+      // Biometric data must never fall back to unencrypted browser storage.
+      enrolled = [];
+      storageMode = "none";
+    }
   }
 
   /* ---------------- live pipeline (called by ai-vision.js) ---------------- */
@@ -259,9 +238,7 @@
     thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = [];
     if (note) note.textContent = storageMode === "server"
       ? "Stored in the administrator-only server database. Photographs and face data are never shown to other users."
-      : storageMode === "local"
-        ? "Server database unavailable: enrolments are stored only in THIS browser (IndexedDB) on this device."
-        : "Enrolment storage unavailable. Sign in as administrator.";
+      : "Encrypted server storage unavailable. Face enrollment is disabled until AES-GCM storage is configured.";
     if (!enrolled.length) { box.innerHTML = '<div class="empty">No registered users enrolled.</div>'; return; }
     box.innerHTML = enrolled.map(e => '<div class="faceEnrollRow" data-id="' + esc(e.id) + '"><img alt="" width="44" height="44"><b>' + esc(e.name) + '</b><button type="button" class="mini" data-del="' + esc(e.id) + '">REMOVE</button></div>').join("");
     for (const e of enrolled) {
@@ -304,7 +281,7 @@
     if (!name) return enrollMsg("Enter the person's name.", true);
     if (!file) return enrollMsg("Choose a clear, front-facing photograph.", true);
     if (!$("faceEnrollConsent").checked) return enrollMsg("Documented consent from this person is required.", true);
-    if (storageMode === "none") return enrollMsg("Enrolment storage is unavailable.", true);
+    if (storageMode !== "server") return enrollMsg("Encrypted server storage is unavailable. No biometric data was saved.", true);
     const button = $("faceEnrollBtn"); button.disabled = true;
     try {
       enrollMsg("Loading face models…");
@@ -326,8 +303,6 @@
       if (storageMode === "server") {
         const { response, data } = await fetchJson("/api/face-enrollments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, consent: true, descriptor, photo }) });
         if (!response.ok || !data.ok) throw new Error(data.error || "Could not save the enrolment.");
-      } else {
-        await idb.put({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), name, descriptor, photo, created_at: new Date().toISOString() });
       }
       $("faceEnrollName").value = ""; $("faceEnrollFile").value = ""; $("faceEnrollConsent").checked = false;
       await loadEnrollments(); refreshBar(); await renderEnrollList();
@@ -342,7 +317,7 @@
       if (storageMode === "server") {
         const { response, data } = await fetchJson("/api/face-enrollments/" + encodeURIComponent(id), { method: "DELETE" });
         if (!response.ok || !data.ok) throw new Error(data.error || "Could not remove.");
-      } else await idb.del(id);
+      }
       await loadEnrollments(); refreshBar(); await renderEnrollList(); enrollMsg("Removed " + entry.name + ".");
     } catch (error) { enrollMsg(error.message || "Could not remove.", true); }
   }
