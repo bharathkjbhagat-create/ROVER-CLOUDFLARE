@@ -3,8 +3,9 @@
  * - Compares live faces against administrator-enrolled, consenting users only.
  * - Enrollment photographs are processed on their own canvas and are never fed to
  *   the live pipeline, so an uploaded reference photo cannot raise a detection or alert.
- * - Frames never leave the browser. Enrolled data lives in the admin-only server
- *   store (PostgreSQL) or, when that is unavailable, in this browser's IndexedDB.
+ * - Frames never leave the browser. Enrolled descriptors and reference photographs
+ *   are stored only in the admin-only server database as AES-256-GCM ciphertext.
+ *   There is no plaintext IndexedDB fallback.
  * Orchestrated by ai-vision.js through window.DEFENX_FACE.
  */
 (() => {
@@ -208,7 +209,7 @@
     if (!sourceOk()) { setState("waiting", "WAITING FOR LIVE CAMERA"); return; }
     if (!wanted) { setState("paused", "FACE ID STOPPED BY OPERATOR"); return; }
     if (!modelReady) return;
-    const where = storageMode === "server" ? "server" : storageMode === "local" ? "this browser" : "none";
+    const where = storageMode === "server" ? "encrypted server storage" : "unavailable";
     setState("active", "FACE ID LIVE • " + enrolled.length + " ENROLLED (" + where + ")");
   }
   async function bootModels() {
