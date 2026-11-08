@@ -136,6 +136,55 @@ class RealtimeHub(DurableObject):
             await self.ctx.storage.put("login_events", retained[:5000])
         return retained[:safe_limit]
 
+    async def face_enrollment_op(self, request_json):
+        """Store only AES-GCM ciphertext for administrator face enrollments."""
+        try:
+            request = json.loads(request_json) if isinstance(request_json, str) else request_json
+        except Exception:
+            return {"ok": False, "error": "bad_request"}
+        if not isinstance(request, dict):
+            return {"ok": False, "error": "bad_request"}
+        operation = str(request.get("op") or "")
+        rows = await self.ctx.storage.get("face_enrollments")
+        if not isinstance(rows, list):
+            rows = []
+        rows = [row for row in rows if isinstance(row, dict)]
+        if operation == "list":
+            return {"ok": True, "enrollments": rows}
+        if operation == "add":
+            enrollment = request.get("enrollment")
+            if not isinstance(enrollment, dict):
+                return {"ok": False, "error": "bad_request"}
+            ident = str(enrollment.get("id") or "")
+            blob = enrollment.get("blob")
+            if (len(ident) != 36 or not isinstance(blob, str)
+                    or not blob.startswith("a256gcm.v1.") or len(blob) > 40000):
+                return {"ok": False, "error": "bad_request"}
+            if any(row.get("id") == ident for row in rows):
+                return {"ok": False, "error": "duplicate"}
+            if len(rows) >= 50:
+                return {"ok": False, "error": "enrollment_limit"}
+            rows.append({
+                "id": ident,
+                "blob": blob,
+                "created_at": str(enrollment.get("created_at") or "")[:40],
+                "created_by": str(enrollment.get("created_by") or "")[:64],
+            })
+            await self.ctx.storage.put("face_enrollments", rows)
+            return {"ok": True, "id": ident}
+        if operation == "get":
+            ident = str(request.get("id") or "")
+            row = next((item for item in rows if item.get("id") == ident), None)
+            return {"ok": True, "enrollment": row} if row else {"ok": False, "error": "not_found"}
+        if operation == "delete":
+            ident = str(request.get("id") or "")
+            retained = [row for row in rows if row.get("id") != ident]
+            if len(retained) == len(rows):
+                return {"ok": False, "error": "not_found"}
+            await self.ctx.storage.put("face_enrollments", retained)
+            return {"ok": True, "id": ident}
+        return {"ok": False, "error": "bad_request"}
+
     async def set_last_known_loss(self, loss_event):
         if not isinstance(loss_event, dict):
             return False
