@@ -344,6 +344,18 @@ jobs:
           assert data.get("ok") is True and data.get("algorithm") == "AES-256-GCM", data
           PY
           echo "Cloudflare Web Crypto AES-GCM runtime check: PASS"
+          registry_code="$(curl -A 'Mozilla/5.0 (DEFENX encrypted registry smoke test)' -sS -o /tmp/defenx-face-registry.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/face-enrollments")"
+          echo "/api/face-enrollments -> HTTP $registry_code"
+          test "$registry_code" = "200"
+          python - <<'PY'
+          import json
+          with open("/tmp/defenx-face-registry.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is True, data
+          assert data.get("storage") == "durable-object-encrypted", data
+          assert isinstance(data.get("enrollments"), list), data
+          print("Production encrypted Durable Object registry read: PASS")
+          PY
 
       - name: Verify regular-user logins remain disabled
         env:
