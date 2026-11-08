@@ -97,6 +97,7 @@ class VisionBackendTests(unittest.TestCase):
     def setUp(self):
         self.client = rover_app.app.test_client()
         self.db = FakeDB()
+        rover_app._LOCAL_FACE_ENROLLMENTS.clear()
         fake_psycopg = types.SimpleNamespace(rows=types.SimpleNamespace(dict_row=object()))
         self.patches = [
             patch.object(rover_app, "db_available", lambda: True),
@@ -164,9 +165,9 @@ class VisionBackendTests(unittest.TestCase):
         items = listing.get_json()["enrollments"]
         self.assertEqual([i["name"] for i in items], ["Asha Rao"])
         self.assertEqual(len(items[0]["descriptor"]), 128)
-        self.assertEqual(self.db.faces[0]["descriptor"].startswith("a256gcm.v1."), True)
-        self.assertEqual(self.db.faces[0]["photo_b64"].startswith("a256gcm.v1."), True)
-        self.assertNotIn(JPEG[:40], self.db.faces[0]["photo_b64"])
+        stored = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        self.assertTrue(stored["blob"].startswith("a256gcm.v1."))
+        self.assertNotIn(JPEG[:40], stored["blob"])
         self.assertNotIn("photo", items[0])  # photographs are served only by the dedicated protected route
         photo = self.client.get(f"/api/face-enrollments/{ident}/photo")
         self.assertEqual(photo.status_code, 200)
@@ -182,19 +183,6 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["algorithm"], "AES-256-GCM")
 
-    def test_legacy_plaintext_records_are_migrated_to_authenticated_ciphertext(self):
-        ident = str(uuid.uuid4())
-        self.db.faces.append({
-            "id": ident, "name": "Legacy person", "descriptor": json.dumps(DESCRIPTOR),
-            "photo_b64": JPEG, "created_by": "admin", "created_at": datetime.now(timezone.utc),
-        })
-        response = self.client.get("/api/face-enrollments")
-        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
-        row = self.db.faces[0]
-        self.assertTrue(row["descriptor"].startswith("a256gcm.v1."))
-        self.assertTrue(row["photo_b64"].startswith("a256gcm.v1."))
-        self.assertEqual(response.get_json()["enrollments"][0]["name"], "Legacy person")
-
     def test_enrollment_validation(self):
         bad_cases = [
             {"name": ""}, {"consent": False}, {"consent": "true"}, {"descriptor": DESCRIPTOR[:127]},
@@ -206,16 +194,20 @@ class VisionBackendTests(unittest.TestCase):
             self.assertEqual(self.enroll(**case).status_code, 400, case if "photo" not in case else list(case))
         self.assertEqual(self.db.faces, [])
 
-    def test_enrollment_unavailable_without_database(self):
+    def test_enrollment_works_without_postgres_using_shared_store(self):
         with patch.object(rover_app, "db_available", lambda: False):
             r = self.enroll()
-            self.assertEqual(r.status_code, 503)
-            self.assertEqual(r.get_json()["storage"], "unavailable")
-            self.assertEqual(self.client.get("/api/face-enrollments").status_code, 503)
+            self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+            listing = self.client.get("/api/face-enrollments")
+            self.assertEqual(listing.status_code, 200)
+            self.assertEqual(listing.get_json()["storage"], "durable-object-encrypted")
 
     def test_enrollment_limit(self):
-        self.db.faces = [{"id": str(uuid.uuid4()), "name": f"u{i}", "descriptor": "[]", "photo_b64": JPEG,
-                          "created_by": "x", "created_at": datetime.now(timezone.utc)} for i in range(rover_app.MAX_FACE_ENROLLMENTS)]
+        for i in range(rover_app.MAX_FACE_ENROLLMENTS):
+            ident = str(uuid.uuid4())
+            rover_app._LOCAL_FACE_ENROLLMENTS[ident] = {
+                "id": ident, "blob": "a256gcm.v1.synthetic", "created_at": "2026-01-01T00:00:00Z",
+            }
         self.assertEqual(self.enroll().status_code, 400)
 
     def test_reference_upload_never_creates_an_alert_or_leaks_biometrics_to_audit(self):
