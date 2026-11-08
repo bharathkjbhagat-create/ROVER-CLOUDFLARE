@@ -126,3 +126,43 @@ jobs:
           assert data.get("storage") == "server-encrypted", data
           print("Cloudflare Web Crypto AES-256-GCM round-trip: PASS")
           PY
+          python - <<'PY'
+          import base64, json
+          jpeg = base64.b64encode(bytes([255, 216, 255, 224]) + bytes([17]) * 400).decode("ascii")
+          descriptor = [round((i - 64) / 700, 6) for i in range(128)]
+          payload = {"name": "Synthetic CI Person", "consent": True, "descriptor": descriptor, "photo": "data:image/jpeg;base64," + jpeg}
+          with open("/tmp/face-enrollment.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle)
+          PY
+          create_code="$(curl --max-time 20 -sS -o /tmp/face-create.json -b /tmp/cookies.txt -w '%{http_code}' -H 'Content-Type: application/json' --data-binary @/tmp/face-enrollment.json "$WORKER_URL/api/face-enrollments")"
+          echo "Encrypted face enrollment create -> HTTP $create_code"
+          test "$create_code" = "200"
+          face_id="$(python -c 'import json; print(json.load(open("/tmp/face-create.json"))["id"])')"
+          curl --max-time 20 -fsS -b /tmp/cookies.txt "$WORKER_URL/api/face-enrollments" -o /tmp/face-list.json
+          python - <<'PY'
+          import json
+          with open("/tmp/face-list.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("storage") == "durable-object-encrypted", data
+          assert len(data.get("enrollments", [])) == 1, data
+          assert data["enrollments"][0]["name"] == "Synthetic CI Person", data
+          assert len(data["enrollments"][0]["descriptor"]) == 128, data
+          assert "photo" not in data["enrollments"][0], data
+          PY
+          photo_code="$(curl --max-time 20 -sS -o /tmp/face-photo.jpg -b /tmp/cookies.txt -w '%{http_code}' "$WORKER_URL/api/face-enrollments/$face_id/photo")"
+          test "$photo_code" = "200"
+          python - <<'PY'
+          from pathlib import Path
+          image = Path("/tmp/face-photo.jpg").read_bytes()
+          assert image.startswith(bytes([255, 216, 255])), "Decrypted preview image is not a JPEG"
+          PY
+          delete_code="$(curl --max-time 20 -sS -o /tmp/face-delete.json -b /tmp/cookies.txt -X DELETE -w '%{http_code}' "$WORKER_URL/api/face-enrollments/$face_id")"
+          test "$delete_code" = "200"
+          curl --max-time 20 -fsS -b /tmp/cookies.txt "$WORKER_URL/api/face-enrollments" -o /tmp/face-list-after-delete.json
+          python - <<'PY'
+          import json
+          with open("/tmp/face-list-after-delete.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("enrollments") == [], data
+          print("Cloudflare Durable Object encrypted create/list/photo/delete lifecycle: PASS")
+          PY
