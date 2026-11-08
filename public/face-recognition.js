@@ -77,7 +77,7 @@
     if (demoMode) { enrolled = []; storageMode = "none"; return; }
     try {
       const { response, data } = await fetchJson("/api/face-enrollments");
-      if (response.ok && data.ok && data.storage === "server-encrypted") {
+      if (response.ok && data.ok && data.storage === "durable-object-encrypted") {
         enrolled = data.enrollments || [];
         storageMode = "server";
         return;
@@ -239,7 +239,7 @@
     if (!box) return;
     thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = [];
     if (note) note.textContent = storageMode === "server"
-      ? "Stored in the administrator-only server database. Photographs and face data are never shown to other users."
+      ? "Stored encrypted in the administrator-only Cloudflare Durable Object. Photographs and face data are never shown to other users."
       : "Encrypted server storage unavailable. Face enrollment is disabled until AES-GCM storage is configured.";
     if (!enrolled.length) { box.innerHTML = '<div class="empty">No registered users enrolled.</div>'; return; }
     box.innerHTML = enrolled.map(e => '<div class="faceEnrollRow" data-id="' + esc(e.id) + '"><img alt="" width="44" height="44"><b>' + esc(e.name) + '</b><button type="button" class="mini" data-del="' + esc(e.id) + '">REMOVE</button></div>').join("");
