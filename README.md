@@ -39,6 +39,10 @@ Do not merge authentication changes or deploy to production until the GitHub Act
 
 The authenticated dashboard can run local human and vehicle detection on a direct rover MJPEG/image or video stream. It loads TensorFlow.js 4.22.0 and COCO-SSD 2.2.3 only after a readable live stream is available, using the lightweight MobileNet V2 model. It draws detections in the browser and does not upload camera frames or send AI results to the backend. Cross-origin camera streams must allow CORS; embedded iframe feeds cannot be analysed by the browser detector. Demo/simulated camera scenes are never treated as real detections.
 
+## Biometric data protection
+
+Face enrollment descriptors and reference photographs are encrypted at rest with AES-256-GCM using Cloudflare Workers Web Crypto. The encryption key is supplied only through the `FACE_DATA_KEY` secret; without a valid key, enrollment and retrieval fail closed. Existing legacy plaintext rows are migrated in place on the next successful administrator registry read. No browser IndexedDB fallback is permitted. The deployment workflow performs an authenticated AES-GCM runtime self-test whenever the secret is configured. Back up the key securely: changing or losing it makes existing encrypted enrollments unreadable.
+
 ## DEFENX Return to Base
 
 The current feature branch contains dashboard scaffolding for selecting a base and a fail-closed Return to Base request. Physical autonomous movement is intentionally disabled until controller capabilities and a hardware command/acknowledgement protocol are implemented and tested. See [`docs/RETURN_TO_BASE.md`](docs/RETURN_TO_BASE.md) for the proposed GPS + obstacle sensors + camera architecture, fail-safe state machine, device protocol contract, and acceptance tests. Do not merge/deploy this feature as hardware-ready.
