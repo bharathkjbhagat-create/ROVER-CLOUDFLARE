@@ -1833,7 +1833,7 @@ def _valid_jpeg_b64(value):
         raw = base64.b64decode(value, validate=True)
     except Exception:
         return None
-    if len(raw) < 100 or raw[:3] != b"\\xff\\xd8\\xff":
+    if len(raw) < 100 or raw[:3] != b"\xff\xd8\xff":
         return None
     return value
 
