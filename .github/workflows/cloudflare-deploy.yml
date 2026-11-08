@@ -45,8 +45,12 @@ jobs:
           node --check public/phone-gps.js
           node --check public/dashboard-layout.js
       - name: Validate browser AI vision JavaScript
-        run: node --check public/ai-vision.js
-      - name: Validate opt-in face detection JavaScript
+        run: |
+          node --check public/vision-core.js
+          node --check public/ai-vision.js
+      - name: Run vision decision-logic unit tests
+        run: node --test tests/vision_core.test.js
+      - name: Validate face recognition JavaScript
         run: node --check public/face-recognition.js
       - name: Validate detection event history JavaScript
         run: node --check public/detection-events.js
@@ -61,6 +65,10 @@ jobs:
           set -e
           test -f public/index.html
           test -f public/monitor.js
+          test -f public/vision-core.js
+          test -f public/ai-vision.js
+          test -f public/face-recognition.js
+          test -f public/detection-events.js
           test -f public/login.html
           test -f public/app.js
           test -f public/style.css
