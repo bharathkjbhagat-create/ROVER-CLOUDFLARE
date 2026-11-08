@@ -19,7 +19,7 @@ permissions:
 
 concurrency:
   group: defenx-face-aes-preview
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   secure-preview:
