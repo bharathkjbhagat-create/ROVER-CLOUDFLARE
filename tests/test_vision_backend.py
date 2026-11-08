@@ -64,8 +64,13 @@ class FakeCursor:
             assert "TRUE" in sql  # consent is only ever stored as granted
             db.faces.append({"id": ident, "name": name, "descriptor": descriptor, "photo_b64": photo,
                              "created_by": created_by, "created_at": datetime.now(timezone.utc)})
-        elif sql.startswith("SELECT id,name,descriptor,created_at FROM face_enrollments"):
+        elif sql.startswith("SELECT id,name,descriptor,photo_b64,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
+        elif sql.startswith("UPDATE face_enrollments SET descriptor=%s, photo_b64=%s WHERE id=%s"):
+            descriptor, photo, ident = params
+            for row in db.faces:
+                if row["id"] == ident:
+                    row["descriptor"], row["photo_b64"] = descriptor, photo
         elif sql.startswith("SELECT photo_b64 FROM face_enrollments WHERE id"):
             self.rows = [(f["photo_b64"],) for f in db.faces if f["id"] == params[0]]
         elif sql.startswith("DELETE FROM face_enrollments WHERE id"):
@@ -98,6 +103,7 @@ class VisionBackendTests(unittest.TestCase):
             patch.object(rover_app, "ensure_db", lambda: None),
             patch.object(rover_app, "get_db", lambda: self.db),
             patch.object(rover_app, "psycopg", fake_psycopg, create=True),
+            patch.dict(os.environ, {"FACE_DATA_KEY": "unit-test-random-biometric-key-material-32-chars"}),
         ]
         for p in self.patches:
             p.start()
@@ -158,6 +164,9 @@ class VisionBackendTests(unittest.TestCase):
         items = listing.get_json()["enrollments"]
         self.assertEqual([i["name"] for i in items], ["Asha Rao"])
         self.assertEqual(len(items[0]["descriptor"]), 128)
+        self.assertEqual(self.db.faces[0]["descriptor"].startswith("a256gcm.v1."), True)
+        self.assertEqual(self.db.faces[0]["photo_b64"].startswith("a256gcm.v1."), True)
+        self.assertNotIn(JPEG[:40], self.db.faces[0]["photo_b64"])
         self.assertNotIn("photo", items[0])  # photographs are served only by the dedicated protected route
         photo = self.client.get(f"/api/face-enrollments/{ident}/photo")
         self.assertEqual(photo.status_code, 200)
@@ -167,6 +176,24 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/api/face-enrollments/{ident}").status_code, 200)
         self.assertEqual(self.client.get("/api/face-enrollments").get_json()["enrollments"], [])
         self.assertEqual(self.client.get(f"/api/face-enrollments/{ident}/photo").status_code, 404)
+
+    def test_cloudflare_crypto_check_endpoint_contract(self):
+        response = self.client.get("/api/face-enrollments/crypto-check")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["algorithm"], "AES-256-GCM")
+
+    def test_legacy_plaintext_records_are_migrated_to_authenticated_ciphertext(self):
+        ident = str(uuid.uuid4())
+        self.db.faces.append({
+            "id": ident, "name": "Legacy person", "descriptor": json.dumps(DESCRIPTOR),
+            "photo_b64": JPEG, "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        row = self.db.faces[0]
+        self.assertTrue(row["descriptor"].startswith("a256gcm.v1."))
+        self.assertTrue(row["photo_b64"].startswith("a256gcm.v1."))
+        self.assertEqual(response.get_json()["enrollments"][0]["name"], "Legacy person")
 
     def test_enrollment_validation(self):
         bad_cases = [
