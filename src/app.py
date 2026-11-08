@@ -1808,6 +1808,24 @@ def _face_aad(enrollment_id, field):
     return "defenx-face-enrollment:" + str(enrollment_id) + ":" + field + ":v1"
 
 
+@app.get("/api/face-enrollments/crypto-check")
+@require_admin
+def face_enrollment_crypto_check():
+    key = _face_data_key()
+    if not biometric_key_is_valid(key):
+        return _face_storage_unavailable()
+    sample = b"DEFENX biometric AES-GCM self-test"
+    aad = "defenx-face-crypto-self-test:v1"
+    try:
+        encrypted = encrypt_biometric_bytes(key, sample, aad)
+        decrypted = decrypt_biometric_bytes(key, encrypted, aad)
+        if decrypted != sample or not encrypted.startswith(BIOMETRIC_CIPHER_PREFIX):
+            raise BiometricCryptoError("biometric_crypto_self_test_failed")
+    except BiometricCryptoError:
+        return _face_storage_unavailable("AES-256-GCM self-test failed; biometric storage remains disabled.")
+    return _biometric_json({"ok": True, "algorithm": "AES-256-GCM", "storage": "server-encrypted"})
+
+
 def _valid_descriptor(value):
     if not isinstance(value, list) or len(value) != 128:
         return None
