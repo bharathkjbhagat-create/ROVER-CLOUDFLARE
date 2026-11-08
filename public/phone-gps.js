@@ -1,7 +1,8 @@
 (()=>{"use strict";
-let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null,renderQueued=false;
+let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null,renderQueued=false,staleTimer=null;
 const $=id=>document.getElementById(id);
 const set=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
+const quality=m=>m<=20?"GOOD":m<=100?"FAIR":"POOR";
 const valid=(lat,lon)=>Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180;
 function render(){
  if(!latest)return;
@@ -24,8 +25,8 @@ function onPosition(position){
  if(!valid(lat,lon))return;
  latest={lat,lon,accuracy,timestamp:position.timestamp||Date.now()};
  window.DEFENX_PHONE_GPS_LATEST=latest;
- set("gpsHeader","PHONE GPS LIVE");set("gpsHeaderSub","±"+Math.round(accuracy)+" m accuracy");
- set("gpsSignalText","PHONE GPS • ±"+Math.round(accuracy)+" m");
+ set("gpsHeader","PHONE GPS LIVE");set("gpsHeaderSub","±"+Math.round(accuracy)+" m accuracy • "+quality(accuracy));
+ set("gpsSignalText","PHONE GPS • ±"+Math.round(accuracy)+" m • "+quality(accuracy));
  set("mapCoords",lat.toFixed(6)+"° "+(lat>=0?"N":"S")+"  "+lon.toFixed(6)+"° "+(lon>=0?"E":"W"));
  set("mapTileStatus","PHONE GPS FIX • ±"+Math.round(accuracy)+" m");set("deviceGpsState","PHONE • ±"+Math.round(accuracy)+" m");
  scheduleRender();
@@ -33,9 +34,17 @@ function onPosition(position){
 function onError(error){
  const message=error?.code===1?"Location permission denied":error?.code===2?"Phone location unavailable":"Phone GPS timed out";
  set("gpsHeader","PHONE GPS");set("gpsHeaderSub",message);set("gpsSignalText",message.toUpperCase());set("mapTileStatus",message.toUpperCase());
+ set("deviceGpsState",error?.code===1?"PERMISSION DENIED":error?.code===2?"UNAVAILABLE":"NO FIX YET");
+}
+// A fix that stops arriving is reported as stale instead of silently showing an old position.
+function checkStale(){
+ if(!latest)return;
+ const age=Date.now()-latest.timestamp;
+ if(age>30000){set("gpsHeaderSub","Last fix "+Math.round(age/1000)+" s ago • waiting for update");set("mapTileStatus","PHONE GPS STALE");set("deviceGpsState","STALE");}
 }
 function stop(){
  if(watchId!==null&&navigator.geolocation)navigator.geolocation.clearWatch(watchId);
+ if(staleTimer){clearInterval(staleTimer);staleTimer=null;}
  watchId=null;latest=null;centered=false;following=true;window.DEFENX_PHONE_GPS_LATEST=null;
  const map=window.__defenxGetMap?.();
  if(map){if(marker)map.removeLayer(marker);if(accuracyCircle)map.removeLayer(accuracyCircle);}
@@ -44,7 +53,9 @@ function stop(){
 }
 function start(){
  if(watchId!==null)return;
- set("gpsHeader","PHONE GPS");set("gpsHeaderSub","Requesting location permission…");set("gpsSignalText","WAITING FOR PHONE GPS");
+ set("gpsHeader","PHONE GPS");set("gpsHeaderSub","Requesting location permission…");set("gpsSignalText","WAITING FOR PHONE GPS");set("mapTileStatus","ACQUIRING PHONE GPS…");set("deviceGpsState","ACQUIRING");
+ if(!staleTimer)staleTimer=setInterval(checkStale,10000);
+ try{navigator.permissions?.query({name:"geolocation"}).then(r=>{r.onchange=()=>{if(r.state==="denied")onError({code:1});else if(watchId!==null&&!latest)set("gpsHeaderSub","Permission granted • acquiring…");};if(r.state==="denied")onError({code:1});}).catch(()=>{});}catch(_){}
  if(!navigator.geolocation){onError({code:2});return;}
  try{watchId=navigator.geolocation.watchPosition(onPosition,onError,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}
  catch(_){watchId=null;onError({code:2});}
