@@ -183,6 +183,25 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["algorithm"], "AES-256-GCM")
 
+    def test_missing_face_key_fails_closed_without_storing_biometrics(self):
+        with patch.dict(os.environ, {"FACE_DATA_KEY": ""}):
+            response = self.enroll()
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+            self.assertEqual(self.client.get("/api/face-enrollments").status_code, 503)
+
+    def test_tampered_ciphertext_is_never_returned(self):
+        response = self.enroll()
+        self.assertEqual(response.status_code, 200)
+        ident = response.get_json()["id"]
+        row = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        blob = row["blob"]
+        index = len("a256gcm.v1.") + 24
+        row["blob"] = blob[:index] + ("A" if blob[index] != "A" else "B") + blob[index + 1:]
+        listing = self.client.get("/api/face-enrollments")
+        self.assertEqual(listing.status_code, 503)
+        self.assertEqual(listing.get_json()["enrollments"] if "enrollments" in listing.get_json() else [], [])
+
     def test_enrollment_validation(self):
         bad_cases = [
             {"name": ""}, {"consent": False}, {"consent": "true"}, {"descriptor": DESCRIPTOR[:127]},
