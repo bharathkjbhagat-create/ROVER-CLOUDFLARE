@@ -1,0 +1,126 @@
+name: DEFENX AES-GCM face storage preview
+
+on:
+  push:
+    branches:
+      - security/face-enrollment-aes-gcm
+    paths:
+      - 'src/**'
+      - 'public/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'requirements.txt'
+      - 'wrangler.jsonc'
+      - '.github/workflows/secure-face-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: defenx-face-aes-preview
+  cancel-in-progress: false
+
+jobs:
+  secure-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.PREVIEW_CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PREVIEW_CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: https://defenx-face-aes-preview.bindukjagadish.workers.dev
+      UV_PYTHON: "3.13"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Validate isolated preview secrets
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+          PREVIEW_SESSION_SECRET: ${{ secrets.PREVIEW_SESSION_SECRET }}
+          PREVIEW_FACE_DATA_KEY: ${{ secrets.PREVIEW_FACE_DATA_KEY }}
+        run: |
+          set -euo pipefail
+          for name in CLOUDFLARE_API_TOKEN CLOUDFLARE_ACCOUNT_ID PREVIEW_ADMIN_USERNAME PREVIEW_ADMIN_PASSWORD PREVIEW_SESSION_SECRET PREVIEW_FACE_DATA_KEY; do
+            if [ -z "${!name:-}" ]; then echo "Missing preview setting: $name"; exit 1; fi
+          done
+          test "${#PREVIEW_SESSION_SECRET}" -ge 32
+          test "${#PREVIEW_FACE_DATA_KEY}" -ge 32
+      - name: Install uv
+        run: python -m pip install --upgrade uv
+      - name: Build assets and run regression tests
+        run: |
+          set -euo pipefail
+          python scripts/build_assets.py
+          python -m py_compile src/app.py src/worker.py src/biometric_crypto.py
+          node --check public/app.js
+          node --check public/face-recognition.js
+          uv run --group dev python -m unittest tests.test_biometric_crypto -v
+          uv run --group dev python tests/smoke.py
+          uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Configure isolated Worker identity
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+        run: |
+          python - <<'PY'
+          import json, os
+          from pathlib import Path
+          path = Path("wrangler.jsonc")
+          config = json.loads(path.read_text(encoding="utf-8"))
+          config["name"] = "defenx-face-aes-preview"
+          config.setdefault("vars", {})["ADMIN_USERNAME"] = os.environ["PREVIEW_ADMIN_USERNAME"].strip().upper()
+          path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+          PY
+      - name: Bootstrap isolated Worker
+        run: uv run pywrangler deploy
+      - name: Set isolated preview secrets
+        env:
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+          PREVIEW_SESSION_SECRET: ${{ secrets.PREVIEW_SESSION_SECRET }}
+          PREVIEW_FACE_DATA_KEY: ${{ secrets.PREVIEW_FACE_DATA_KEY }}
+        run: |
+          python - <<'PY'
+          import json, os
+          payload = {
+              "ADMIN_PASSWORD": os.environ["PREVIEW_ADMIN_PASSWORD"],
+              "SESSION_SECRET": os.environ["PREVIEW_SESSION_SECRET"],
+              "FACE_DATA_KEY": os.environ["PREVIEW_FACE_DATA_KEY"],
+          }
+          with open("/tmp/defenx-face-aes-preview-secrets.json", "w", encoding="utf-8") as handle:
+              json.dump(payload, handle)
+          PY
+          uv run pywrangler secret bulk /tmp/defenx-face-aes-preview-secrets.json
+      - name: Deploy encrypted preview Worker
+        run: uv run pywrangler deploy
+      - name: Verify login and Cloudflare AES-GCM runtime
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 10); do
+            code="$(curl --max-time 15 -sS -o /tmp/preview-login.html -w '%{http_code}' "$WORKER_URL/login.html" || true)"
+            if [ "$code" = "200" ]; then break; fi
+            if [ "$attempt" -eq 10 ]; then exit 1; fi
+            sleep 5
+          done
+          payload="$(python -c 'import json,os; print(json.dumps({"username":os.environ["PREVIEW_ADMIN_USERNAME"],"password":os.environ["PREVIEW_ADMIN_PASSWORD"]}))')"
+          code="$(curl --max-time 15 -sS -o /tmp/login.json -c /tmp/cookies.txt -w '%{http_code}' -H 'Content-Type: application/json' --data "$payload" "$WORKER_URL/api/login")"
+          test "$code" = "200"
+          code="$(curl --max-time 15 -sS -o /tmp/crypto.json -b /tmp/cookies.txt -w '%{http_code}' "$WORKER_URL/api/face-enrollments/crypto-check")"
+          echo "AES-GCM runtime endpoint -> HTTP $code"
+          test "$code" = "200"
+          python - <<'PY'
+          import json
+          with open("/tmp/crypto.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is True, data
+          assert data.get("algorithm") == "AES-256-GCM", data
+          assert data.get("storage") == "server-encrypted", data
+          print("Cloudflare Web Crypto AES-256-GCM round-trip: PASS")
+          PY
