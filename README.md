@@ -41,7 +41,7 @@ The authenticated dashboard can run local human and vehicle detection on a direc
 
 ## Biometric data protection
 
-Face enrollment descriptors and reference photographs are encrypted at rest with AES-256-GCM using Cloudflare Workers Web Crypto. The encryption key is supplied only through the `FACE_DATA_KEY` secret; without a valid key, enrollment and retrieval fail closed. Existing legacy plaintext rows are migrated in place on the next successful administrator registry read. No browser IndexedDB fallback is permitted. The deployment workflow performs an authenticated AES-GCM runtime self-test whenever the secret is configured. Back up the key securely: changing or losing it makes existing encrypted enrollments unreadable.
+Face enrollment descriptors and reference photographs are encrypted with AES-256-GCM using Cloudflare Workers Web Crypto before they enter the Durable Object. The Durable Object stores only authenticated ciphertext and record metadata; no PostgreSQL database is required for face enrollment. The encryption key is supplied only through the `FACE_DATA_KEY` secret; without a valid key or the Durable Object binding, enrollment and retrieval fail closed. No browser IndexedDB or plaintext fallback is permitted. The deployment workflow performs an authenticated AES-GCM runtime self-test, and the isolated preview tests the full encrypted create/list/photo/delete lifecycle using synthetic data. Back up the key securely: changing or losing it makes existing encrypted enrollments unreadable.
 
 ## DEFENX Return to Base
 
