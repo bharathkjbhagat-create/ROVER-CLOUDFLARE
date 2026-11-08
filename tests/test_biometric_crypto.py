@@ -1,4 +1,3 @@
-import os
 import sys
 import unittest
 from pathlib import Path
@@ -51,7 +50,9 @@ class BiometricCryptoTests(unittest.TestCase):
 
     def test_tampering_is_rejected(self):
         blob = encrypt_bytes(self.key, self.plaintext, self.aad)
-        tampered = blob[:-2] + ("A" if blob[-2] != "A" else "B") + blob[-1]
+        index = len(PREFIX) + 20
+        replacement = "A" if blob[index] != "A" else "B"
+        tampered = blob[:index] + replacement + blob[index + 1:]
         with self.assertRaises(BiometricCryptoError):
             decrypt_bytes(self.key, tampered, self.aad)
 
