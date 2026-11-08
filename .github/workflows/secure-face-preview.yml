@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: defenx-face-aes-preview
+  cancel-in-progress: true
+
 jobs:
   secure-preview:
     runs-on: ubuntu-latest
