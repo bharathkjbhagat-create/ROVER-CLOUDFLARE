@@ -1884,6 +1884,74 @@ def _face_store(operation):
     raise RuntimeError("bad_request")
 
 
+def _migrate_legacy_face_enrollments(key):
+    """Encrypt existing consented PostgreSQL enrollments before removing plaintext rows.
+
+    Migration is retry-safe: source rows are retained unless every record has a
+    valid encrypted Durable Object copy. It never deletes a partially migrated
+    registry and never returns legacy plaintext to the browser.
+    """
+    if CF_ENV is None or not db_available():
+        return True
+    try:
+        ensure_db()
+        with get_db() as conn:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                cur.execute(
+                    "SELECT id,name,descriptor,photo_b64,created_by,created_at "
+                    "FROM face_enrollments WHERE consent IS TRUE ORDER BY created_at ASC"
+                )
+                rows = cur.fetchall()
+
+            if not rows:
+                return True
+
+            existing = {
+                str(row.get("id")) for row in _face_store({"op": "list"})["enrollments"]
+            }
+            for row in rows:
+                enrollment_id = str(uuid.UUID(str(row["id"])))
+                name = " ".join(str(row.get("name") or "").split())[:80]
+                descriptor_value = row.get("descriptor")
+                if isinstance(descriptor_value, str):
+                    descriptor_value = json.loads(descriptor_value)
+                descriptor = _valid_descriptor(descriptor_value)
+                photo = _valid_jpeg_b64(row.get("photo_b64"))
+                if not name or descriptor is None or photo is None:
+                    raise BiometricCryptoError("legacy_biometric_record_invalid")
+
+                if enrollment_id not in existing:
+                    payload = json.dumps(
+                        {"name": name, "descriptor": descriptor, "photo": photo},
+                        separators=(",", ":"),
+                    ).encode("utf-8")
+                    blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
+                    created_at = row.get("created_at")
+                    if hasattr(created_at, "isoformat"):
+                        created_at = created_at.isoformat()
+                    result = _face_store({
+                        "op": "add",
+                        "enrollment": {
+                            "id": enrollment_id,
+                            "blob": blob,
+                            "created_at": str(created_at or "")[:40],
+                            "created_by": str(row.get("created_by") or "legacy")[:64],
+                        },
+                    })
+                    if result.get("id") != enrollment_id:
+                        raise RuntimeError("legacy_biometric_migration_failed")
+                    existing.add(enrollment_id)
+
+            # Only wipe the old table after all consented records have valid
+            # encrypted copies. Non-consented rows are removed as well because
+            # they must not remain as plaintext biometric material.
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM face_enrollments")
+        return True
+    except Exception:
+        return False
+
+
 @app.get("/api/face-enrollments/crypto-check")
 @require_admin
 def face_enrollment_crypto_check():
@@ -1908,6 +1976,10 @@ def face_enrollments_list():
     key = _face_data_key()
     if not biometric_key_is_valid(key):
         return _face_storage_unavailable()
+    if not _migrate_legacy_face_enrollments(key):
+        return _face_storage_unavailable(
+            "Legacy biometric records could not all be encrypted. Existing records were preserved; no plaintext data was returned."
+        )
     try:
         rows = _face_store({"op": "list"})["enrollments"]
         items = []
