@@ -28,6 +28,24 @@ await page.addInitScript(() => {
       withFaceLandmarks: () => ({ withFaceDescriptor: async () => null })
     })
   };
+
+  // Replace only the browser permission boundary with a synthetic canvas stream.
+  // This exercises the real USE PHONE CAMERA click handler without physical hardware.
+  const devices = navigator.mediaDevices;
+  if (devices) {
+    Object.defineProperty(devices, "getUserMedia", {
+      configurable: true,
+      value: async () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = 640; canvas.height = 480;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#333"; context.fillRect(0, 0, 640, 480);
+        const stream = canvas.captureStream(10);
+        window.__defenxTestCameraStream = stream;
+        return stream;
+      }
+    });
+  }
 });
 
 try {
@@ -39,26 +57,18 @@ try {
   await page.waitForURL(url => url.pathname === "/index.html", { timeout: 20000 });
   await page.waitForFunction(() => window.DEFENX_FACE && document.getElementById("faceScanToggle"));
 
-  // Provide a live, synthetic canvas stream to the same video element selector
-  // used by the real rover feed, then dispatch the app's camera-ready event.
-  await page.evaluate(async () => {
-    const viewport = document.getElementById("cameraViewport");
-    if (!viewport) throw new Error("Camera viewport is missing.");
-    const canvas = document.createElement("canvas");
-    canvas.width = 640; canvas.height = 480;
-    const ctx = canvas.getContext("2d");
-    ctx.fillStyle = "#333"; ctx.fillRect(0, 0, 640, 480);
-    const stream = canvas.captureStream(10);
-    const video = document.createElement("video");
-    video.id = "roverRealCamera";
-    video.dataset.defenxLiveStream = "1";
-    video.muted = true; video.playsInline = true;
-    video.srcObject = stream;
-    viewport.replaceChildren(video);
-    await video.play();
-    window.__defenxSyntheticFaceStream = stream;
-    window.dispatchEvent(new Event("defenx-camera-live"));
+  const cameraButton = page.locator("#phoneCameraBtn");
+  await cameraButton.click();
+  await page.waitForFunction(() => {
+    const video = document.getElementById("roverRealCamera");
+    return video && video.dataset.defenxLiveStream === "1" &&
+      video.srcObject && document.getElementById("phoneCameraBtn")?.textContent.includes("STOP PHONE CAMERA");
   });
+  await page.waitForFunction(() => {
+    const video = document.getElementById("roverRealCamera");
+    return video && video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
+  });
+  console.log("PASS: USE PHONE CAMERA click starts the real camera lifecycle with a synthetic stream.");
 
   const toggle = page.locator("#faceScanToggle");
   await page.waitForFunction(() => {
@@ -81,11 +91,19 @@ try {
   }
   console.log("PASS: START FACE ID control resumes the scanner.");
 
+  await cameraButton.click();
+  await page.waitForFunction(() => document.getElementById("phoneCameraBtn")?.textContent.includes("USE PHONE CAMERA"));
+  const tracksStopped = await page.evaluate(() =>
+    (window.__defenxTestCameraStream?.getTracks?.() || []).every(track => track.readyState === "ended")
+  );
+  if (!tracksStopped) throw new Error("STOP PHONE CAMERA did not release the synthetic media tracks.");
+  console.log("PASS: STOP PHONE CAMERA releases the media stream.");
+
   if (pageErrors.length) throw new Error("Uncaught browser errors: " + pageErrors.join(" | "));
   console.log("PASS: no uncaught dashboard JavaScript errors.");
 } finally {
   await page.evaluate(() => {
-    for (const track of window.__defenxSyntheticFaceStream?.getTracks?.() || []) track.stop();
+    for (const track of window.__defenxTestCameraStream?.getTracks?.() || []) track.stop();
   }).catch(() => {});
   await context.close();
   await browser.close();
