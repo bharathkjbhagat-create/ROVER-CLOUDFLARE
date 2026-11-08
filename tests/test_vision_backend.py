@@ -231,6 +231,22 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(self.db.faces, [])
         self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
 
+    def test_legacy_unconsented_rows_are_purged_without_migration(self):
+        ident = str(uuid.uuid4())
+        self.db.faces.append({
+            "id": ident, "name": "No Consent",
+            "consent": False, "descriptor": "not-valid", "photo_b64": "not-valid",
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["enrollments"], [])
+        self.assertEqual(self.db.faces, [])
+        self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+
     def test_legacy_plaintext_rows_are_preserved_when_encryption_fails(self):
         ident = str(uuid.uuid4())
         self.db.faces.append({
