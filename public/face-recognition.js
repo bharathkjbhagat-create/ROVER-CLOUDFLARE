@@ -247,9 +247,6 @@
         if (storageMode === "server") {
           const r = await fetch("/api/face-enrollments/" + encodeURIComponent(e.id) + "/photo", { credentials: "same-origin", cache: "no-store" });
           if (r.ok) { const u = URL.createObjectURL(await r.blob()); thumbUrls.push(u); img.src = u; }
-        } else {
-          const rows = await idb.all(); const row = rows.find(x => x.id === e.id);
-          if (row && row.photo) img.src = row.photo;
         }
       } catch (_) {}
     }
@@ -312,7 +309,7 @@
   }
   async function removeEnrollment(id) {
     const entry = enrolled.find(e => e.id === id);
-    if (!entry || !confirm("Remove " + entry.name + " and delete their stored photograph and face data?")) return;
+    if (storageMode !== "server" || !entry || !confirm("Remove " + entry.name + " and delete their stored photograph and face data?")) return;
     try {
       if (storageMode === "server") {
         const { response, data } = await fetchJson("/api/face-enrollments/" + encodeURIComponent(id), { method: "DELETE" });
