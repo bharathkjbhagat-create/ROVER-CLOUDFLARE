@@ -39,6 +39,8 @@ jobs:
         run: node --check public/monitor.js
       - name: Validate face recognition JavaScript
         run: node --check public/face-recognition.js
+      - name: Validate face dashboard browser test
+        run: node --check tests/face-dashboard-browser.mjs
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Run backend smoke tests
