@@ -76,6 +76,8 @@ jobs:
           config.setdefault("vars", {})["ADMIN_USERNAME"] = os.environ["PREVIEW_ADMIN_USERNAME"].strip().upper()
           path.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
           PY
+      - name: Prepare Cloudflare package inputs
+        run: rm -f requirements.txt
       - name: Bootstrap isolated Worker
         run: uv run pywrangler deploy
       - name: Set isolated preview secrets
