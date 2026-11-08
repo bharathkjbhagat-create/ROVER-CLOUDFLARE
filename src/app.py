@@ -1898,8 +1898,8 @@ def _migrate_legacy_face_enrollments(key):
         with get_db() as conn:
             with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
                 cur.execute(
-                    "SELECT id,name,descriptor,photo_b64,created_by,created_at "
-                    "FROM face_enrollments WHERE consent IS TRUE ORDER BY created_at ASC"
+                    "SELECT id,name,consent,descriptor,photo_b64,created_by,created_at "
+                    "FROM face_enrollments ORDER BY created_at ASC"
                 )
                 rows = cur.fetchall()
 
@@ -1910,6 +1910,8 @@ def _migrate_legacy_face_enrollments(key):
                 str(row.get("id")) for row in _face_store({"op": "list"})["enrollments"]
             }
             for row in rows:
+                if row.get("consent") is not True:
+                    continue
                 enrollment_id = str(uuid.UUID(str(row["id"])))
                 name = " ".join(str(row.get("name") or "").split())[:80]
                 descriptor_value = row.get("descriptor")
