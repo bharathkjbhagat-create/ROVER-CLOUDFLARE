@@ -1873,23 +1873,25 @@ def face_enrollments_list():
                             if descriptor_value is None or photo_value is None:
                                 raise ValueError("invalid legacy biometric record")
                             photo_raw = base64.b64decode(photo_value, validate=True)
-                            new_descriptor = encrypt_biometric_bytes(
-                                key, json.dumps(descriptor_value, separators=(",", ":")).encode("utf-8"),
-                                _face_aad(enrollment_id, "descriptor"),
-                            )
-                            new_photo = encrypt_biometric_bytes(
-                                key, photo_raw, _face_aad(enrollment_id, "photo"),
-                            )
-                            cur.execute(
-                                "UPDATE face_enrollments SET descriptor=%s, photo_b64=%s WHERE id=%s",
-                                (new_descriptor, new_photo, row["id"]),
-                            )
-                            descriptor_raw = decrypt_biometric_bytes(
-                                key, new_descriptor, _face_aad(enrollment_id, "descriptor"),
-                            )
-                        except (TypeError, ValueError, BiometricCryptoError):
+                        except (TypeError, ValueError):
                             cur.execute("DELETE FROM face_enrollments WHERE id=%s", (row["id"],))
                             continue
+                        # Encryption failures abort the transaction and preserve the
+                        # original record; never delete data because Web Crypto failed.
+                        new_descriptor = encrypt_biometric_bytes(
+                            key, json.dumps(descriptor_value, separators=(",", ":")).encode("utf-8"),
+                            _face_aad(enrollment_id, "descriptor"),
+                        )
+                        new_photo = encrypt_biometric_bytes(
+                            key, photo_raw, _face_aad(enrollment_id, "photo"),
+                        )
+                        cur.execute(
+                            "UPDATE face_enrollments SET descriptor=%s, photo_b64=%s WHERE id=%s",
+                            (new_descriptor, new_photo, row["id"]),
+                        )
+                        descriptor_raw = decrypt_biometric_bytes(
+                            key, new_descriptor, _face_aad(enrollment_id, "descriptor"),
+                        )
                     descriptor = _valid_descriptor(json.loads(descriptor_raw.decode("utf-8")))
                     if descriptor is None:
                         raise BiometricCryptoError("biometric_descriptor_invalid")
