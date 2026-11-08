@@ -92,7 +92,7 @@
   }
 
   /* ---------------- live pipeline (called by ai-vision.js) ---------------- */
-  function active() { return !demoMode && wanted && modelReady; }
+  function active() { return !demoMode && storageMode === "server" && wanted && modelReady; }
   function reset() { tracker = new core.Tracker(); lastFaces = []; setCount(0); renderList([]); }
   function cropFace(source, box, pad) {
     const sw = source.videoWidth || source.naturalWidth, sh = source.videoHeight || source.naturalHeight;
@@ -191,7 +191,7 @@
   function setState(next, message) {
     state = next; bar.dataset.state = next; status.textContent = message;
     toggle.textContent = wanted ? "STOP FACE ID" : "START FACE ID";
-    toggle.disabled = demoMode || next === "loading" || !sourceOk();
+    toggle.disabled = demoMode || storageMode !== "server" || next === "loading" || !sourceOk();
   }
   function renderList(results) {
     if (!list) return;
@@ -206,6 +206,7 @@
   }
   function refreshBar() {
     if (demoMode) { setState("demo", "FACE ID DISABLED IN DEMO MODE"); return; }
+    if (storageMode !== "server") { setState("error", "ENCRYPTED ENROLLMENT STORAGE UNAVAILABLE • FACE ID DISABLED"); return; }
     if (!sourceOk()) { setState("waiting", "WAITING FOR LIVE CAMERA"); return; }
     if (!wanted) { setState("paused", "FACE ID STOPPED BY OPERATOR"); return; }
     if (!modelReady) return;
@@ -213,7 +214,7 @@
     setState("active", "FACE ID LIVE • " + enrolled.length + " ENROLLED (" + where + ")");
   }
   async function bootModels() {
-    if (demoMode || !wanted || modelReady || state === "loading" || !sourceOk()) return;
+    if (demoMode || storageMode !== "server" || !wanted || modelReady || state === "loading" || !sourceOk()) return;
     setState("loading", "LOADING FACE MODELS • FIRST USE");
     try { await ensureModels(); refreshBar(); }
     catch (_) { setState("error", "FACE MODELS COULD NOT LOAD • CHECK INTERNET"); }
