@@ -998,3 +998,444 @@ if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loadi
 try{
 const r=await api("/api/mode",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({mode})}),d=await r.json();
 if(!r.ok||d.ok!==true){addLog("DENIED",d.error||"Control centre rejected the mode");return false;}
+if(d.telemetry)updateUI(d.telemetry);else setText("modeBadge",mode);
+document.querySelectorAll(".modeBtn").forEach(b=>b.classList.toggle("active",b.dataset.mode===mode));
+addLog("MODE","Control centre accepted "+mode);return true;
+}catch(_){addLog("RECONNECT","Mode change was not sent; check the connection and retry");return false;}
+}
+async function simulate(){if(me)await api("/api/simulate",{method:"POST"})}
+async function logoutAction(){
+if(logoutSent)return;
+logoutSent=true;
+sessionStorage.removeItem("rover_user");
+document.querySelectorAll("#logoutBtn,#sideLogoutBtn,.mobileLogout").forEach(b=>{
+b.disabled=true;
+b.setAttribute("aria-disabled","true");
+});
+try{
+await Promise.race([
+fetch("/api/logout",{method:"POST",cache:"no-store",credentials:"same-origin",keepalive:true}),
+new Promise(resolve=>setTimeout(resolve,1500))
+]);
+}catch(_){}
+location.replace("/login.html");
+}
+
+async function saveProfile(){
+const payload={display_name:$("profileName").value.trim(),new_password:$("profilePassword").value};
+const r=await api("/api/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const d=await r.json();
+setText("profileMsg",d.ok?"Profile saved.":(d.error||"Could not save profile"));if(d.ok){me=d.user;setText("who",me.display_name+" · "+me.role.toUpperCase());setTimeout(()=>closeModal("profileModal"),600)}
+}
+async function loadUsers(){
+const r=await api("/api/users");const d=await r.json();
+if(!r.ok){$("userTable").innerHTML="<div class='empty'>"+esc(d.error||"Could not load users")+"</div>";return}
+const users=Array.isArray(d.users)?d.users:[];
+const friendCount=users.filter(u=>u.role==="user").length;
+const adminCount=users.filter(u=>u.role==="admin").length;
+const statusNote=d.warning ? "<div class='formmsg'>"+esc(d.warning)+"</div>" : "";
+$("userTable").innerHTML="<div class='panelTitle'>"+friendCount+" USER ACCOUNTS"+(adminCount?" + "+adminCount+" ADMIN":"")+"</div>"+statusNote+
+"<table><tr><th>User ID</th><th>User</th><th>Role</th><th>Status</th><th>Control</th><th>Manage</th><th>Last login</th><th>Actions</th></tr>"+
+users.map(u=>"<tr><td><small>"+esc(u.id)+"</small></td><td><b>"+esc(u.display_name)+"</b><small>"+esc(u.username)+"</small></td><td>"+esc(u.role)+"</td><td>"+(u.enabled?"ENABLED":"DISABLED")+"</td><td>"+(u.can_control?"YES":"NO")+"</td><td>"+(u.can_manage_users?"YES":"NO")+"</td><td>"+esc(u.last_login_at?new Date(u.last_login_at).toLocaleString():"Never")+"</td><td><button class='mini' data-user='"+esc(u.id)+"' data-action='toggle' data-value='"+(!u.enabled)+"'>"+(u.enabled?"DISABLE":"ENABLE")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='control' data-value='"+(!u.can_control)+"'>"+(u.can_control?"CONTROL OFF":"CONTROL ON")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='manage' data-value='"+(!u.can_manage_users)+"'>"+(u.can_manage_users?"MANAGE OFF":"MANAGE ON")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='name'>EDIT NAME</button> <button class='mini dangerMini' data-user='"+esc(u.id)+"' data-action='password' data-username='"+esc(u.username)+"'>RESET PASSWORD</button></td></tr>").join("")+"</table>";
+}
+
+async function userAction(el){
+const id=el.dataset.user,action=el.dataset.action;let body={};
+if(action==="toggle")body.enabled=el.dataset.value==="true";
+if(action==="control")body.can_control=el.dataset.value==="true";
+if(action==="manage")body.can_manage_users=el.dataset.value==="true";
+if(action==="name"){const cells=el.closest("tr").querySelectorAll("td");const current=(cells[1]?.querySelector("b")?.textContent||"").trim();const name=prompt("New display name:",current);if(name===null)return;const trimmed=name.trim();if(!trimmed){alert("Display name cannot be empty.");return}body.display_name=trimmed}
+if(action==="password"){
+if(me?.role!=="admin"){alert("Only the Admin can reset passwords.");return}
+const username=el.dataset.username||"this user";
+const password=prompt("Set a new password for "+username+" (minimum 10 characters):");
+if(password===null)return;
+if(password.length<10){alert("Password must be at least 10 characters.");return}
+const confirmPassword=prompt("Confirm the new password for "+username+":");
+if(confirmPassword===null)return;
+if(password!==confirmPassword){alert("Passwords do not match.");return}
+const r=await api("/api/users/"+id+"/reset-password",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({password})});
+const d=await r.json();
+if(!r.ok){alert(d.error||"Password reset failed");return}
+alert("Password reset successfully for "+username+".");
+await loadUsers();await loadAudit();return
+}
+const r=await api("/api/users/"+id,{method:"PATCH",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();if(!r.ok)alert(d.error||"Update failed");await loadUsers();await loadAudit();
+}
+async function createUser(){
+const body={username:$("newUsername").value.trim(),display_name:$("newDisplayName").value.trim(),password:$("newPassword").value,role:$("newRole").value,can_control:$("newControl").checked,can_manage_users:$("newManage").checked};
+const r=await api("/api/users",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});const d=await r.json();setText("userMsg",d.ok?"User created successfully.":(d.error||"Could not create user"));if(d.ok){["newUsername","newDisplayName","newPassword"].forEach(id=>$(id).value="");$("newControl").checked=false;$("newManage").checked=false;await loadUsers();await loadAudit()}
+}
+async function loadAudit(){
+const r=await api("/api/audit?limit=1000");const d=await r.json();
+if(!r.ok){$("auditTable").innerHTML="<div class='empty'>"+esc(d.error||"Could not load audit log")+"</div>";return}
+const adminLogs=(Array.isArray(d.logs)?d.logs:[]).filter(x=>String(x.role||"").toLowerCase()==="admin");
+if(!adminLogs.length){$("auditTable").innerHTML="<div class='empty'>"+esc(d.warning||"No administrator events yet.")+"</div>";return}
+const sessions=new Map(),other=[];
+adminLogs.forEach(x=>{
+if(x.action!=="LOGIN"&&x.action!=="LOGOUT"){other.push(x);return}
+const key=x.session_id||("legacy:"+x.username+":"+x.created_at);
+if(!sessions.has(key))sessions.set(key,{login:null,logout:null});
+const row=sessions.get(key);
+if(x.action==="LOGIN")row.login=x;else row.logout=x;
+});
+const sessionRows=Array.from(sessions.values()).sort((a,b)=>String(b.login?.created_at||b.logout?.created_at||"").localeCompare(String(a.login?.created_at||a.logout?.created_at||"")));
+const fmt=x=>x?new Date(x).toLocaleString():"—";
+$("auditTable").innerHTML="<div class='auditRetentionNote'>Successful logins and logouts are retained for 7 days, then automatically deleted.</div><table><tr><th>User</th><th>Role</th><th>Login date &amp; time</th><th>Logout date &amp; time</th><th>IP address</th><th>Device / browser</th></tr>"+
+sessionRows.map(s=>{const x=s.login||s.logout;return "<tr><td><b>Admin</b></td><td>Admin</td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc((s.login||s.logout).ip_address||"")+"</td><td>"+esc((s.login||s.logout).user_agent||"")+"</td></tr>"}).join("")+
+"</table>"+(other.length?"<div class='auditRetentionNote'>Other recent activity</div><table><tr><th>Time</th><th>User</th><th>Action</th><th>Details</th></tr>"+other.map(x=>"<tr><td>"+esc(fmt(x.created_at))+"</td><td>Admin</td><td>"+esc(x.action)+"</td><td>"+esc(x.details||"")+"</td></tr>").join("")+"</table>":"");
+}
+function applyTheme(){
+const light=localStorage.getItem("rover_theme")==="light";
+document.body.classList.toggle("light",light);
+setText("themeBtn",light?"☀ Light":"☾ Dark");
+}
+function toggleTheme(){
+const light=!document.body.classList.contains("light");
+localStorage.setItem("rover_theme",light?"light":"dark");
+applyTheme();
+initMobileNav();
+addLog("UI",light?"Light theme enabled":"Dark theme enabled");
+recordActivity("THEME_CHANGED",light?"Light theme enabled":"Dark theme enabled");
+}
+
+
+function loadDashboardAudit(){
+const el=$("dashboardAuditTable");if(!el)return;
+if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin.</div>";return}
+api("/api/login-events?limit=100").then(r=>r.json()).then(d=>{
+const logs=(Array.isArray(d.logs)?d.logs:[]).filter(x=>String(x.role||"").toLowerCase()==="admin");
+if(!logs.length){el.innerHTML="<div class='empty'>No recent admin events.</div>";return}
+const m=new Map();logs.forEach(x=>{const k=x.session_id||x.id||x.created_at+":"+x.action,s=m.get(k)||{};s[x.action==="LOGIN"?"login":"logout"]=x;m.set(k,s)});
+const fmt=x=>x?new Date(x).toLocaleString():"—";
+el.innerHTML="<table><tr><th>User</th><th>Login</th><th>Logout</th><th>Details</th><th>IP / device</th></tr>"+[...m.values()].map(s=>{const x=s.login||s.logout,d=[s.login&&("Login: "+(s.login.details||"OK")),s.logout&&("Logout: "+(s.logout.details||"Done"))].filter(Boolean).join(" • ");return "<tr><td><b>Admin</b></td><td>"+esc(fmt(s.login?.created_at))+"</td><td>"+esc(fmt(s.logout?.created_at))+"</td><td>"+esc(d||"—")+"</td><td>"+esc(x.ip_address||"—")+"<small>"+esc(x.user_agent||"")+"</small></td></tr>"}).join("")+"</table>";
+}).catch(()=>{el.innerHTML="<div class='empty'>Load failed.</div>"});
+}
+function scrollToSection(id){
+const el=$(id);if(el)el.scrollIntoView({behavior:"smooth",block:"start"});
+}
+async function captureScreen(){
+addLog("CAMERA","Screenshot action requested");
+if(navigator.mediaDevices?.getDisplayMedia){
+try{
+const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:1},audio:false});
+const video=document.createElement("video");video.srcObject=stream;video.muted=true;await video.play();
+await new Promise(res=>setTimeout(res,250));
+const canvas=document.createElement("canvas");canvas.width=video.videoWidth||window.innerWidth*2;canvas.height=video.videoHeight||window.innerHeight*2;
+canvas.getContext("2d").drawImage(video,0,0,canvas.width,canvas.height);
+stream.getTracks().forEach(t=>t.stop());
+canvas.toBlob(blob=>{if(!blob)return;const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="ROVER-01-dashboard-"+Date.now()+".png";a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)},"image/png");
+return;
+}catch(_){}
+}
+window.print();
+}
+function toggleCameraRecording(){
+const button=$("camRecordBtn");
+if(recording){recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";cameraRecorder?.stop();return;}
+const video=$("roverRealCamera");
+if(!window.MediaRecorder||video?.tagName!=="VIDEO"||!video.captureStream||video.readyState<2||!video.videoWidth){
+setText("cameraSceneLabel","RECORDING UNAVAILABLE • LIVE VIDEO STREAM REQUIRED");addLog("CAMERA","Recording not started; a live recordable video stream is not connected");return;
+}
+try{
+const stream=video.captureStream(),chunks=[],types=["video/webm;codecs=vp9","video/webm;codecs=vp8","video/webm"],mime=types.find(type=>MediaRecorder.isTypeSupported?.(type));
+const recorder=new MediaRecorder(stream,mime?{mimeType:mime}:undefined);cameraRecorder=recorder;
+recorder.ondataavailable=e=>{if(e.data?.size)chunks.push(e.data);};
+recorder.onstop=()=>{
+recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";
+const blob=new Blob(chunks,{type:recorder.mimeType||"video/webm"});stream.getTracks().forEach(track=>track.stop());cameraRecorder=null;
+if(blob.size){const url=URL.createObjectURL(blob),link=document.createElement("a");link.href=url;link.download="defenx-camera-"+Date.now()+".webm";document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),3000);setText("cameraSceneLabel","CAMERA RECORDING SAVED");}
+else setText("cameraSceneLabel","RECORDING EMPTY • NO VIDEO DATA");
+addLog("CAMERA",blob.size?"Live camera recording saved":"No video data was received");recordActivity("CAMERA_RECORD","Recording stopped");
+};
+recorder.onerror=()=>{recording=false;button?.classList.remove("active");button?.setAttribute("aria-pressed","false");if(button)button.title="Start camera recording";setText("cameraSceneLabel","CAMERA RECORDING FAILED");addLog("CAMERA","Browser recorder reported an error");};
+recorder.start(1000);recording=true;button?.classList.add("active");button?.setAttribute("aria-pressed","true");
+if(button)button.title="Stop camera recording";setText("cameraSceneLabel","LIVE CAMERA • RECORDING");addLog("CAMERA","Live camera recording started");recordActivity("CAMERA_RECORD","Recording started");
+}catch(_){cameraRecorder=null;recording=false;setText("cameraSceneLabel","RECORDING UNAVAILABLE • CHECK CAMERA STREAM");addLog("CAMERA","Recording could not start for this camera stream");}
+}
+function toggleNightMode(){
+const on=document.body.classList.toggle("night-mode");
+const b=$("nightModeBtn");if(b)b.classList.toggle("active",on);
+addLog("UI",on?"Night mode enabled":"Night mode disabled");recordActivity("NIGHT_MODE",on?"Night mode enabled":"Night mode disabled");
+}
+function openQuickSettings(){
+const panel=document.querySelector(".foldCard");
+if(panel){panel.open=true;panel.scrollIntoView({behavior:"smooth",block:"center"});}
+const button=$("settingsBtn");if(button)button.setAttribute("aria-pressed","true");
+addLog("UI","Quick settings opened");
+}
+function setLiveTracking(){
+liveTracking=!liveTracking;
+const b=$("liveTrackBtn");if(b)b.classList.toggle("active",liveTracking);
+addLog("TRACK",liveTracking?"Live tracking active":"Live tracking paused");
+}
+function cycleMode(){
+const modes=["MANUAL","ASSISTED","AUTO-DEMO"];const current=$("modeBadge")?.textContent||"MANUAL";const i=Math.max(0,modes.indexOf(current));setMode(modes[(i+1)%modes.length]);
+}
+function initMobileNav(){
+const panel=$("mobileNavPanel"),grid=panel?.querySelector(".mobileNavGrid"),btn=$("mobileMenuBtn");
+if(!panel||!grid||!btn)return;
+grid.innerHTML="";
+document.querySelectorAll(".sideNav .navItem").forEach(item=>{
+const clone=item.cloneNode(true);
+clone.classList.remove("active");
+clone.addEventListener("click",()=>{
+item.click();
+panel.classList.remove("open");panel.setAttribute("aria-hidden","true");btn.setAttribute("aria-expanded","false");
+});
+grid.appendChild(clone);
+});
+if(!grid.querySelector(".mobileLogout")){
+const logout=document.createElement("button");
+logout.type="button";
+logout.className="mobileLogout";
+logout.innerHTML="<span>⏻</span> Logout";
+logout.addEventListener("click",logoutAction);
+grid.appendChild(logout);
+}
+if(btn.dataset.menuClickBound!=="1"){
+btn.dataset.menuClickBound="1";
+btn.addEventListener("click",()=>{
+const open=panel.classList.toggle("open");
+panel.setAttribute("aria-hidden",String(!open));btn.setAttribute("aria-expanded",String(open));
+});
+}
+}
+
+function initCameraObstacleSimulation(room){
+if(!room||room.dataset.obstaclesBound==="1")return;
+room.dataset.obstaclesBound="1";
+const style=document.createElement("style");
+style.dataset.dynamicObstacleStyle="1";
+style.textContent=`
+    .camObstacleLayer{position:absolute;inset:0;z-index:7;pointer-events:none;transform-style:preserve-3d}
+    .camObstacle{position:absolute;left:50%;bottom:78px;width:58px;height:118px;opacity:0;transform:translate3d(-50%,18px,0) scale(.72);transition:opacity .42s ease,transform .6s cubic-bezier(.2,.75,.2,1),filter .25s ease;filter:drop-shadow(0 10px 7px rgba(0,0,0,.48));transform-origin:50% 100%;will-change:opacity,transform}
+    .camObstacle.isVisible{opacity:1;transform:translate3d(-50%,0,var(--obstacle-z,60px)) scale(var(--obstacle-scale,1))}
+    .camObstacleTag{position:absolute;left:50%;top:-19px;transform:translateX(-50%);padding:3px 6px;border:1px solid rgba(255,91,105,.75);border-radius:4px;background:rgba(45,7,13,.88);color:#ffb3ba;font:800 6px/1 ui-monospace,monospace;letter-spacing:.7px;white-space:nowrap}
+    .camHuman .camHead{position:absolute;left:21px;top:0;width:16px;height:16px;border-radius:50%;background:linear-gradient(180deg,#c3d5dc,#6e8791);border:1px solid #d8edf2;box-shadow:0 0 9px rgba(164,222,235,.18)}
+    .camHuman .camBody{position:absolute;left:15px;top:17px;width:28px;height:47px;border-radius:10px 10px 7px 7px;background:linear-gradient(160deg,#2d6f7d,#123440 72%);border:1px solid #52bfd0}
+    .camHuman .camArm{position:absolute;top:23px;width:8px;height:39px;border-radius:7px;background:#275562;border:1px solid #4a8998}
+    .camHuman .camArm.left{left:7px;transform:rotate(12deg)}.camHuman .camArm.right{right:7px;transform:rotate(-12deg)}
+    .camHuman .camLeg{position:absolute;top:61px;width:10px;height:39px;border-radius:5px;background:#142b34;border:1px solid #416370}
+    .camHuman .camLeg.left{left:15px}.camHuman .camLeg.right{right:15px}
+    .camHuman .camBeacon{position:absolute;left:25px;top:35px;width:8px;height:8px;border-radius:50%;background:#ff4f63;box-shadow:0 0 12px rgba(255,79,99,.75);animation:camObstaclePulse 1.2s ease-in-out infinite}
+    .camCrate{width:72px;height:66px;bottom:78px}.camCrate .camCrateBody{position:absolute;inset:8px 2px 0;border:2px solid #5a8190;border-radius:4px;background:linear-gradient(160deg,#24434e,#0d222c)}.camCrate .camCrateBody:before,.camCrate .camCrateBody:after{content:"";position:absolute;left:13px;right:13px;top:50%;height:2px;background:#4a7180}.camCrate .camCrateBody:after{left:50%;top:13px;bottom:13px;width:2px;height:auto}
+    .camBarrier{width:88px;height:86px;bottom:76px}.camBarrier .camBarrierBody{position:absolute;left:8px;right:8px;bottom:12px;height:24px;border:2px solid #8a6f34;border-radius:4px;background:repeating-linear-gradient(135deg,#b18a34 0 9px,#2f2b20 9px 18px);box-shadow:0 5px 0 #101a1e}.camBarrier i{position:absolute;bottom:0;width:7px;height:67px;background:linear-gradient(90deg,#1c2d34,#4e666d);border:1px solid #6d858c}.camBarrier i.left{left:17px}.camBarrier i.right{right:17px}
+    @keyframes camObstaclePulse{0%,100%{opacity:.55;transform:scale(.92)}50%{opacity:1;transform:scale(1.08)}}
+    .cameraObstacleState{position:absolute;left:10px;bottom:10px;z-index:11;padding:4px 7px;border:1px solid rgba(69,179,197,.45);border-radius:4px;background:rgba(3,12,18,.76);color:#79bfd0;font:800 7px/1 ui-monospace,monospace;letter-spacing:.8px;pointer-events:none}.cameraObstacleState.targeting{border-color:rgba(255,81,96,.65);color:#ff9ea8}
+    .cameraTargetFocus{outline:2px solid rgba(255,71,87,.9);outline-offset:3px;filter:drop-shadow(0 0 12px rgba(255,71,87,.45)) drop-shadow(0 10px 7px rgba(0,0,0,.48))!important}
+  `;
+document.head.appendChild(style);
+const layer=document.createElement("div");layer.className="camObstacleLayer";layer.setAttribute("aria-hidden","true");room.appendChild(layer);
+const state=document.createElement("div");state.className="cameraObstacleState";state.textContent="AI VISION • CLEAR";room.appendChild(state);
+const positions=[{left:"28%",bottom:92,z:115,scale:.88},{left:"48%",bottom:76,z:170,scale:1.08},{left:"69%",bottom:96,z:95,scale:.77}];
+const slots=positions.map(p=>{const el=document.createElement("div");el.className="camObstacle";layer.appendChild(el);return{p,el,active:false,type:null}});
+const setCameraFocus=slot=>{
+slots.forEach(s=>s.el.classList.remove("cameraTargetFocus"));
+const active=slot&&slot.active?slot:null;
+if(active)active.el.classList.add("cameraTargetFocus");
+const box=document.querySelector(".camTargetBox");
+const viewport=$("cameraViewport"),sceneLabel=$("cameraSceneLabel");
+if(box){box.classList.toggle("cameraTargetOn",!!active);box.classList.toggle("cameraTargetOff",!active);box.setAttribute("aria-hidden",String(!active));}
+if(viewport)viewport.classList.toggle("camera-target-active",!!active);
+state.classList.toggle("targeting",!!active);
+setText("cameraTargetType",active?(active.type==="human"?"HUMAN":active.type==="barrier"?"BARRIER":"OBJECT"):"OFF");
+if(sceneLabel)sceneLabel.textContent=active?"AI TARGET FOCUS • "+(active.type==="human"?"HUMAN":active.type==="barrier"?"BARRIER":"OBJECT"):"AI VISION • SCANNING";
+};
+const drawHuman=el=>{el.className="camObstacle camHuman";el.innerHTML='<span class="camObstacleTag">TARGET • HUMAN</span><i class="camHead"></i><i class="camBody"></i><i class="camArm left"></i><i class="camArm right"></i><i class="camLeg left"></i><i class="camLeg right"></i><i class="camBeacon"></i>'};
+const drawCrate=el=>{el.className="camObstacle camCrate";el.innerHTML='<span class="camObstacleTag">TARGET • OBJECT</span><i class="camCrateBody"></i>'};
+const drawBarrier=el=>{el.className="camObstacle camBarrier";el.innerHTML='<span class="camObstacleTag">TARGET • BARRIER</span><i class="camBarrierBody"></i><i class="left"></i><i class="right"></i>'};
+const hideAll=()=>{slots.forEach(s=>{s.el.classList.remove("isVisible");s.active=false;s.type=null});setCameraFocus(null);state.textContent="AI VISION • CLEAR"};
+const showTarget=type=>{
+hideAll();
+const slot=slots[Math.floor(Math.random()*slots.length)];
+slot.active=true;slot.type=type==="human"?"human":type==="barrier"?"barrier":"object";
+slot.p.left=positions[Math.floor(Math.random()*positions.length)].left;
+slot.p.bottom=positions[Math.floor(Math.random()*positions.length)].bottom;
+slot.p.z=slot.type==="human"?150:105;slot.p.scale=slot.type==="human"?1.04:.86;
+slot.el.style.left=slot.p.left;slot.el.style.bottom=slot.p.bottom+"px";slot.el.style.setProperty("--obstacle-z",slot.p.z+"px");slot.el.style.setProperty("--obstacle-scale",String(slot.p.scale));
+if(slot.type==="human")drawHuman(slot.el);else if(slot.type==="barrier")drawBarrier(slot.el);else drawCrate(slot.el);
+requestAnimationFrame(()=>slot.el.classList.add("isVisible"));
+setCameraFocus(slot);
+state.textContent="AI TARGET • "+(slot.type==="human"?"HUMAN":slot.type==="barrier"?"BARRIER":"OBJECT")+" DETECTED";
+};
+let lastAppliedDetected=null,lastAppliedType=null;
+const applyTarget=(detected,type)=>{
+const normalizedDetected=!!detected;
+const normalizedType=(type||"object").toLowerCase();
+if(normalizedDetected===lastAppliedDetected && normalizedType===lastAppliedType)return;
+lastAppliedDetected=normalizedDetected;
+lastAppliedType=normalizedType;
+if(normalizedDetected)showTarget(normalizedType);else hideAll();
+};
+window.addEventListener("rover-target-state",e=>{
+const d=e.detail||{};
+applyTarget(!!d.detected,d.type||"object");
+});
+window.addEventListener("roomobstacledestroy",()=>{});
+setTimeout(()=>applyTarget(!!window.ROVER_CAMERA_TARGET_STATE?.detected,window.ROVER_CAMERA_TARGET_STATE?.type),0);
+}
+
+function initCamera3DRoom(){
+const scene=$("camera3DScene"),room=$("camera3DRoom"),readout=$("camera360Heading");
+if(!scene||!room||scene.dataset.bound==="1")return;
+scene.dataset.bound="1";
+let heading=0,pitch=-2,dragging=false,lastX=0,lastY=0,renderQueued=false;
+const normalize=a=>((a%360)+360)%360;
+const render=()=>{
+if(renderQueued)return;
+renderQueued=true;
+requestAnimationFrame(()=>{
+renderQueued=false;
+heading=normalize(heading);
+room.style.transform="translate(-50%,-50%) rotateX("+pitch+"deg) rotateY("+(-heading)+"deg)";
+if(readout)readout.textContent=Math.round(heading)+"°";
+});
+};
+const rotate=deg=>{heading=normalize(heading+deg);render();};
+const cameraCommand=command=>{
+const c=String(command||"").toUpperCase();
+if(c==="LEFT") rotate(-30);
+else if(c==="RIGHT") rotate(30);
+else if(c==="FORWARD") { pitch=-7; render(); }
+else if(c==="REVERSE") { pitch=4; render(); }
+else if(c==="STOP") { pitch=-2; render(); }
+};
+window.ROVER_CAMERA_CONTROL=cameraCommand;
+scene.querySelectorAll("[data-room-rotate]").forEach(b=>b.addEventListener("click",()=>rotate(Number(b.dataset.roomRotate)||0)));
+$("room360Reset")?.addEventListener("click",()=>{heading=0;pitch=-2;render();});
+$("room360Half")?.addEventListener("click",()=>rotate(180));
+const start=(x,y)=>{
+dragging=true;lastX=x;lastY=y;room.classList.add("isDragging");
+};
+const move=(x,y)=>{
+if(!dragging)return;
+const dx=x-lastX,dy=y-lastY;lastX=x;lastY=y;
+heading=normalize(heading-dx*0.45);pitch=Math.max(-16,Math.min(16,pitch+dy*0.22));render();
+};
+const end=()=>{dragging=false;room.classList.remove("isDragging");};
+scene.addEventListener("pointerdown",e=>{if(e.target.closest(".camera360Controls"))return;scene.setPointerCapture?.(e.pointerId);start(e.clientX,e.clientY);});
+scene.addEventListener("pointermove",e=>move(e.clientX,e.clientY));
+scene.addEventListener("pointerup",end);scene.addEventListener("pointercancel",end);scene.addEventListener("pointerleave",()=>{if(dragging)end();});
+scene.addEventListener("wheel",e=>{e.preventDefault();rotate(e.deltaY>0?5:-5);},{passive:false});
+scene.tabIndex=0;
+scene.addEventListener("keydown",e=>{
+if(e.key==="ArrowLeft"){e.preventDefault();rotate(-10);}
+else if(e.key==="ArrowRight"){e.preventDefault();rotate(10);}
+else if(e.key==="ArrowUp"){e.preventDefault();pitch=Math.max(-16,pitch-3);render();}
+else if(e.key==="ArrowDown"){e.preventDefault();pitch=Math.min(16,pitch+3);render();}
+else if(e.key==="Home"){e.preventDefault();heading=0;pitch=-2;render();}
+});
+render();
+initCameraObstacleSimulation(room);
+}
+function bindUI(){
+$("themeBtn")?.addEventListener("click",toggleTheme);
+applyTheme();
+$("settingsBtn")?.addEventListener("click",openQuickSettings);
+$("profileBtn")?.addEventListener("click",()=>{if(!me){openModal("profileModal");setText("profileMsg","Authenticating…");return;}$("profileUsername").value=me.username;$("profileName").value=me.display_name;$("profilePassword").value="";setText("profileMsg","");openModal("profileModal");recordActivity("PROFILE_OPENED","Profile opened");});
+$("adminBtn")?.addEventListener("click",async()=>{openModal("adminModal");recordActivity("ALERTS_OPENED","Admin activity centre opened");await loadUsers();await loadAudit();pollLoginAlerts();});
+$("deviceBtn")?.addEventListener("click",()=>{recordActivity("DEVICES_OPENED","Device management opened");openDevices()});
+$("createDeviceBtn")?.addEventListener("click",createDevice);
+$("alertBtn")?.addEventListener("click",async()=>{openModal("adminModal");hide("usersTab");show("auditTab");recordActivity("ALERTS_OPENED","Login alerts opened");await loadAudit();pollLoginAlerts();});
+$("enableAlertsBtn")?.addEventListener("click",enableBrowserAlerts);
+$("soundBtn")?.addEventListener("click",toggleNotificationSound);
+$("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay);
+$("warningOnBtn")?.addEventListener("click",()=>setWarningDisplay(true));
+$("warningOffBtn")?.addEventListener("click",()=>setWarningDisplay(false));
+updateWarningControlUI({obstacle_cm:999,target:{detected:false}});
+const armNotificationAudio=()=>{initNotificationAudio().then(ok=>{if(ok&&targetAlarmActive)targetSirenBurst()}).catch(()=>{})};
+document.addEventListener("pointerdown",armNotificationAudio,{once:true,passive:true});
+document.addEventListener("touchstart",armNotificationAudio,{once:true,passive:true});
+document.addEventListener("click",armNotificationAudio,{once:true,passive:true});
+document.addEventListener("keydown",armNotificationAudio,{once:true,passive:true});
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")initNotificationAudio().catch(()=>{})});
+$("clearAlertsBtn")?.addEventListener("click",clearUnreadAlerts);
+$("logoutBtn")?.addEventListener("click",logoutAction);$("sideLogoutBtn")?.addEventListener("click",logoutAction);
+document.querySelectorAll("[data-close]").forEach(b=>b.addEventListener("click",()=>closeModal(b.dataset.close)));
+$("saveProfileBtn")?.addEventListener("click",saveProfile);$("createUserBtn")?.addEventListener("click",createUser);$("clearLogBtn")?.addEventListener("click",clearLog);
+$("fitBtn")?.addEventListener("click",fitTrack);$("centerBtn")?.addEventListener("click",centerRover);$("recenterCrossBtn")?.addEventListener("click",centerRover);
+document.querySelectorAll(".modeBtn").forEach(b=>b.addEventListener("click",()=>setMode(b.dataset.mode)));
+$("openModeBtn")?.addEventListener("click",()=>scrollToSection("controlPanel"));
+document.querySelectorAll(".control").forEach(b=>{const c=b.dataset.cmd;if(!c)return;b.addEventListener("click",async()=>{await sendCommand(c);})});
+document.querySelectorAll(".mapTab").forEach(b=>b.addEventListener("click",()=>setMapMode(b.dataset.mapmode)));
+$("mapFollowBtn")?.addEventListener("click",()=>setMapFollow(!followRover));
+$("mapFullscreenBtn")?.addEventListener("click",toggleMapFullscreen);
+document.addEventListener("fullscreenchange",syncMapFullscreenUI);
+$("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
+$("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",toggleCameraRecording);
+$("camFullscreenBtn")?.addEventListener("click",async()=>{
+const el=$("cameraViewport");if(!el)return;
+try{
+if(document.fullscreenElement){await document.exitFullscreen();}
+else if(el.requestFullscreen){await el.requestFullscreen();}
+else{el.classList.toggle("camera-fullscreen");}
+}catch(_){el.classList.toggle("camera-fullscreen");}
+});
+$("recentViewAll")?.addEventListener("click",()=>{if(me?.role==="admin"){openModal("adminModal");hide("usersTab");show("auditTab");loadAudit()}else scrollToSection("eventLogSection")});
+$("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[data-user]");if(b)userAction(b)});
+$("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
+$("devicesTabBtn")?.addEventListener("click",async()=>{closeModal("adminModal");await openDevices()});
+$("auditTabBtn")?.addEventListener("click",async()=>{hide("usersTab");show("auditTab");await loadAudit()});
+document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){openQuickSettings();return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
+initMobileNav();
+initCamera3DRoom();
+initRealCameraStream();
+}
+function tickClock(){const s=new Date().toLocaleTimeString();setText("clock",s);setText("vtime",s)}
+window.addEventListener("resize",()=>{if(map)map.invalidateSize()});
+window.addEventListener("error",()=>{if(me)setText("conn","● DEGRADED")});
+window.addEventListener("unhandledrejection",()=>{if(me)setText("conn","● DEGRADED")});
+window.addEventListener("offline",()=>{if(me)setText("conn","● DASHBOARD NETWORK OFFLINE")});
+window.addEventListener("online",()=>{if(me){setText("conn","● RECONNECTING");loadLastKnownLocation().catch(()=>{});loop()}});
+
+window.addEventListener("pageshow",event=>{
+if(event.persisted && me){
+setText("conn","● RECONNECTING");
+loadBootstrap().then(()=>loadLastKnownLocation()).catch(()=>{});
+}
+});
+async function bootDashboard(){
+const leftImg=$("leftRoverImage"); if(leftImg&&window.ROVER_LEFT_IMAGE) leftImg.src=window.ROVER_LEFT_IMAGE;
+
+bindUI();
+updateNotificationSoundUI();
+if(demoMode){
+me=null;
+updatePermissionUI();
+setText("who","DEMO VIEW · READ ONLY");
+updateUI(demoTelemetry());
+setText("conn","● DEMO • SIMULATED DATA");
+loadMapAsync();
+scheduleTelemetry();
+setInterval(tickClock,1000);
+tickClock();
+return;
+}
+try{
+await loadBootstrap();
+await loadLastKnownLocation();
+loadMapAsync();
+connectRealtime();
+scheduleTelemetry();
+initLiveGPSFeed();
+if(me&&me.role==="admin")setInterval(()=>{if(!document.hidden)simulate()},4000);
+if(me&&me.role==="admin"){
+pollLoginAlerts();
+loadDashboardAudit();
+setInterval(pollLoginAlerts,6000);
+setInterval(()=>{loadAudit().catch(()=>{});loadDashboardAudit()},15000);
+}
+setInterval(tickClock,1000);tickClock();pushRecent("SYSTEM","Command centre online");
+}catch(e){
+me=null;
+sessionStorage.removeItem("rover_user");
+location.replace("/login.html");
+}
+}
+if(document.readyState==="loading"){
+document.addEventListener("DOMContentLoaded",bootDashboard,{once:true});
+}else{
+bootDashboard();
+}
+document.addEventListener("click",function(e){if(e.target.closest("#selectReturnBaseBtn"))beginBaseSelection();if(e.target.closest("#returnToBaseBtn"))requestReturnToBase();if(e.target.closest("#previewReturnRouteBtn"))previewReturnRoute(false);if(e.target.closest("#simulateObstacleRouteBtn"))previewReturnRoute(true);if(e.target.closest("#clearReturnRouteBtn"))clearReturnRoutePreview();});
+})();
