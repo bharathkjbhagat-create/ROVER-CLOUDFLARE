@@ -39,7 +39,7 @@ try {
     return video && video.tagName === "VIDEO" && video.srcObject &&
       video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0;
   }, undefined, { timeout: 20000 });
-  const cameraStatus = await faceSection.locator(".faceHint").innerText();
+  const cameraStatus = await faceSection.locator(".faceHint").first().innerText();
   if (!cameraStatus.includes("LOCAL DEVICE CAMERA ACTIVE")) {
     throw new Error("Camera status did not confirm the test camera: " + cameraStatus);
   }
@@ -54,7 +54,7 @@ try {
     const video = document.getElementById("roverRealCamera");
     return !video || !video.srcObject;
   });
-  const stopped = await faceSection.locator(".faceHint").innerText();
+  const stopped = await faceSection.locator(".faceHint").first().innerText();
   if (!stopped.includes("Local camera stopped")) throw new Error("Camera did not report a clean stop.");
   console.log("PASS: Stop Device Camera released the synthetic stream.");
 
