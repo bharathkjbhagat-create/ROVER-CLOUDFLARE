@@ -1891,7 +1891,7 @@ def _migrate_legacy_face_enrollments(key):
     valid encrypted Durable Object copy. It never deletes a partially migrated
     registry and never returns legacy plaintext to the browser.
     """
-    if CF_ENV is None or not db_available():
+    if not db_available():
         return True
     try:
         ensure_db()
