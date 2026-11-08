@@ -30,13 +30,15 @@ jobs:
       - name: Build embedded frontend assets
         run: python scripts/build_assets.py
       - name: Validate Python source
-        run: python -m py_compile src/app.py src/worker.py
+        run: python -m py_compile src/app.py src/worker.py src/biometric_crypto.py
       - name: Validate JavaScript
         run: node --check public/app.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript
         run: node --check public/monitor.js
+      - name: Validate face recognition JavaScript
+        run: node --check public/face-recognition.js
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Run backend smoke tests
