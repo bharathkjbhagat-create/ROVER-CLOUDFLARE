@@ -135,3 +135,13 @@ jobs:
           done
           echo "Face verification browser assets are reachable."
           echo "Isolated preview public smoke checks passed: $WORKER_URL"
+
+      - name: Install Playwright for isolated camera test
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify face-scan button and synthetic camera lifecycle
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+        run: node tests/face-preview-browser.mjs
