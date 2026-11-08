@@ -33,9 +33,9 @@ await page.addInitScript(() => {
 try {
   const login = await page.goto(base + "/login.html", { waitUntil: "domcontentloaded" });
   if (!login?.ok()) throw new Error("Preview login page did not load.");
-  await page.locator("#username").fill(username);
-  await page.locator("#password").fill(password);
-  await page.locator("#submit").click();
+  await page.locator("#desktop-username").fill(username);
+  await page.locator("#desktop-password").fill(password);
+  await page.locator("#desktop-submit").click();
   await page.waitForURL(url => url.pathname === "/index.html", { timeout: 20000 });
   await page.waitForFunction(() => window.DEFENX_FACE && document.getElementById("faceScanToggle"));
 
