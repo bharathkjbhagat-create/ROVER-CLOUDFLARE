@@ -140,6 +140,23 @@ class VisionBackendTests(unittest.TestCase):
         body.update(over)
         return self.client.post("/api/detection-alerts", json=body)
 
+    def durable_face_store_for_test(self, operation):
+        op = operation.get("op")
+        if op == "list":
+            return {"ok": True, "enrollments": list(rover_app._LOCAL_FACE_ENROLLMENTS.values())}
+        if op == "add":
+            row = dict(operation["enrollment"])
+            if row["id"] in rover_app._LOCAL_FACE_ENROLLMENTS:
+                raise RuntimeError("duplicate")
+            rover_app._LOCAL_FACE_ENROLLMENTS[row["id"]] = row
+            return {"ok": True, "id": row["id"]}
+        if op == "get":
+            row = rover_app._LOCAL_FACE_ENROLLMENTS.get(operation["id"])
+            if row is None:
+                raise RuntimeError("not_found")
+            return {"ok": True, "enrollment": dict(row)}
+        raise AssertionError("Unexpected face-store operation: " + str(op))
+
     # ---------- access control ----------
     def test_everything_requires_an_admin_session(self):
         anon = rover_app.app.test_client()
@@ -189,7 +206,10 @@ class VisionBackendTests(unittest.TestCase):
             "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
             "created_by": "admin", "created_at": datetime.now(timezone.utc),
         })
-        response = self.client.get("/api/face-enrollments")
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
         self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
         self.assertEqual(response.get_json()["enrollments"][0]["name"], "Legacy person")
         self.assertEqual(self.db.faces, [])
@@ -204,7 +224,9 @@ class VisionBackendTests(unittest.TestCase):
             "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
             "created_by": "admin", "created_at": datetime.now(timezone.utc),
         })
-        with patch.object(rover_app, "encrypt_biometric_bytes", side_effect=rover_app.BiometricCryptoError("test")):
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ), patch.object(rover_app, "encrypt_biometric_bytes", side_effect=rover_app.BiometricCryptoError("test")):
             response = self.client.get("/api/face-enrollments")
         self.assertEqual(response.status_code, 503)
         self.assertEqual(len(self.db.faces), 1)
