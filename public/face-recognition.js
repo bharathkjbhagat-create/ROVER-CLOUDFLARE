@@ -1,275 +1,380 @@
-/* DEFENX opt-in face scanning.
- * Adapted from the supplied face-verification package.
- * This safe integration performs face DETECTION only:
- * - starts only after an operator clicks START FACE SCAN
- * - analyses the existing live rover camera stream in this browser
- * - never creates face embeddings, identifies people, uploads frames,
- *   stores biometric templates, captures snapshots, or sends alerts
+/* DEFENX registered-user face verification, mask detection and liveness.
+ * - Runs only on the live camera element (#roverRealCamera, data-defenx-live-stream="1").
+ * - Compares live faces against administrator-enrolled, consenting users only.
+ * - Enrollment photographs are processed on their own canvas and are never fed to
+ *   the live pipeline, so an uploaded reference photo cannot raise a detection or alert.
+ * - Frames never leave the browser. Enrolled data lives in the admin-only server
+ *   store (PostgreSQL) or, when that is unavailable, in this browser's IndexedDB.
+ * Orchestrated by ai-vision.js through window.DEFENX_FACE.
  */
 (() => {
   "use strict";
-
-  const viewport = document.getElementById("cameraViewport");
+  const core = window.DEFENX_VISION_CORE;
   const bar = document.getElementById("faceScanBar");
   const status = document.getElementById("faceScanState");
   const count = document.getElementById("faceScanCount");
   const toggle = document.getElementById("faceScanToggle");
-  if (!viewport || !bar || !status || !count || !toggle) return;
+  const list = document.getElementById("faceStatusList");
+  if (!core || !bar || !status || !count || !toggle) return;
 
   const demoMode = location.pathname === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
   const libraryUrl = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js";
   const modelUrl = "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/";
-  const canvas = document.createElement("canvas");
-  canvas.className = "faceScanCanvas";
-  canvas.setAttribute("aria-hidden", "true");
-  viewport.appendChild(canvas);
-  const ctx = canvas.getContext("2d");
+  const PREF = "defenx_face_id_v1";
+  const STATUS = core.STATUS;
+  const small = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches;
+  const detectorSize = small ? 288 : 320;
 
-  let source = null;
-  let faceapi = null;
-  let modelPromise = null;
-  let running = false;
-  let scanning = false;
-  let timer = 0;
-  let generation = 0;
-  let failures = 0;
-  let inferenceMs = 0;
-  const scanDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1200 : 850;
+  let faceapi = null, modelPromise = null, modelReady = false;
+  let wanted = true; // operator preference: scanning is on unless it was switched off
+  try { wanted = localStorage.getItem(PREF) !== "off"; } catch (_) {}
+  let enrolled = [], storageMode = "none";
+  let tracker = new core.Tracker(), lastFaces = [], working = false;
+  const cropCanvas = document.createElement("canvas");
+  const cropCtx = cropCanvas.getContext("2d", { willReadFrequently: true });
+  const stats = { detectMs: 0, descriptorMs: 0 };
 
-  function publishScanState(active) {
-    window.DEFENX_FACE_SCAN_ACTIVE = !!active;
-    window.dispatchEvent(new CustomEvent("defenx-face-scan-state", {
-      detail: { active: !!active }
-    }));
-  }
-  publishScanState(false);
+  const $ = id => document.getElementById(id);
+  const esc = v => String(v == null ? "" : v).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  function setState(state, message) {
-    bar.dataset.state = state;
-    status.textContent = message;
-    toggle.textContent = scanning ? "STOP FACE SCAN" : "START FACE SCAN";
-    toggle.disabled = demoMode || !source || !sourceReady(source) || state === "loading";
-  }
-
-  function sourceReady(node) {
-    if (!node) return false;
-    if (node.tagName === "VIDEO") {
-      const tracks = node.srcObject && typeof node.srcObject.getVideoTracks === "function" ? node.srcObject.getVideoTracks() : [];
-      const liveTrack = tracks.some(track => track.readyState === "live" && track.enabled);
-      return node.dataset.defenxLiveStream === "1" && !node.paused && node.readyState >= 2 && node.videoWidth > 0 && node.videoHeight > 0 && (liveTrack || Boolean(node.currentSrc || node.src));
-    }
-    if (node.tagName === "IMG") return node.dataset.defenxLiveStream === "1" && node.complete && node.naturalWidth > 0 && node.naturalHeight > 0;
-    return false;
-  }
-
-  function dimensions() {
-    return source.tagName === "VIDEO"
-      ? { width: source.videoWidth, height: source.videoHeight }
-      : { width: source.naturalWidth, height: source.naturalHeight };
-  }
-
-  function clearOverlay() {
-    if (ctx) ctx.clearRect(0, 0, canvas.width, canvas.height);
-    count.textContent = "0";
-  }
-
-  function draw(detections, width, height) {
-    const host = source && source.parentElement ? source.parentElement : viewport;
-    if (canvas.parentElement !== host) host.appendChild(canvas);
-    const rect = host.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width));
-    const h = Math.max(1, Math.round(rect.height));
-    if (canvas.width !== w || canvas.height !== h) {
-      canvas.width = w;
-      canvas.height = h;
-    }
-    ctx.clearRect(0, 0, w, h);
-    const contain = source && getComputedStyle(source).objectFit === "contain";
-    const scale = (contain ? Math.min : Math.max)(w / width, h / height);
-    const ox = (w - width * scale) / 2;
-    const oy = (h - height * scale) / 2;
-    detections.forEach(item => {
-      const box = item.box;
-      const x = box.x * scale + ox;
-      const y = box.y * scale + oy;
-      const bw = box.width * scale;
-      const bh = box.height * scale;
-      ctx.strokeStyle = "#38e6a5";
-      ctx.lineWidth = 2;
-      ctx.strokeRect(x, y, bw, bh);
-      ctx.fillStyle = "#38e6a5";
-      ctx.fillRect(x, Math.max(0, y - 20), 116, 18);
-      ctx.fillStyle = "#031018";
-      ctx.font = "700 11px system-ui, sans-serif";
-      ctx.fillText("FACE DETECTED", x + 5, Math.max(13, y - 7));
-    });
-    count.textContent = String(detections.length);
-  }
-
+  /* ---------------- models ---------------- */
   function loadScript() {
     if (window.faceapi) return Promise.resolve(window.faceapi);
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = libraryUrl;
-      script.async = true;
-      script.crossOrigin = "anonymous";
+      script.src = libraryUrl; script.async = true; script.crossOrigin = "anonymous";
       script.onload = () => window.faceapi ? resolve(window.faceapi) : reject(new Error("Face library unavailable"));
-      script.onerror = () => reject(new Error("Could not load face scanning library"));
+      script.onerror = () => reject(new Error("Could not load face library"));
       document.head.appendChild(script);
     });
   }
-
-  async function ensureModel() {
-    if (faceapi && faceapi.nets.tinyFaceDetector.params) return faceapi;
+  function ensureModels() {
+    if (modelReady) return Promise.resolve(faceapi);
     if (!modelPromise) {
       modelPromise = (async () => {
         faceapi = await loadScript();
-        await faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl);
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(modelUrl),
+          faceapi.nets.faceLandmark68TinyNet.loadFromUri(modelUrl),
+          faceapi.nets.faceRecognitionNet.loadFromUri(modelUrl)
+        ]);
+        modelReady = true;
         return faceapi;
-      })();
+      })().catch(error => { modelPromise = null; throw error; });
     }
-    try { return await modelPromise; }
-    finally { modelPromise = null; }
+    return modelPromise;
   }
 
-  function schedule(delay) {
-    if (timer) clearTimeout(timer);
-    if (running && scanning) timer = window.setTimeout(scanFrame, delay);
+  /* ---------------- enrolled-user storage (server first, IndexedDB fallback) ---------------- */
+  const idb = {
+    open() {
+      return new Promise((resolve, reject) => {
+        let req;
+        try { req = indexedDB.open("defenx_faces", 1); } catch (e) { reject(e); return; }
+        req.onupgradeneeded = () => req.result.createObjectStore("enrollments", { keyPath: "id" });
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+      });
+    },
+    async run(mode, fn) {
+      const db = await idb.open();
+      try {
+        return await new Promise((resolve, reject) => {
+          const tx = db.transaction("enrollments", mode), store = tx.objectStore("enrollments");
+          const out = fn(store);
+          tx.oncomplete = () => resolve(out && "result" in out ? out.result : undefined);
+          tx.onerror = () => reject(tx.error);
+        });
+      } finally { db.close(); }
+    },
+    all() { return idb.run("readonly", s => s.getAll()); },
+    put(item) { return idb.run("readwrite", s => s.put(item)); },
+    del(id) { return idb.run("readwrite", s => s.delete(id)); }
+  };
+  async function fetchJson(url, options) {
+    const response = await fetch(url, Object.assign({ credentials: "same-origin", cache: "no-store" }, options || {}));
+    let data = null;
+    try { data = await response.json(); } catch (_) {}
+    return { response, data: data || {} };
   }
-
-  async function scanFrame() {
-    if (!running || !scanning) return;
-    if (document.hidden) {
-      schedule(900);
-      return;
-    }
-    if (!sourceReady(source)) {
-      clearOverlay();
-      setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
-      schedule(700);
-      return;
-    }
-    const activeSource = source;
-    const token = generation;
+  async function loadEnrollments() {
+    if (demoMode) { enrolled = []; storageMode = "none"; return; }
     try {
-      const d = dimensions();
-      const startedAt = performance.now();
-      const detections = await faceapi.detectAllFaces(
-        activeSource,
-        new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 })
-      );
-      inferenceMs = performance.now() - startedAt;
-      failures = 0;
-      if (!running || !scanning || token !== generation || activeSource !== source) return;
-      draw(detections, d.width, d.height);
-      setState("active", detections.length
-        ? "LIVE SCAN • FACE PRESENT IN CAMERA VIEW"
-        : "LIVE SCAN • NO FACE DETECTED");
-    } catch (error) {
-      const cors = /taint|cross.origin|securityerror/i.test(String(error));
-      if (!cors && ++failures < 3) { schedule(1000 * failures); return; }  // tolerate a dropped frame
-      stop(false);
-      setState("error", cors
-        ? "CAMERA CORS BLOCKS LOCAL SCANNING"
-        : "FACE SCAN UNAVAILABLE • CHECK CAMERA / MODEL CONNECTION");
-      return;
-    }
-    schedule(Math.max(scanDelay, inferenceMs * 2));
-  }
-
-  async function start() {
-    failures = 0;
-    if (demoMode || !sourceReady(source)) {
-      setState("waiting", "WAITING FOR AN AUTHENTICATED LIVE CAMERA");
-      return;
-    }
-    scanning = true;
-    publishScanState(true);
-    setState("loading", "LOADING FACE DETECTOR • FIRST USE");
+      const { response, data } = await fetchJson("/api/face-enrollments");
+      if (response.ok && data.ok) { enrolled = data.enrollments || []; storageMode = "server"; return; }
+      if (response.status === 401 || response.status === 403) { enrolled = []; storageMode = "none"; return; }
+    } catch (_) { /* fall through to local storage */ }
     try {
-      await ensureModel();
-      if (!scanning) return;
-      running = true;
-      toggle.disabled = false;
-      schedule(0);
-    } catch (_) {
-      scanning = false;
-      running = false;
-      publishScanState(false);
-      clearOverlay();
-      setState("error", "FACE MODEL COULD NOT LOAD • CHECK INTERNET");
-    }
+      const rows = await idb.all();
+      enrolled = (rows || []).map(r => ({ id: r.id, name: r.name, descriptor: r.descriptor }));
+      storageMode = "local";
+    } catch (_) { enrolled = []; storageMode = "none"; }
   }
 
-  function stop(updateStatus = true) {
-    scanning = false;
-    running = false;
-    publishScanState(false);
-    generation += 1;
-    if (timer) clearTimeout(timer);
-    clearOverlay();
-    if (updateStatus) setState("paused", "FACE SCAN STOPPED BY OPERATOR");
-    else toggle.textContent = "START FACE SCAN";
+  /* ---------------- live pipeline (called by ai-vision.js) ---------------- */
+  function active() { return !demoMode && wanted && modelReady; }
+  function reset() { tracker = new core.Tracker(); lastFaces = []; setCount(0); renderList([]); }
+  function cropFace(source, box, pad) {
+    const sw = source.videoWidth || source.naturalWidth, sh = source.videoHeight || source.naturalHeight;
+    const x = Math.max(0, box[0] - box[2] * pad), y = Math.max(0, box[1] - box[3] * pad);
+    const w = Math.min(sw - x, box[2] * (1 + 2 * pad)), h = Math.min(sh - y, box[3] * (1 + 2 * pad));
+    const scale = Math.min(1, 224 / Math.max(w, h));
+    cropCanvas.width = Math.max(32, Math.round(w * scale)); cropCanvas.height = Math.max(32, Math.round(h * scale));
+    cropCtx.drawImage(source, x, y, w, h, 0, 0, cropCanvas.width, cropCanvas.height);
+    return cropCanvas;
+  }
+  async function descriptorFor(source, box) {
+    const started = performance.now();
+    const canvas = cropFace(source, box, 0.35);
+    const result = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.4 }))
+      .withFaceLandmarks(true).withFaceDescriptor();
+    stats.descriptorMs = performance.now() - started;
+    return result ? Array.from(result.descriptor) : null;
   }
 
-  function findSource() {
-    const node = document.getElementById("roverRealCamera");
-    // The camera element is often inserted before its first frame arrives.
-    // Its load/loadeddata callback re-enters here with the same node.
-    if (node === source) {
-      if (source && !scanning && sourceReady(source)) {
-        setState("ready", "LIVE CAMERA READY • START WHEN YOU CHOOSE");
+  /* ctx: { source, now, frame(): {img, scale}, isSpoofed(box): string|null }  ->  array of face results */
+  async function process(ctx) {
+    if (!active() || working) return lastFaces;
+    working = true;
+    try {
+      const { source, now } = ctx;
+      const started = performance.now();
+      const raw = await faceapi.detectAllFaces(source, new faceapi.TinyFaceDetectorOptions({ inputSize: detectorSize, scoreThreshold: 0.5 })).withFaceLandmarks(true);
+      stats.detectMs = performance.now() - started;
+      if (document.getElementById("roverRealCamera") !== source || !active()) return lastFaces;
+      const faces = raw.map(r => ({
+        bbox: [r.detection.box.x, r.detection.box.y, r.detection.box.width, r.detection.box.height],
+        score: r.detection.score,
+        points: r.landmarks.positions.map(p => [p.x, p.y])
+      }));
+      tracker.update(faces, now, () => "face");
+      let descriptorBudget = 1;
+      const results = [];
+      for (const face of faces) {
+        const tr = face.track, d = tr.data;
+        d.live = d.live || new core.Liveness();
+        d.live.update(face.points, now);
+        d.idHistory = d.idHistory || [];
+        // pixel analysis (clarity, mask) at most every 600 ms per face
+        if (!d.analysisAt || now - d.analysisAt > 600) {
+          const frame = ctx.frame();
+          if (frame) {
+            const s = frame.scale, scaled = { bbox: face.bbox.map(v => v * s), score: face.score, points: face.points.map(p => [p[0] * s, p[1] * s]) };
+            d.clarity = core.faceClarity(scaled, frame.img);
+            const m = d.clarity.clear ? core.maskAnalysis(frame.img, scaled.points) : { state: "UNCLEAR", confidence: 0 };
+            // a mask verdict needs 3 of the last 5 analyses to agree, so one odd frame cannot raise an alert
+            d.maskHist = (d.maskHist || []).concat(m.state).slice(-5);
+            const agree = ["MASK", "NO_MASK"].find(k => d.maskHist.filter(x => x === k).length >= 3);
+            d.mask = agree ? Object.assign({}, m, { state: agree }) : { state: "UNCLEAR", confidence: m.confidence };
+            d.analysisAt = now;
+          }
+        }
+        const clarity = d.clarity || core.faceClarity(face);
+        const mask = d.mask || { state: "UNCLEAR", confidence: 0 };
+        // identity descriptor: refresh quickly until a stable vote exists, then slowly
+        const needs = clarity.clear && descriptorBudget > 0 && (!d.descAt || now - d.descAt > (d.idHistory.length < 3 ? 900 : 6000));
+        if (needs) {
+          descriptorBudget--;
+          try {
+            const descriptor = await descriptorFor(source, face.bbox);
+            d.descAt = now;
+            if (descriptor) { d.idHistory.push(core.matchIdentity(descriptor, enrolled)); if (d.idHistory.length > 8) d.idHistory.shift(); }
+          } catch (_) { d.descAt = now; }
+        }
+        const identity = core.smoothIdentity(d.idHistory);
+        const spoof = ctx.isSpoofed ? ctx.isSpoofed(face.bbox) : null;
+        const live = d.live.verified(now) && !spoof;
+        const resolved = core.resolveFace({ clarity, mask, identity, live });
+        results.push({
+          id: tr.id, bbox: face.bbox, score: face.score, live, spoof,
+          identity: resolved.identity, mask: resolved.mask, name: resolved.name, alerts: resolved.alerts,
+          identityConfidence: identity.confidence || 0, maskConfidence: mask.confidence || 0,
+          reasons: resolved.reasons, possible: identity.possible || null, at: now
+        });
       }
-      return;
-    }
-    stop(false);
-    source = node || null;
-    generation += 1;
-    if (demoMode) {
-      setState("demo", "FACE SCAN DISABLED IN DEMO MODE");
-    } else if (!source) {
-      setState("waiting", "WAITING FOR LIVE ROVER CAMERA");
-    } else if (source.tagName === "IFRAME") {
-      setState("unsupported", "EMBEDDED CAMERA CANNOT BE SCANNED");
-    } else if ((source.tagName !== "IMG" && source.tagName !== "VIDEO") || source.dataset.defenxLiveStream !== "1") {
-      setState("unsupported", "UNSUPPORTED CAMERA STREAM FORMAT");
-    } else if (sourceReady(source)) {
-      setState("ready", "LIVE CAMERA READY • START WHEN YOU CHOOSE");
-    } else {
-      setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
-      source.addEventListener("load", findSource, { once: true });
-      source.addEventListener("loadeddata", findSource, { once: true });
-    }
+      lastFaces = results;
+      setCount(results.length);
+      renderList(results);
+      return results;
+    } finally { working = false; }
+  }
+  function liveFaceInside(box, now) {
+    return lastFaces.some(f => f.live && now - f.at < 2500 &&
+      f.bbox[0] + f.bbox[2] / 2 >= box[0] && f.bbox[0] + f.bbox[2] / 2 <= box[0] + box[2] &&
+      f.bbox[1] + f.bbox[3] / 2 >= box[1] && f.bbox[1] + f.bbox[3] / 2 <= box[1] + box[3]);
   }
 
+  /* ---------------- status UI ---------------- */
+  let state = "waiting";
+  function setCount(n) { count.textContent = String(n); }
+  function sourceOk() { const n = $("roverRealCamera"); return !!(n && n.dataset.defenxLiveStream === "1" && (n.tagName === "VIDEO" || n.tagName === "IMG")); }
+  function setState(next, message) {
+    state = next; bar.dataset.state = next; status.textContent = message;
+    toggle.textContent = wanted ? "STOP FACE ID" : "START FACE ID";
+    toggle.disabled = demoMode || next === "loading" || !sourceOk();
+  }
+  function renderList(results) {
+    if (!list) return;
+    if (!results.length) { list.innerHTML = ""; return; }
+    list.innerHTML = results.map(f => {
+      const idLine = f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + esc(f.name) : f.identity;
+      const conf = f.identity === STATUS.RECOGNIZED || f.identity === STATUS.UNKNOWN ? " • " + Math.round(f.identityConfidence * 100) + "%" : "";
+      const extra = f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + esc(f.reasons.join(", ")) : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""));
+      const maskText = f.mask + (f.mask === STATUS.NOT_CLEAR ? "" : " • " + Math.round(f.maskConfidence * 100) + "%");
+      return '<div class="faceStatusRow" data-id="' + esc(f.id) + '"><b>' + idLine + conf + '</b><span>' + esc(maskText) + extra + '</span></div>';
+    }).join("");
+  }
+  function refreshBar() {
+    if (demoMode) { setState("demo", "FACE ID DISABLED IN DEMO MODE"); return; }
+    if (!sourceOk()) { setState("waiting", "WAITING FOR LIVE CAMERA"); return; }
+    if (!wanted) { setState("paused", "FACE ID STOPPED BY OPERATOR"); return; }
+    if (!modelReady) return;
+    const where = storageMode === "server" ? "server" : storageMode === "local" ? "this browser" : "none";
+    setState("active", "FACE ID LIVE • " + enrolled.length + " ENROLLED (" + where + ")");
+  }
+  async function bootModels() {
+    if (demoMode || !wanted || modelReady || state === "loading" || !sourceOk()) return;
+    setState("loading", "LOADING FACE MODELS • FIRST USE");
+    try { await ensureModels(); refreshBar(); }
+    catch (_) { setState("error", "FACE MODELS COULD NOT LOAD • CHECK INTERNET"); }
+  }
   toggle.addEventListener("click", () => {
-    if (scanning) stop(true);
-    else start();
+    wanted = !wanted;
+    try { localStorage.setItem(PREF, wanted ? "on" : "off"); } catch (_) {}
+    if (!wanted) { reset(); refreshBar(); } else { bootModels(); refreshBar(); }
   });
-  document.addEventListener("visibilitychange", () => {
-    if (document.hidden && scanning) {
-      running = false;
-      if (timer) clearTimeout(timer);
-      clearOverlay();
-      setState("paused", "SCAN PAUSED WHILE TAB IS HIDDEN");
-    } else if (!document.hidden && scanning && faceapi) {
-      running = true;
-      setState("active", "RESUMING LOCAL FACE SCAN");
-      schedule(0);
-    }
-  });
-  window.addEventListener("resize", () => {
-    if (scanning && sourceReady(source)) {
-      clearOverlay();
-      schedule(0);
-    }
-  });
+  window.DEFENX_FACE = {
+    active, process, reset, liveFaceInside, ensureModels, boot: bootModels,
+    refresh: refreshBar, stats, enrolledCount: () => enrolled.length,
+    reloadEnrollments: async () => { await loadEnrollments(); refreshBar(); },
+    get faces() { return lastFaces; }
+  };
 
-  if (demoMode) {
-    setState("demo", "FACE SCAN DISABLED IN DEMO MODE");
-    return;
+  /* ---------------- enrollment (admin) ---------------- */
+  function enrollMsg(text, bad) { const m = $("faceEnrollMsg"); if (m) { m.textContent = text; m.style.color = bad ? "#ff8b96" : ""; } }
+  let thumbUrls = [];
+  async function renderEnrollList() {
+    const box = $("faceEnrollList"), note = $("faceStorageNote");
+    if (!box) return;
+    thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = [];
+    if (note) note.textContent = storageMode === "server"
+      ? "Stored in the administrator-only server database. Photographs and face data are never shown to other users."
+      : storageMode === "local"
+        ? "Server database unavailable: enrolments are stored only in THIS browser (IndexedDB) on this device."
+        : "Enrolment storage unavailable. Sign in as administrator.";
+    if (!enrolled.length) { box.innerHTML = '<div class="empty">No registered users enrolled.</div>'; return; }
+    box.innerHTML = enrolled.map(e => '<div class="faceEnrollRow" data-id="' + esc(e.id) + '"><img alt="" width="44" height="44"><b>' + esc(e.name) + '</b><button type="button" class="mini" data-del="' + esc(e.id) + '">REMOVE</button></div>').join("");
+    for (const e of enrolled) {
+      const img = box.querySelector('[data-id="' + CSS.escape(e.id) + '"] img');
+      try {
+        if (storageMode === "server") {
+          const r = await fetch("/api/face-enrollments/" + encodeURIComponent(e.id) + "/photo", { credentials: "same-origin", cache: "no-store" });
+          if (r.ok) { const u = URL.createObjectURL(await r.blob()); thumbUrls.push(u); img.src = u; }
+        } else {
+          const rows = await idb.all(); const row = rows.find(x => x.id === e.id);
+          if (row && row.photo) img.src = row.photo;
+        }
+      } catch (_) {}
+    }
   }
-  const observer = new MutationObserver(findSource);
-  observer.observe(viewport, { childList: true, subtree: true });
-  findSource();
+  function loadImage(file) {
+    return new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file), img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("That file is not a readable image")); };
+      img.src = url;
+    });
+  }
+  function thumbnail(img, box) { // square face crop, JPEG, small enough for the 32 KB request cap
+    const side = Math.max(box.width, box.height) * 1.5;
+    const sx = Math.max(0, box.x + box.width / 2 - side / 2), sy = Math.max(0, box.y + box.height / 2 - side / 2);
+    const sw = Math.min(img.width - sx, side), sh = Math.min(img.height - sy, side);
+    for (const px of [160, 128, 96, 72]) {
+      const c = document.createElement("canvas"); c.width = c.height = px;
+      c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, px, px);
+      for (const q of [0.7, 0.55, 0.4]) {
+        const url = c.toDataURL("image/jpeg", q);
+        if (url.length - 23 <= 22000) return url;
+      }
+    }
+    return null;
+  }
+  async function enrollFromPhoto() {
+    const name = ($("faceEnrollName").value || "").trim(), file = $("faceEnrollFile").files[0];
+    if (!name) return enrollMsg("Enter the person's name.", true);
+    if (!file) return enrollMsg("Choose a clear, front-facing photograph.", true);
+    if (!$("faceEnrollConsent").checked) return enrollMsg("Documented consent from this person is required.", true);
+    if (storageMode === "none") return enrollMsg("Enrolment storage is unavailable.", true);
+    const button = $("faceEnrollBtn"); button.disabled = true;
+    try {
+      enrollMsg("Loading face models…");
+      await ensureModels();
+      const source = await loadImage(file);
+      const k = Math.min(1, 800 / Math.max(source.width, source.height));
+      const canvas = document.createElement("canvas"); canvas.width = Math.round(source.width * k); canvas.height = Math.round(source.height * k);
+      canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      enrollMsg("Analysing photograph…");
+      const found = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 })).withFaceLandmarks(true).withFaceDescriptors();
+      if (found.length !== 1) throw new Error(found.length ? "The photograph must contain exactly one face." : "No clear face found. Use a well-lit, front-facing photograph.");
+      const f = found[0], pts = f.landmarks.positions.map(p => [p.x, p.y]);
+      const clarity = core.faceClarity({ bbox: [f.detection.box.x, f.detection.box.y, f.detection.box.width, f.detection.box.height], score: f.detection.score, points: pts },
+        (() => { const d = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height); return { data: d.data, width: d.width, height: d.height }; })());
+      if (!clarity.clear) throw new Error("Photograph not suitable: " + clarity.reasons.join(", ") + ".");
+      const photo = thumbnail(canvas, f.detection.box);
+      if (!photo) throw new Error("Could not prepare the reference photograph.");
+      const descriptor = Array.from(f.descriptor);
+      if (storageMode === "server") {
+        const { response, data } = await fetchJson("/api/face-enrollments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, consent: true, descriptor, photo }) });
+        if (!response.ok || !data.ok) throw new Error(data.error || "Could not save the enrolment.");
+      } else {
+        await idb.put({ id: (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random()), name, descriptor, photo, created_at: new Date().toISOString() });
+      }
+      $("faceEnrollName").value = ""; $("faceEnrollFile").value = ""; $("faceEnrollConsent").checked = false;
+      await loadEnrollments(); refreshBar(); await renderEnrollList();
+      enrollMsg("Enrolled " + name + ". This is a reference photograph only; it does not trigger any alert.");
+    } catch (error) { enrollMsg(error.message || "Enrolment failed.", true); }
+    finally { button.disabled = false; }
+  }
+  async function removeEnrollment(id) {
+    const entry = enrolled.find(e => e.id === id);
+    if (!entry || !confirm("Remove " + entry.name + " and delete their stored photograph and face data?")) return;
+    try {
+      if (storageMode === "server") {
+        const { response, data } = await fetchJson("/api/face-enrollments/" + encodeURIComponent(id), { method: "DELETE" });
+        if (!response.ok || !data.ok) throw new Error(data.error || "Could not remove.");
+      } else await idb.del(id);
+      await loadEnrollments(); refreshBar(); await renderEnrollList(); enrollMsg("Removed " + entry.name + ".");
+    } catch (error) { enrollMsg(error.message || "Could not remove.", true); }
+  }
+  function bindEnrollmentUi() {
+    const tabBtn = $("faceTabBtn"), tab = $("faceTab");
+    if (!tabBtn || !tab) return;
+    const others = ["usersTab", "auditTab"];
+    tabBtn.addEventListener("click", async () => {
+      others.forEach(id => $(id) && $(id).classList.add("hidden"));
+      tab.classList.remove("hidden");
+      await loadEnrollments(); await renderEnrollList();
+    });
+    // other code paths (e.g. the alerts bell) also show the users/audit panels: keep exactly one visible
+    others.forEach(id => { const el = $(id); if (el && window.MutationObserver) new MutationObserver(() => { if (!el.classList.contains("hidden")) tab.classList.add("hidden"); }).observe(el, { attributes: true, attributeFilter: ["class"] }); });
+    $("faceEnrollBtn").addEventListener("click", enrollFromPhoto);
+    $("faceEnrollList").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (b) removeEnrollment(b.dataset.del); });
+    const closeBtn = document.querySelector('[data-close="adminModal"]');
+    if (closeBtn) closeBtn.addEventListener("click", () => { thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = []; });
+  }
+
+  /* ---------------- boot ---------------- */
+  let lastNode = null;
+  function onCameraChange() {
+    const node = $("roverRealCamera");
+    if (node !== lastNode) { lastNode = node; reset(); } // only a new camera element resets tracking
+    refreshBar(); bootModels();
+  }
+  const viewport = $("cameraViewport");
+  if (viewport && window.MutationObserver) new MutationObserver(onCameraChange).observe(viewport, { childList: true, subtree: true });
+  window.addEventListener("defenx-camera-live", onCameraChange);
+  bindEnrollmentUi();
+  refreshBar();
+  if (!demoMode) loadEnrollments().then(() => { refreshBar(); bootModels(); });
+  window.addEventListener("pagehide", () => { thumbUrls.forEach(u => URL.revokeObjectURL(u)); reset(); });
 })();
