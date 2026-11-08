@@ -652,9 +652,9 @@ button:disabled {
   .aiVisionNote { grid-column: 1 / -1 !important; font-size: 8px !important; }
   .dashboardGrid > .mapCard > .mapArea {
     width: calc(100% - 2px) !important;
-    height: 66vw !important;
-    min-height: 270px !important;
-    max-height: 390px !important;
+    height: 78vw !important;
+    min-height: 340px !important;
+    max-height: 480px !important;
     margin: 0 auto !important;
     border-radius: 0 !important;
   }
