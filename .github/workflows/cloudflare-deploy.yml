@@ -156,6 +156,13 @@ jobs:
               print("No ADMIN_ID/ADMIN_USERNAME supplied; existing Worker variables will be preserved.")
           PY
 
+      - name: Prepare Cloudflare Python package inputs
+        run: |
+          # PyWrangler vendors dependencies from pyproject.toml and rejects a
+          # root requirements.txt. Keep requirements.txt in Git for standalone
+          # Flask installs, but hide it only inside this deployment runner.
+          rm -f requirements.txt
+
       - name: Deploy Worker
         run: uv run pywrangler deploy
 
