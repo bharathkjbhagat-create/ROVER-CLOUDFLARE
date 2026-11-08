@@ -12,7 +12,10 @@ ROOT = Path(__file__).resolve().parents[1]
 BUDGETS = {
     "public/app.js": 91_000,  # map layers, verified rover tracking, and road-route preview
     "public/style.css": 120_000,
-    "public/ai-vision.js": 14_000,
+    "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering
+    "public/vision-core.js": 22_000,
+    "public/face-recognition.js": 24_000,
+    "public/detection-events.js": 16_000,
     "public/index.html": 30_000,
 }
 failed = False

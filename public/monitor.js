@@ -180,6 +180,8 @@
         return { k: "connecting", label: "CONNECTING", msg: "Camera is connected — waiting for video frames…", bad: true, retry: true };
       }
     }
+    // One message surface: phone-camera errors (permission, busy camera, HTTPS) are shown here, not in a hidden label.
+    if (window.DEFENX_CAMERA_NOTICE && Date.now() < window.DEFENX_CAMERA_NOTICE.until) return { k: "notice", label: "PHONE CAMERA", msg: window.DEFENX_CAMERA_NOTICE.text, bad: true };
     if (demo) return { k: "demo", label: "DEMO", msg: "Demo mode — no live camera", bad: true };
     // A decoded frame that has not errored is the strongest proof the feed works; do not wait for config/telemetry.
     if (activeEl && st.cam.state !== "fail" && decodedFrame(activeEl) && activeEl.tagName !== "IFRAME") {
@@ -302,18 +304,23 @@
   function ensureMap() {
     if (st.map) return true;
     if (typeof L === "undefined" || !$("mvMap")) return false;
-    st.map = L.map("mvMap", { zoomControl: false, worldCopyJump: true }).setView([20, 0], 2);
+    st.map = L.map("mvMap", { zoomControl: false, worldCopyJump: true, minZoom: 2, maxZoom: 22, zoomSnap: 0.25, zoomDelta: 1, wheelPxPerZoomLevel: 90, bounceAtZoomLimits: false, tap: true }).setView([20, 0], 2);
     L.control.zoom({ position: "bottomleft" }).addTo(st.map);
-    st.sat = L.tileLayer(ESRI, { maxZoom: 19, attribution: "Imagery © Esri" });
-    st.std = L.tileLayer(OSM, { maxZoom: 19, attribution: "© OpenStreetMap contributors" });
-    st.sat.on("tileerror", function () {
+    var REF = "https://services.arcgisonline.com/ArcGIS/rest/services/Reference/";
+    var lbl = { minZoom: 2, maxZoom: 22, maxNativeZoom: 19, attribution: "Labels © Esri, HERE, Garmin, © OpenStreetMap contributors" };
+    st.satBase = L.tileLayer(ESRI, { minZoom: 2, maxZoom: 22, maxNativeZoom: 19, attribution: "Imagery © Esri" });
+    // imagery plus road/street-name and place-name labels so street-level views stay readable
+    st.sat = L.layerGroup([st.satBase, L.tileLayer(REF + "World_Transportation/MapServer/tile/{z}/{y}/{x}", Object.assign({ zIndex: 5 }, lbl)), L.tileLayer(REF + "World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", Object.assign({ zIndex: 6 }, lbl))]);
+    st.std = L.tileLayer(OSM, { minZoom: 2, maxZoom: 22, maxNativeZoom: 19, attribution: "© OpenStreetMap contributors" });
+    st.satBase.on("tileerror", function () {
       st.tileErr++;
       if (st.tileErr === 4 && st.useSat) { setLayer(false); toast("Satellite imagery unavailable — showing standard map", "warn"); }
     });
-    st.sat.on("tileload", function () { st.tileErr = 0; });
+    st.satBase.on("tileload", function () { st.tileErr = 0; });
     (st.useSat ? st.sat : st.std).addTo(st.map);
     st.map.on("dragstart", function () { st.follow = false; });
     setText("mvMapTag", st.useSat ? "SATELLITE" : "MAP");
+    if (window.ResizeObserver) { var q = false; new ResizeObserver(function () { if (q) return; q = true; requestAnimationFrame(function () { q = false; if (st.map) st.map.invalidateSize({ pan: false }); }); }).observe($("mvMap")); }
     updateMap();
     return true;
   }

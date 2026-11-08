@@ -17,3 +17,7 @@
 .detectionAuditTools button{border:1px solid rgba(91,180,220,.35);border-radius:7px;padding:8px 11px;background:rgba(49,122,158,.12);color:#ccefff;font:700 9px system-ui;letter-spacing:.06em;cursor:pointer}
 .detectionAuditTools button:disabled{opacity:.55;cursor:wait}
 .detectionAuditTools small{color:#91a9b9;font-size:10px}
+
+.detectionEvent.alert{border-left:3px solid #ff5b65}
+.detectionEvent.alert .detectionEventMark{color:#ff5b65}
+.detectionEvent small{line-height:1.45;word-break:break-word}

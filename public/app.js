@@ -203,30 +203,42 @@ function syncMapFullscreenUI(){
   if(button){button.textContent=active?"EXIT FULL SCREEN":"FULL SCREEN";button.setAttribute("aria-pressed",String(active));}
   if(mapReady&&map)setTimeout(()=>map.invalidateSize(true),120);
 }
+// Leaflet positions its panes with leaflet.css. Starting the map before that stylesheet
+// has applied leaves tiles unpositioned (only a strip of the area renders), so the map
+// is created only after both the stylesheet and the script are ready.
+function leafletCssReady(){
+  if(window.__DEFENX_LEAFLET_CSS)return window.__DEFENX_LEAFLET_CSS;
+  window.__DEFENX_LEAFLET_CSS=new Promise(resolve=>{
+    const sources=["https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css","https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"];
+    let index=0,done=false;
+    const finish=()=>{if(!done){done=true;clearTimeout(timer);resolve();}};
+    const timer=setTimeout(finish,6000);
+    const attempt=()=>{
+      if(index>=sources.length){finish();return;}
+      const link=document.createElement("link");
+      link.rel="stylesheet";link.href=sources[index++];
+      link.onload=finish;
+      link.onerror=()=>{link.remove();attempt();};
+      document.head.appendChild(link);
+    };
+    attempt();
+  });
+  return window.__DEFENX_LEAFLET_CSS;
+}
 function loadMapAsync(){
-  if(window.L){initMap();return;}
+  if(mapReady||map)return;
   if(window.__DEFENX_LEAFLET_LOADING)return;
   window.__DEFENX_LEAFLET_LOADING=true;
-  if(!document.getElementById("defenx-leaflet-css")){
-    const link=document.createElement("link");
-    link.id="defenx-leaflet-css";link.rel="stylesheet";
-    link.href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css";
-    link.onerror=()=>{
-      if(link.dataset.fallbackTried==="1")return;
-      link.dataset.fallbackTried="1";
-      const fallback=document.createElement("link");
-      fallback.rel="stylesheet";fallback.href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
-      document.head.appendChild(fallback);
-    };
-    document.head.appendChild(link);
-  }
+  const cssPromise=leafletCssReady();
+  const start=()=>cssPromise.then(()=>{window.__DEFENX_LEAFLET_LOADING=false;initMap();});
+  if(window.L){start();return;}
   const urls=[
     "https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js",
     "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   ];
   let index=0;
   const loadNext=()=>{
-    if(window.L){window.__DEFENX_LEAFLET_LOADING=false;initMap();return;}
+    if(window.L){start();return;}
     if(index>=urls.length){
       window.__DEFENX_LEAFLET_LOADING=false;
       show("mapFallback");setText("mapFallback","Map library unavailable. Check the connection and reload the dashboard.");
@@ -235,7 +247,7 @@ function loadMapAsync(){
     }
     const script=document.createElement("script");
     script.src=urls[index++];script.async=true;
-    script.onload=()=>{if(window.L){window.__DEFENX_LEAFLET_LOADING=false;initMap();}else loadNext();};
+    script.onload=()=>{if(window.L)start();else loadNext();};
     script.onerror=()=>{script.remove();loadNext();};
     document.head.appendChild(script);
   };
@@ -249,31 +261,34 @@ function initMap(){
     if(!mapHost)throw new Error("Map container unavailable");
     mapHost.querySelectorAll(".leaflet-container").forEach(el=>el.remove());
     map=L.map("map",{
-      zoomControl:false,preferCanvas:true,minZoom:3,maxZoom:19,
-      zoomSnap:.5,zoomDelta:1,worldCopyJump:true
+      zoomControl:false,preferCanvas:true,minZoom:2,maxZoom:22,
+      zoomSnap:.25,zoomDelta:1,wheelPxPerZoomLevel:90,wheelDebounceTime:30,
+      zoomAnimation:true,markerZoomAnimation:true,inertia:true,bounceAtZoomLimits:false,
+      worldCopyJump:true,tap:true,touchZoom:true,doubleClickZoom:true,scrollWheelZoom:true,boxZoom:true,keyboard:true
     }).setView(lastRoverPoint||demoCenter,lastRoverPoint?17:15);
     L.control.zoom({position:"topleft"}).addTo(map);
     streetLayer=L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{
-      minZoom:3,maxZoom:19,maxNativeZoom:19,keepBuffer:4,
-      updateWhenIdle:true,updateWhenZooming:false,
+      minZoom:2,maxZoom:22,maxNativeZoom:19,keepBuffer:4,
+      updateWhenIdle:false,updateWhenZooming:false,
       attribution:'© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>'
     });
     satelliteLayer=L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{
-      minZoom:3,maxZoom:19,maxNativeZoom:19,keepBuffer:4,
-      updateWhenIdle:true,updateWhenZooming:false,
+      minZoom:2,maxZoom:22,maxNativeZoom:19,keepBuffer:4,
+      updateWhenIdle:false,updateWhenZooming:false,
       attribution:'Source: Esri, Vantor, Earthstar Geographics, and the GIS User Community'
     });
-    hybridOverlayLayer=L.tileLayer("https://tiles.maps.eox.at/wmts/1.0.0/overlay_3857/default/g/{z}/{y}/{x}.jpg",{
-      minZoom:0,maxZoom:18,maxNativeZoom:18,keepBuffer:4,opacity:.88,
-      updateWhenIdle:true,updateWhenZooming:false,
-      attribution:'Data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap contributors</a>, rendering © <a href="https://eox.at" target="_blank" rel="noopener">EOX</a> and MapServer'
-    });
+    // Hybrid = imagery + Esri road/street-name and place-name reference layers (native to z19, over-zoomed beyond).
+    const refOpts={minZoom:2,maxZoom:22,maxNativeZoom:19,keepBuffer:4,updateWhenIdle:false,updateWhenZooming:false,
+      attribution:'Labels © Esri, HERE, Garmin, © OpenStreetMap contributors'};
+    const roadLabels=L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}",Object.assign({zIndex:5},refOpts));
+    const placeLabels=L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}",Object.assign({zIndex:6},refOpts));
+    hybridOverlayLayer=L.layerGroup([roadLabels,placeLabels]);
     const watchLayer=(layer,label)=>{
       layer.on("loading",()=>setText("mapTileStatus",label+" LOADING"));
       layer.on("load",()=>{mapTileErrorCount=0;setText("mapTileStatus",label+" READY");});
       layer.on("tileerror",()=>{mapTileErrorCount++;setText("mapTileStatus",mapTileErrorCount>2?"SOME TILES UNAVAILABLE":"RETRYING TILES");});
     };
-    watchLayer(streetLayer,"STREET");watchLayer(satelliteLayer,"SATELLITE");watchLayer(hybridOverlayLayer,"ROAD OVERLAY");
+    watchLayer(streetLayer,"STREET");watchLayer(satelliteLayer,"SATELLITE");watchLayer(roadLabels,"STREET LABELS");
     const roverIcon=L.divIcon({className:"roverMarkerLabel",html:'<div class="roverMapMarker" id="roverMapMarker">✦</div>',iconSize:[34,34],iconAnchor:[17,17]});
     rover=L.marker(lastRoverPoint||demoCenter,{icon:roverIcon,opacity:roverGpsValid?1:0,keyboard:true,title:"ROVER-01"}).addTo(map);
     rover.bindTooltip("ROVER-01",{permanent:true,direction:"top",className:"roverTooltip"});
@@ -289,6 +304,14 @@ function initMap(){
     if(trackPts.length>1)trackLine=L.polyline(trackPts,{color:"#21d5a4",weight:4,opacity:.9}).addTo(map);
     setTimeout(()=>map&&map.invalidateSize(true),100);
     setTimeout(()=>map&&map.invalidateSize(true),550);
+    // keep the map sized to its container whenever layout changes (fullscreen, rotation, side panels)
+    if(window.ResizeObserver){
+      let queued=false;
+      const refit=()=>{if(queued)return;queued=true;requestAnimationFrame(()=>{queued=false;if(map)map.invalidateSize({pan:false});});};
+      const ro=new ResizeObserver(refit);
+      ro.observe(mapHost);if(mapHost.parentElement)ro.observe(mapHost.parentElement);
+    }
+    window.addEventListener("orientationchange",()=>setTimeout(()=>map&&map.invalidateSize(true),250));
     window.dispatchEvent(new Event("rover-map-ready"));
   }catch(err){
     show("mapFallback");setText("conn","DEGRADED");setText("mapTileStatus","MAP INITIALIZATION FAILED");

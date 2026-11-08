@@ -1,125 +1,120 @@
-/* DEFENX on-device AI vision.
- * TensorFlow.js COCO-SSD runs only on a real, readable rover camera stream.
- * Frames stay in this browser; this module does not upload images or detections.
+/* DEFENX on-device AI vision pipeline (orchestrator).
+ * One sequential scheduler drives object detection (TensorFlow.js COCO-SSD) and
+ * the face pipeline (face-recognition.js). Both read the SAME live camera element
+ * and nothing else, so reference photographs can never enter this pipeline.
+ * Frames stay in this browser; only alert metadata is sent to the backend.
+ * Decisions are made in vision-core.js: anything not positively established is
+ * reported as UNVERIFIED rather than guessed.
  */
 (() => {
   "use strict";
-
+  const core = window.DEFENX_VISION_CORE;
   const viewport = document.getElementById("cameraViewport");
   const bar = document.getElementById("aiVisionBar");
   const statusText = document.getElementById("aiVisionState");
   const toggle = document.getElementById("aiVisionToggle");
   const humanCount = document.getElementById("aiHumanCount");
   const vehicleCount = document.getElementById("aiVehicleCount");
-  if (!viewport || !bar || !statusText || !toggle) return;
+  if (!core || !viewport || !bar || !statusText || !toggle) return;
 
-  // The production dashboard and login share "/". Only explicit demo routes
-  // disable real AI; treating "/" as demo permanently hid the operator control.
   const demoMode = window.location.pathname === "/demo" ||
     new URLSearchParams(window.location.search).get("demo") === "1";
+  const STATUS = core.STATUS, T = core.THRESHOLDS;
   const canvas = document.createElement("canvas");
   canvas.className = "aiVisionCanvas";
-  canvas.setAttribute("aria-label", "AI object detection overlay");
+  canvas.setAttribute("aria-label", "AI detection overlay");
   canvas.setAttribute("aria-hidden", "true");
   viewport.appendChild(canvas);
   const context = canvas.getContext("2d");
-  const vehicles = new Set(["bicycle", "car", "motorcycle", "bus", "train", "truck"]);
+  const work = document.createElement("canvas");
+  const workCtx = work.getContext("2d", { willReadFrequently: true });
   const tfUrl = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
   const modelUrl = "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js";
+  const slow = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches;
+  const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
-  let source = null;
-  let model = null;
-  let modelPromise = null;
-  let paused = false;
-  let running = false;
-  let timer = 0;
-  let sourceGeneration = 0;
-  let corsCheckedFor = null;
-  let lastPredictions = [];
-  let failures = 0;
-  let inferenceMs = 0;
-  const detectionDelay = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches ? 1300 : 850;
+  let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
+  let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
+  let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
+  let objMs = 0, objectModelFailed = false, cache = { now: -1, value: null }, faceFails = 0, faceBroken = false;
+  const stats = window.DEFENX_VISION_STATS = { objectMs: 0, faceMs: 0, descriptorMs: 0, cycles: 0, skippedFrames: 0 };
+  const face = () => window.DEFENX_FACE;
 
-  function setText(id, value) {
-    const element = document.getElementById(id);
-    if (element) element.textContent = String(value);
-  }
-
+  const setText = (id, value) => { const e = document.getElementById(id); if (e) e.textContent = String(value); };
   function setState(state, message) {
     bar.dataset.state = state;
     statusText.textContent = message;
     window.ROVER_AI_VISION_STATUS = state;
     const canRetry = state === "error" && sourceReady(source) && !paused;
-    toggle.disabled = state === "loading" || state === "waiting" ||
-      state === "unsupported" || state === "demo" ||
-      (state === "error" && !canRetry);
+    toggle.disabled = state === "loading" || state === "waiting" || state === "unsupported" || state === "demo" || (state === "error" && !canRetry);
     toggle.textContent = paused ? "RESUME AI" : canRetry ? "RETRY AI" : "PAUSE AI";
-    setText("deviceAiState", state === "active" ? "AI LIVE" :
-      state === "paused" ? "PAUSED" : state === "loading" ? "LOADING" : "WAITING");
+    setText("deviceAiState", state === "active" ? "AI LIVE" : state === "paused" ? "PAUSED" : state === "loading" ? "LOADING" : "WAITING");
   }
-
-  function clearCounts() {
-    lastPredictions = [];
-    if (humanCount) humanCount.textContent = "0";
-    if (vehicleCount) vehicleCount.textContent = "0";
-    setText("person", "0");
-    setText("vehicle", "0");
-    setText("object", "0");
-    setText("confidence", "0%");
-    clearOverlay();
-    window.ROVER_AI_VISION_COUNTS = { human: 0, vehicle: 0, confidence: 0 };
+  function publish(counts) {
+    if (humanCount) humanCount.textContent = String(counts.human);
+    if (vehicleCount) vehicleCount.textContent = String(counts.vehicle);
+    setText("person", counts.human); setText("vehicle", counts.vehicle); setText("object", counts.object);
+    setText("confidence", Math.round(counts.confidence * 100) + "%");
+    window.ROVER_AI_VISION_COUNTS = counts;
+    window.dispatchEvent(new CustomEvent("defenx-ai-detection", { detail: counts }));
   }
-
-  function clearOverlay() {
-    if (!context) return;
-    context.clearRect(0, 0, canvas.width, canvas.height);
+  const zeroCounts = () => ({ human: 0, vehicle: 0, object: 0, unverified: 0, photo: 0, confidence: 0 });
+  function clearAll() {
+    objTracker = new core.Tracker(); screens = [];
+    if (face()) face().reset();
+    clearOverlay(); publish(zeroCounts());
   }
+  function clearOverlay() { if (context) context.clearRect(0, 0, canvas.width, canvas.height); }
 
-  function sourceReady(element) {
-    if (!element) return false;
-    if (element.tagName === "VIDEO") {
-      const tracks = element.srcObject && typeof element.srcObject.getVideoTracks === "function" ? element.srcObject.getVideoTracks() : [];
+  /* ---------------- source handling ---------------- */
+  function sourceReady(el) {
+    if (!el) return false;
+    if (el.tagName === "VIDEO") {
+      const tracks = el.srcObject && typeof el.srcObject.getVideoTracks === "function" ? el.srcObject.getVideoTracks() : [];
       const liveTrack = tracks.some(track => track.readyState === "live" && track.enabled);
-      return element.dataset.defenxLiveStream === "1" && !element.paused && element.readyState >= 2 && element.videoWidth > 0 && element.videoHeight > 0 && (liveTrack || Boolean(element.currentSrc || element.src));
+      return el.dataset.defenxLiveStream === "1" && !el.paused && el.readyState >= 2 && el.videoWidth > 0 && el.videoHeight > 0 && (liveTrack || Boolean(el.currentSrc || el.src));
     }
-    if (element.tagName === "IMG") {
-      return element.dataset.defenxLiveStream === "1" && element.complete && element.naturalWidth > 0 && element.naturalHeight > 0;
-    }
+    if (el.tagName === "IMG") return el.dataset.defenxLiveStream === "1" && el.complete && el.naturalWidth > 0 && el.naturalHeight > 0;
     return false;
   }
-
-  function sourceSize(element) {
-    return element.tagName === "VIDEO"
-      ? { width: element.videoWidth, height: element.videoHeight }
-      : { width: element.naturalWidth, height: element.naturalHeight };
+  const sourceSize = el => el.tagName === "VIDEO" ? { width: el.videoWidth, height: el.videoHeight } : { width: el.naturalWidth, height: el.naturalHeight };
+  function checkReadable(el) {
+    if (corsCheckedFor === el) return;
+    const probe = document.createElement("canvas"); probe.width = probe.height = 1;
+    const c = probe.getContext("2d", { willReadFrequently: true });
+    c.drawImage(el, 0, 0, 1, 1); c.getImageData(0, 0, 1, 1);
+    corsCheckedFor = el;
+  }
+  // A token that changes only when a NEW frame was decoded, so duplicate frames are skipped.
+  function frameToken(el) {
+    if (el.tagName === "VIDEO") {
+      const q = typeof el.getVideoPlaybackQuality === "function" ? el.getVideoPlaybackQuality() : null;
+      return q && q.totalVideoFrames ? q.totalVideoFrames : el.currentTime;
+    }
+    return null; // MJPEG/image streams expose no frame counter
+  }
+  function frameFor(now) { // one downscaled pixel grab per scheduler step, shared by all analyses
+    if (cache.now === now && cache.value) return cache.value;
+    const d = sourceSize(source), scale = Math.min(1, 640 / d.width);
+    const w = Math.max(1, Math.round(d.width * scale)), h = Math.max(1, Math.round(d.height * scale));
+    if (work.width !== w || work.height !== h) { work.width = w; work.height = h; }
+    workCtx.drawImage(source, 0, 0, w, h);
+    const id = workCtx.getImageData(0, 0, w, h);
+    cache = { now, value: { img: { data: id.data, width: w, height: h }, scale } };
+    return cache.value;
   }
 
-  function checkReadable(element) {
-    if (corsCheckedFor === element) return;
-    const probe = document.createElement("canvas");
-    probe.width = 1;
-    probe.height = 1;
-    const probeContext = probe.getContext("2d", { willReadFrequently: true });
-    probeContext.drawImage(element, 0, 0, 1, 1);
-    probeContext.getImageData(0, 0, 1, 1);
-    corsCheckedFor = element;
-  }
-
+  /* ---------------- COCO-SSD ---------------- */
   function loadScript(url, globalName) {
     if (window[globalName]) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
-      script.src = url;
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      script.onload = () => window[globalName]
-        ? resolve()
-        : reject(new Error("AI library did not initialise"));
+      script.src = url; script.async = true; script.crossOrigin = "anonymous";
+      script.onload = () => window[globalName] ? resolve() : reject(new Error("AI library did not initialise"));
       script.onerror = () => reject(new Error("Could not load " + globalName));
       document.head.appendChild(script);
     });
   }
-
   async function ensureModel() {
     if (model) return model;
     if (!modelPromise) {
@@ -129,255 +124,271 @@
         await loadScript(modelUrl, "cocoSsd");
         const tf = window.tf;
         await tf.ready();
-        try {
-          const webglReady = await tf.setBackend("webgl");
-          if (!webglReady) await tf.setBackend("cpu");
-        } catch (_) {
-          await tf.setBackend("cpu");
-        }
+        try { if (!(await tf.setBackend("webgl"))) await tf.setBackend("cpu"); } catch (_) { await tf.setBackend("cpu"); }
         await tf.ready();
         model = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
         return model;
       })();
     }
-    try {
-      return await modelPromise;
-    } finally {
-      modelPromise = null;
-    }
+    try { return await modelPromise; } finally { modelPromise = null; }
   }
 
-  function drawDetections(predictions, width, height) {
-    const host = source && source.parentElement ? source.parentElement : viewport;
+  /* ---------------- decisions ---------------- */
+  function isSpoofed(box) { // picture cues around a face block "live" status
+    const now = performance.now();
+    for (const s of screens) {
+      if (now - s.at < 3500 && core.area(s.bbox) > core.area(box) * 1.05 && core.containment(box, s.bbox) >= T.screenContainment) return "inside " + s.cls;
+    }
+    for (const tr of objTracker.tracks) {
+      const v = tr.data.verdict;
+      if (tr.key !== "person" || !v || !v.cue || now - tr.lastSeen > 3500) continue;
+      if (core.containment(box, tr.bbox) >= 0.6) return v.reasons[0] || "picture cue";
+    }
+    return null;
+  }
+  function evalVerdict(track, now) {
+    const c = track.data.ctx, det = track.data.det;
+    if (!c || !det) return null;
+    const live = det.class === "person" && face() && face().liveFaceInside(det.bbox, now);
+    const v = core.objectVerdict(det, Object.assign({}, c, { now, liveFace: !!live }));
+    track.data.verdict = v;
+    return v;
+  }
+  const offer = a => window.DEFENX_ALERTS && window.DEFENX_ALERTS.offer(a);
+
+  async function runObjects(now) {
+    const started = performance.now(), generation = sourceGeneration, active = source;
+    const preds = await model.detect(active, 20, 0.4);
+    objMs = performance.now() - started; stats.objectMs = objMs;
+    if (!running || paused || active !== source || generation !== sourceGeneration) return;
+    const dims = sourceSize(active), frame = frameFor(now);
+    const dets = preds.map(p => ({ class: p.class, score: p.score, bbox: p.bbox }));
+    screens = screens.filter(s => now - s.at < 3500)
+      .concat(dets.filter(d => core.SCREEN_CLASSES.has(d.class) && d.score >= 0.35).map(d => ({ cls: d.class, bbox: d.bbox, at: now })));
+    objTracker.update(dets, now);
+    for (const det of dets) {
+      const c = { frameArea: dims.width * dims.height, now, screen: core.screenContext(det, dets) };
+      if (!c.screen && !core.SCREEN_CLASSES.has(det.class)) {
+        const wb = det.bbox.map(v => v * frame.scale);
+        c.border = core.borderScore(frame.img, wb);
+        c.graphic = core.graphicScore(frame.img, wb);
+      }
+      det.track.data.ctx = c; det.track.data.det = det;
+    }
+    failures = 0;
+  }
+  async function runFaces(now) {
+    const f = face(), active = source, started = performance.now();
+    try {
+      await f.process({ source: active, now, frame: () => frameFor(now), isSpoofed });
+      faceFails = 0;
+    } catch (error) {
+      if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
+      if (++faceFails >= 3) faceBroken = true; // keep object detection alive if the face pipeline keeps failing
+      return 1000;
+    }
+    stats.faceMs = f.stats.detectMs; stats.descriptorMs = f.stats.descriptorMs;
+    return performance.now() - started;
+  }
+
+  /* ---------------- drawing & alerts ---------------- */
+  const COLORS = {
+    [STATUS.LIVE_HUMAN]: "#39e6a5", [STATUS.LIVE_VEHICLE]: "#54cfff", [STATUS.REAL_OBJECT]: "#b69cff",
+    [STATUS.PHOTO]: "#ffb454", [STATUS.VIRTUAL]: "#ffb454", [STATUS.UNVERIFIED]: "#ffd75e",
+    [STATUS.RECOGNIZED]: "#39e6a5", [STATUS.UNKNOWN]: "#ff5b65", [STATUS.NOT_CLEAR]: "#9aa7ad"
+  };
+  function label(x, y, lines, color) {
+    context.font = "700 11px system-ui, sans-serif";
+    const w = Math.max(...lines.map(l => context.measureText(l).width)) + 10, h = lines.length * 14 + 4;
+    const top = Math.max(0, y - h - 1);
+    context.fillStyle = color; context.fillRect(x, top, w, h);
+    context.fillStyle = "#031018";
+    lines.forEach((l, i) => context.fillText(l, x + 5, top + 12 + i * 14));
+  }
+  function render(now) {
+    if (!source) return;
+    const host = source.parentElement || viewport;
     if (canvas.parentElement !== host) host.appendChild(canvas);
     const rect = host.getBoundingClientRect();
-    const viewWidth = Math.max(1, Math.round(rect.width));
-    const viewHeight = Math.max(1, Math.round(rect.height));
-    if (canvas.width !== viewWidth || canvas.height !== viewHeight) {
-      canvas.width = viewWidth;
-      canvas.height = viewHeight;
-    }
-    context.clearRect(0, 0, viewWidth, viewHeight);
-
-    // Match object-fit (cover on card, contain in full screen).
-    const contain = source && getComputedStyle(source).objectFit === "contain";
-    const scale = (contain ? Math.min : Math.max)(viewWidth / width, viewHeight / height);
-    const offsetX = (viewWidth - width * scale) / 2;
-    const offsetY = (viewHeight - height * scale) / 2;
-    const visible = predictions.filter(item =>
-      item.class === "person" || vehicles.has(item.class)
-    );
-
-    lastPredictions = visible;
-    visible.forEach(item => {
-      const isHuman = item.class === "person";
-      const x = item.bbox[0] * scale + offsetX;
-      const y = item.bbox[1] * scale + offsetY;
-      const w = item.bbox[2] * scale;
-      const h = item.bbox[3] * scale;
-      const color = isHuman ? "#39e6a5" : "#54cfff";
-      const label = (isHuman ? "HUMAN" : item.class.toUpperCase()) +
-        " " + Math.round(item.score * 100) + "%";
-      const fontSize = 11;
-      context.strokeStyle = color;
-      context.lineWidth = 2;
-      context.strokeRect(x, y, w, h);
-      context.font = "700 " + fontSize + "px system-ui, sans-serif";
-      const labelWidth = context.measureText(label).width + 10;
-      const labelTop = Math.max(0, y - 20);
-      context.fillStyle = color;
-      context.fillRect(x, labelTop, labelWidth, 18);
-      context.fillStyle = "#031018";
-      context.fillText(label, x + 5, labelTop + 13);
-    });
-    return visible;
-  }
-
-  function publishCounts(visible) {
-    const people = visible.filter(item => item.class === "person");
-    const vehicleItems = visible.filter(item => vehicles.has(item.class));
-    const count = visible.length;
-    const confidence = count
-      ? visible.reduce((sum, item) => sum + item.score, 0) / count
-      : 0;
-
-    if (humanCount) humanCount.textContent = String(people.length);
-    if (vehicleCount) vehicleCount.textContent = String(vehicleItems.length);
-    setText("person", people.length);
-    setText("vehicle", vehicleItems.length);
-    setText("object", "0");
-    setText("confidence", Math.round(confidence * 100) + "%");
-    window.ROVER_AI_VISION_COUNTS = {
-      human: people.length,
-      vehicle: vehicleItems.length,
-      confidence: confidence
+    const vw = Math.max(1, Math.round(rect.width)), vh = Math.max(1, Math.round(rect.height));
+    if (canvas.width !== vw || canvas.height !== vh) { canvas.width = vw; canvas.height = vh; }
+    context.clearRect(0, 0, vw, vh);
+    const d = sourceSize(source);
+    if (!d.width || !d.height) return zeroCounts();
+    const contain = getComputedStyle(source).objectFit === "contain";
+    const scale = (contain ? Math.min : Math.max)(vw / d.width, vh / d.height);
+    const ox = (vw - d.width * scale) / 2, oy = (vh - d.height * scale) / 2;
+    const counts = zeroCounts();
+    let confSum = 0, confN = 0;
+    const box = (b, color, dashed) => {
+      const x = b[0] * scale + ox, y = b[1] * scale + oy;
+      context.strokeStyle = color; context.lineWidth = 2; context.setLineDash(dashed ? [6, 4] : []);
+      context.strokeRect(x, y, b[2] * scale, b[3] * scale); context.setLineDash([]);
+      return [x, y];
     };
-    window.dispatchEvent(new CustomEvent("defenx-ai-detection", {
-      detail: window.ROVER_AI_VISION_COUNTS
-    }));
-  }
-
-  function scheduleNext(delay) {
-    if (timer) clearTimeout(timer);
-    if (running && !paused) timer = window.setTimeout(detectFrame, delay);
-  }
-
-  async function detectFrame() {
-    if (!running || paused) return;
-    if (window.DEFENX_FACE_SCAN_ACTIVE) {
-      scheduleNext(1000);
-      return;
+    for (const tr of objTracker.tracks) {
+      if (now - tr.lastSeen > 1800) continue;
+      const v = evalVerdict(tr, now);
+      if (!v) continue;
+      const det = tr.data.det, pct = Math.round(det.score * 100) + "%";
+      const color = COLORS[v.status] || COLORS[STATUS.UNVERIFIED];
+      const [x, y] = box(det.bbox, color, v.status !== STATUS.LIVE_HUMAN && v.status !== STATUS.LIVE_VEHICLE && v.status !== STATUS.REAL_OBJECT);
+      label(x, y, [det.class.toUpperCase() + " " + pct, v.status], color);
+      if (v.status === STATUS.LIVE_HUMAN) { counts.human++; confSum += det.score; confN++; }
+      else if (v.status === STATUS.LIVE_VEHICLE) { counts.vehicle++; confSum += det.score; confN++; }
+      else if (v.status === STATUS.REAL_OBJECT) { counts.object++; confSum += det.score; confN++; }
+      else if (v.status === STATUS.PHOTO || v.status === STATUS.VIRTUAL) counts.photo++;
+      else counts.unverified++;
+      const cfg = window.DEFENX_ALERTS && window.DEFENX_ALERTS.config();
+      if (v.status === STATUS.LIVE_VEHICLE && cfg && cfg.vehicles)
+        offer({ category: "vehicle_detected", trackId: "o" + tr.id, status: v.status, subject: det.class, confidence: det.score });
+      if (v.status === STATUS.REAL_OBJECT && cfg && cfg.objects && cfg.objectClasses.includes(det.class))
+        offer({ category: "object_detected", trackId: "o" + tr.id, status: v.status, subject: det.class, confidence: det.score });
     }
-    if (document.hidden) {
-      scheduleNext(1200);
-      return;
-    }
-    if (!sourceReady(source)) {
-      clearCounts();
-      setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
-      scheduleNext(900);
-      return;
-    }
-
-    try {
-      const activeSource = source;
-      const generation = sourceGeneration;
-      const dimensions = sourceSize(activeSource);
-      checkReadable(activeSource);
-      const startedAt = performance.now();
-      const predictions = await model.detect(activeSource, 6, 0.5);
-      inferenceMs = performance.now() - startedAt;
-      failures = 0;
-      if (!running || paused || !activeSource || generation !== sourceGeneration || activeSource !== source) return;
-      if (window.DEFENX_FACE_SCAN_ACTIVE) {
-        scheduleNext(1000);
-        return;
+    const fr = face() ? face().faces : [];
+    for (const f of fr) {
+      if (now - f.at > 1200) continue;
+      const color = f.spoof ? COLORS[STATUS.PHOTO] : COLORS[f.identity] || COLORS[STATUS.UNVERIFIED];
+      const idLine = f.spoof ? STATUS.PHOTO : (f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity);
+      const lines = [idLine];
+      if (!f.spoof && f.identity !== STATUS.NOT_CLEAR) lines.push(f.mask);
+      const [x, y] = box(f.bbox, color, f.identity !== STATUS.RECOGNIZED && f.identity !== STATUS.UNKNOWN);
+      label(x, y, lines, color);
+      for (const category of f.alerts) {
+        const conf = category === "unknown_person" ? f.identityConfidence : Math.min(f.identityConfidence, f.maskConfidence);
+        offer({
+          category, trackId: "f" + f.id, live: true, confidence: conf,
+          status: category === "registered_no_mask" ? STATUS.NO_MASK : STATUS.UNKNOWN,
+          subject: category === "registered_no_mask" ? f.name : "UNKNOWN", mask: f.mask
+        });
       }
-      const visible = drawDetections(predictions, dimensions.width, dimensions.height);
-      publishCounts(visible);
-      setState("active", visible.length
-        ? "LIVE AI • DETECTING HUMAN / VEHICLES"
-        : "LIVE AI • SCANNING");
+    }
+    counts.confidence = confN ? confSum / confN : 0;
+    return counts;
+  }
+  function describe(counts) {
+    const parts = [];
+    if (counts.human) parts.push(counts.human + " LIVE HUMAN");
+    if (counts.vehicle) parts.push(counts.vehicle + " VEHICLE");
+    if (counts.object) parts.push(counts.object + " OBJECT");
+    if (counts.photo) parts.push(counts.photo + " PHOTO/SCREEN");
+    if (counts.unverified) parts.push(counts.unverified + " UNVERIFIED");
+    return parts.length ? "LIVE AI • " + parts.join(" • ") : "LIVE AI • SCANNING";
+  }
+  function refreshView(now) {
+    const counts = render(now) || zeroCounts();
+    publish(counts);
+    setState("active", objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts));
+  }
+
+  /* ---------------- scheduler: one task at a time, never blocks the stream ---------------- */
+  function schedule(delay) {
+    if (timer) clearTimeout(timer);
+    if (running && !paused) timer = window.setTimeout(tick, Math.max(20, delay));
+  }
+  async function tick() {
+    if (!running || paused || busy) return;
+    if (document.hidden) return schedule(1200);
+    if (!sourceReady(source)) { clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
+    const now = performance.now();
+    const token = frameToken(source);
+    if (token !== null && token === lastToken && now - lastWorkAt < 2500) { stats.skippedFrames++; return schedule(120); }
+    busy = true;
+    try {
+      checkReadable(source);
+      const f = face(), faceOn = !!(f && !faceBroken && f.active());
+      const objOn = !!model;
+      let ran = false;
+      if (faceOn && now >= nextFace) {
+        const ms = await runFaces(now);
+        nextFace = performance.now() + Math.max(FACE_DELAY, ms * 1.3);
+        ran = true;
+      } else if (objOn && now >= nextObj) {
+        await runObjects(now);
+        nextObj = performance.now() + Math.max(OBJECT_DELAY, objMs * 2);
+        ran = true;
+      }
+      if (ran) { lastToken = token; lastWorkAt = now; stats.cycles++; refreshView(performance.now()); }
+      failures = 0;
+      const due = Math.min(faceOn ? nextFace : Infinity, objOn ? nextObj : Infinity);
+      busy = false;
+      schedule(ran ? 25 : Math.min(250, due - performance.now()));
     } catch (error) {
+      busy = false;
       const message = String(error && error.message || error);
       const cors = /taint|cross.origin|securityerror/i.test(message);
-      // Tolerate a dropped frame; stop only after repeated failures.
-      if (!cors && ++failures < 3) {
-        scheduleNext(1000 * failures);
-        return;
-      }
+      if (!cors && ++failures < 3) return schedule(1000 * failures);
       running = false;
-      clearCounts();
-      setState("error", cors
-        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS"
-        : "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
-      return;
+      clearAll();
+      setState("error", cors ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
     }
-    // Pace to the device's inference speed.
-    scheduleNext(Math.max(detectionDelay, inferenceMs * 2));
   }
 
   async function startDetection() {
     failures = 0;
-    if (!source || !sourceReady(source) || paused) {
-      setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
-      return;
-    }
+    if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
     try {
       checkReadable(source);
-      await ensureModel();
+      window.dispatchEvent(new Event("defenx-camera-live"));
+      if (face()) face().boot();
+      try { await ensureModel(); objectModelFailed = false; }
+      catch (error) {
+        if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
+        objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
+        if (!face()) throw error;
+      }
       if (paused || !sourceReady(source)) return;
       running = true;
       toggle.disabled = false;
       toggle.textContent = "PAUSE AI";
-      scheduleNext(0);
+      nextObj = nextFace = 0;
+      schedule(0);
     } catch (error) {
       running = false;
-      const message = String(error && error.message || error);
-      setState("error", /taint|cross.origin|securityerror/i.test(message)
-        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS"
-        : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
+      setState("error", /taint|cross.origin|securityerror/i.test(String(error && error.message || error))
+        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
     }
   }
-
-  function onSourceReady() {
-    if (paused) return;
-    setState("loading", "LIVE CAMERA FOUND • STARTING AI");
-    startDetection();
-  }
-
+  function onSourceReady() { if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); } }
   function onSourceError() {
-    running = false;
-    if (timer) clearTimeout(timer);
-    clearCounts();
-    setState("error", "CAMERA STREAM ERROR • AI PAUSED");
+    running = false; if (timer) clearTimeout(timer);
+    clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
   }
-
   function findSource() {
     const element = document.getElementById("roverRealCamera");
     if (!element || element === source) return;
-    source = element;
-    sourceGeneration += 1;
-    corsCheckedFor = null;
-    running = false;
-    clearCounts();
+    source = element; sourceGeneration += 1; corsCheckedFor = null; lastToken = null; running = false; busy = false; faceFails = 0; faceBroken = false;
     if (timer) clearTimeout(timer);
-
-    if (element.tagName === "IFRAME") {
-      setState("unsupported", "EMBEDDED CAMERA • USE DIRECT MJPEG / VIDEO STREAM");
-      return;
-    }
-    if ((element.tagName !== "IMG" && element.tagName !== "VIDEO") || element.dataset.defenxLiveStream !== "1") {
-      setState("waiting", "WAITING FOR LIVE CAMERA STREAM");
-      return;
-    }
+    clearAll();
+    if (element.tagName === "IFRAME") { setState("unsupported", "EMBEDDED CAMERA • USE DIRECT MJPEG / VIDEO STREAM"); return; }
+    if ((element.tagName !== "IMG" && element.tagName !== "VIDEO") || element.dataset.defenxLiveStream !== "1") { setState("waiting", "WAITING FOR LIVE CAMERA STREAM"); return; }
     element.addEventListener("load", onSourceReady);
     element.addEventListener("loadeddata", onSourceReady);
+    element.addEventListener("playing", () => { if (!running && !paused && element === source) onSourceReady(); });
     element.addEventListener("error", onSourceError);
-    if (sourceReady(element)) onSourceReady();
-    else setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
+    if (sourceReady(element)) onSourceReady(); else setState("waiting", "WAITING FOR LIVE CAMERA FRAMES");
   }
 
   toggle.addEventListener("click", () => {
-    if (bar.dataset.state === "error" && !paused) {
-      setState("loading", "RETRYING AI VISION");
-      startDetection();
-      return;
-    }
+    if (bar.dataset.state === "error" && !paused) { setState("loading", "RETRYING AI VISION"); startDetection(); return; }
     paused = !paused;
     if (paused) {
-      running = false;
-      if (timer) clearTimeout(timer);
-      clearCounts();
-      setState("paused", "AI PAUSED BY OPERATOR");
-      toggle.disabled = false;
-    } else {
-      setState("loading", "RESUMING AI VISION");
-      startDetection();
-    }
+      running = false; if (timer) clearTimeout(timer);
+      clearAll(); setState("paused", "AI PAUSED BY OPERATOR"); toggle.disabled = false;
+    } else { setState("loading", "RESUMING AI VISION"); startDetection(); }
   });
-
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !paused && model && sourceReady(source) && !running) {
-      running = true;
-      scheduleNext(0);
-    }
+    if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
   });
-
-  window.addEventListener("resize", () => {
-    if (running && source) {
-      const dimensions = sourceSize(source);
-      drawDetections(lastPredictions, dimensions.width, dimensions.height);
-    }
-  });
+  window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
+  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
     toggle.hidden = true;
-    clearCounts();
+    publish(zeroCounts());
     return;
   }
-
   const observer = new MutationObserver(findSource);
   observer.observe(viewport, { childList: true });
   findSource();

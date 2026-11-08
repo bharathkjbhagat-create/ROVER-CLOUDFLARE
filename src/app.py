@@ -558,6 +558,15 @@ CREATE TABLE IF NOT EXISTS audit_log (
  session_id TEXT,
  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+CREATE TABLE IF NOT EXISTS face_enrollments (
+ id UUID PRIMARY KEY,
+ name TEXT NOT NULL,
+ consent BOOLEAN NOT NULL DEFAULT FALSE,
+ descriptor TEXT NOT NULL,
+ photo_b64 TEXT NOT NULL,
+ created_by TEXT NOT NULL,
+ created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 CREATE TABLE IF NOT EXISTS device_loss_events (
  device_code TEXT PRIMARY KEY,
  lat DOUBLE PRECISION NOT NULL,
@@ -1755,6 +1764,267 @@ def detection_event():
     session["detection_event_last"] = {"type": event_type, "at": now}
     return jsonify({"ok": True, "recorded": True})
 
+
+
+# ---------------------------------------------------------------------------
+# Registered-user face enrollment (administrator only) and live detection alerts
+# ---------------------------------------------------------------------------
+MAX_FACE_ENROLLMENTS = 50
+MAX_FACE_PHOTO_B64 = 24 * 1024       # request bodies are capped at 32 KB app-wide
+ALERT_CATEGORIES = {
+    "unknown_person": "UNKNOWN PERSON",
+    "registered_no_mask": "REGISTERED PERSON WITHOUT MASK",
+    "unknown_no_mask": "UNKNOWN PERSON WITHOUT MASK",
+    "vehicle_detected": "VEHICLE DETECTED",
+    "object_detected": "OBJECT DETECTED",
+}
+# Person-related alerts may only be raised from a live, verified presence.
+PERSON_ALERT_CATEGORIES = {"unknown_person", "registered_no_mask", "unknown_no_mask"}
+ALERT_STATUSES = {
+    "UNKNOWN PERSON", "FACE RECOGNIZED", "NO MASK", "MASK DETECTED",
+    "LIVE VEHICLE", "REAL-WORLD OBJECT", "LIVE HUMAN",
+}
+
+def _biometric_json(payload, status=200):
+    response = jsonify(payload)
+    response.status_code = status
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
+
+def _face_storage_unavailable():
+    return _biometric_json({
+        "ok": False, "storage": "unavailable",
+        "error": "Server-side enrollment storage requires the PostgreSQL database (DATABASE_URL).",
+    }, 503)
+
+def _valid_descriptor(value):
+    if not isinstance(value, list) or len(value) != 128:
+        return None
+    out = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, (int, float)):
+            return None
+        number = float(item)
+        if not math.isfinite(number) or abs(number) > 5:
+            return None
+        out.append(round(number, 6))
+    return out
+
+def _valid_jpeg_b64(value):
+    if not isinstance(value, str):
+        return None
+    if value.startswith("data:image/jpeg;base64,"):
+        value = value[len("data:image/jpeg;base64,"):]
+    if not value or len(value) > MAX_FACE_PHOTO_B64:
+        return None
+    try:
+        raw = base64.b64decode(value, validate=True)
+    except Exception:
+        return None
+    if len(raw) < 100 or raw[:3] != b"\xff\xd8\xff":
+        return None
+    return value
+
+@app.get("/api/face-enrollments")
+@require_admin
+def face_enrollments_list():
+    if not db_available():
+        return _face_storage_unavailable()
+    try:
+        ensure_db()
+        with get_db() as conn:
+            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                cur.execute("SELECT id,name,descriptor,created_at FROM face_enrollments WHERE consent ORDER BY created_at ASC")
+                rows = cur.fetchall()
+    except Exception:
+        mark_db_unavailable()
+        return _face_storage_unavailable()
+    items = []
+    for row in rows:
+        try:
+            descriptor = json.loads(row["descriptor"])
+        except (TypeError, ValueError):
+            continue
+        items.append({"id": str(row["id"]), "name": row["name"], "descriptor": descriptor,
+                      "created_at": row["created_at"].isoformat() if row.get("created_at") else None})
+    return _biometric_json({"ok": True, "storage": "server", "enrollments": items})
+
+@app.post("/api/face-enrollments")
+@require_admin
+def face_enrollments_create():
+    data = request.get_json(silent=True) or {}
+    name = " ".join(str(data.get("name", "")).split())[:80]
+    if not name:
+        return _biometric_json({"ok": False, "error": "A name is required"}, 400)
+    if data.get("consent") is not True:
+        return _biometric_json({"ok": False, "error": "Documented consent from the person is required"}, 400)
+    descriptor = _valid_descriptor(data.get("descriptor"))
+    if descriptor is None:
+        return _biometric_json({"ok": False, "error": "A valid 128-value face descriptor is required"}, 400)
+    photo = _valid_jpeg_b64(data.get("photo"))
+    if photo is None:
+        return _biometric_json({"ok": False, "error": "A JPEG reference photograph (max 24 KB encoded) is required"}, 400)
+    if not db_available():
+        return _face_storage_unavailable()
+    actor = current_user()
+    enrollment_id = str(uuid.uuid4())
+    try:
+        ensure_db()
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT COUNT(*) FROM face_enrollments")
+                if int(cur.fetchone()[0]) >= MAX_FACE_ENROLLMENTS:
+                    return _biometric_json({"ok": False, "error": f"Enrollment limit of {MAX_FACE_ENROLLMENTS} reached"}, 400)
+                cur.execute(
+                    """INSERT INTO face_enrollments (id,name,consent,descriptor,photo_b64,created_by)
+                       VALUES (%s,%s,TRUE,%s,%s,%s)""",
+                    (enrollment_id, name, json.dumps(descriptor), photo, actor["username"]),
+                )
+    except Exception:
+        mark_db_unavailable()
+        return _face_storage_unavailable()
+    # The audit record carries no biometric data. Enrolling never creates a detection alert.
+    audit("FACE_ENROLLED", f"Enrolled registered user '{name}' (id {enrollment_id}) with documented consent", actor)
+    return _biometric_json({"ok": True, "id": enrollment_id, "name": name})
+
+@app.get("/api/face-enrollments/<enrollment_id>/photo")
+@require_admin
+def face_enrollment_photo(enrollment_id):
+    try:
+        uuid.UUID(str(enrollment_id))
+    except ValueError:
+        return _biometric_json({"ok": False, "error": "Not found"}, 404)
+    if not db_available():
+        return _face_storage_unavailable()
+    try:
+        ensure_db()
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT photo_b64 FROM face_enrollments WHERE id=%s", (enrollment_id,))
+                row = cur.fetchone()
+    except Exception:
+        mark_db_unavailable()
+        return _face_storage_unavailable()
+    if not row:
+        return _biometric_json({"ok": False, "error": "Not found"}, 404)
+    response = Response(base64.b64decode(row[0]), mimetype="image/jpeg")
+    response.headers["Cache-Control"] = "private, no-store, max-age=0"
+    response.headers["Content-Disposition"] = "inline; filename=enrolled-reference.jpg"
+    return response
+
+@app.delete("/api/face-enrollments/<enrollment_id>")
+@require_admin
+def face_enrollment_delete(enrollment_id):
+    try:
+        uuid.UUID(str(enrollment_id))
+    except ValueError:
+        return _biometric_json({"ok": False, "error": "Not found"}, 404)
+    if not db_available():
+        return _face_storage_unavailable()
+    try:
+        ensure_db()
+        with get_db() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM face_enrollments WHERE id=%s RETURNING name", (enrollment_id,))
+                row = cur.fetchone()
+    except Exception:
+        mark_db_unavailable()
+        return _face_storage_unavailable()
+    if not row:
+        return _biometric_json({"ok": False, "error": "Not found"}, 404)
+    audit("FACE_ENROLLMENT_DELETED", f"Deleted registered user '{row[0]}' (id {enrollment_id}) and their biometric data", current_user())
+    return _biometric_json({"ok": True})
+
+def _clean_alert_text(value, limit=80):
+    return " ".join(str(value or "").split())[:limit]
+
+@app.post("/api/detection-alerts")
+@require_admin
+def detection_alert_create():
+    """Record an alert produced by a live camera detection.
+
+    Only classified live detections are accepted. Person alerts additionally
+    require the browser to assert verified live presence; reference-photo
+    uploads use a separate endpoint and can never reach this one.
+    """
+    data = request.get_json(silent=True) or {}
+    category = str(data.get("category", "")).strip().lower()
+    if category not in ALERT_CATEGORIES:
+        return _biometric_json({"ok": False, "error": "Invalid alert category"}, 400)
+    status = _clean_alert_text(data.get("status"), 40).upper()
+    if status not in ALERT_STATUSES:
+        return _biometric_json({"ok": False, "error": "Invalid detection status"}, 400)
+    if data.get("source") != "live_camera":
+        return _biometric_json({"ok": False, "error": "Alerts may only originate from the live camera"}, 400)
+    if category in PERSON_ALERT_CATEGORIES and data.get("live_verified") is not True:
+        return _biometric_json({"ok": False, "error": "Person alerts require verified live presence"}, 400)
+    confidence = _finite_number(data.get("confidence"), None, 0, 1)
+    if confidence is None:
+        return _biometric_json({"ok": False, "error": "Confidence must be between 0 and 1"}, 400)
+    camera = data.get("camera") if isinstance(data.get("camera"), dict) else {}
+    gps_in = data.get("gps") if isinstance(data.get("gps"), dict) else None
+    gps = None
+    if gps_in:
+        lat = _finite_number(gps_in.get("lat"), None, -90, 90)
+        lon = _finite_number(gps_in.get("lon"), None, -180, 180)
+        if lat is not None and lon is not None:
+            accuracy = _finite_number(gps_in.get("accuracy"), None, 0, 100000)
+            gps = {"lat": round(lat, 6), "lon": round(lon, 6),
+                   "accuracy_m": None if accuracy is None else round(accuracy, 1)}
+    subject = _clean_alert_text(data.get("subject"), 80) or None
+    record = {
+        "category": category, "label": ALERT_CATEGORIES[category], "status": status,
+        "mask": _clean_alert_text(data.get("mask"), 40) or None,
+        "confidence": round(confidence, 3), "subject": subject,
+        "camera": {"label": _clean_alert_text(camera.get("label"), 60) or None,
+                   "source": _clean_alert_text(camera.get("source"), 30) or None},
+        "gps": gps, "live_verified": data.get("live_verified") is True,
+    }
+    # Drop rapid duplicates (reconnecting tab, double submit) for the same subject.
+    now = time.monotonic()
+    key = f"{category}|{subject}|{status}"
+    previous = session.get("detection_alert_last") or {}
+    try:
+        if previous.get("key") == key and now - float(previous.get("at", 0)) < 3:
+            return _biometric_json({"ok": True, "duplicate": True})
+    except (TypeError, ValueError):
+        pass
+    session["detection_alert_last"] = {"key": key, "at": now}
+    audit("DETECTION_ALERT", json.dumps(record, separators=(",", ":")), current_user())
+    return _biometric_json({"ok": True, "recorded": True})
+
+@app.get("/api/detection-alerts")
+@require_admin
+def detection_alert_list():
+    try:
+        limit = min(max(int(request.args.get("limit", "100")), 1), 500)
+    except ValueError:
+        limit = 100
+    rows = []
+    persistent = False
+    if db_available():
+        try:
+            ensure_db()
+            with get_db() as conn:
+                with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                    cur.execute("SELECT details,created_at FROM audit_log WHERE action='DETECTION_ALERT' ORDER BY created_at DESC LIMIT %s", (limit,))
+                    rows = [{"details": x["details"], "created_at": x["created_at"].isoformat()} for x in cur.fetchall()]
+            persistent = True
+        except Exception:
+            mark_db_unavailable()
+    if not persistent:
+        with lock:
+            rows = [{"details": x["details"], "created_at": x["created_at"]} for x in recent_actions if x.get("action") == "DETECTION_ALERT"][:limit]
+    alerts = []
+    for row in rows:
+        try:
+            item = json.loads(row["details"])
+        except (TypeError, ValueError):
+            continue
+        item["at"] = row["created_at"]
+        alerts.append(item)
+    return _biometric_json({"ok": True, "persistent": persistent, "alerts": alerts})
 
 @app.get("/api/live-sync")
 def live_sync():

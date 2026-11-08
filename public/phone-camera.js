@@ -3,6 +3,11 @@
 let stream=null,active=false,pending=false,originalSource=null,videoNode=null,frameTimer=null,playRetryTimer=null;
 const $=id=>document.getElementById(id);
 const label=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
+function notice(text){
+ window.DEFENX_CAMERA_NOTICE=text?{text,until:Date.now()+15000}:null;
+ const ph=$("camPlaceholder"),msg=$("camPlaceholderMsg");
+ if(text&&ph&&msg){msg.textContent=text;ph.hidden=false;}
+}
 function stopTracks(source){
  if(source&&typeof source.getTracks==="function"){
   source.getTracks().forEach(track=>{try{track.stop();}catch(_){}});
@@ -63,7 +68,7 @@ async function start(){
    if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
    if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
    const scene=$("camera3DScene");if(scene)scene.style.display="none";
-   const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;
+   notice(null);const placeholder=$("camPlaceholder");if(placeholder)placeholder.hidden=true;
    const badge=document.querySelector("#liveCamera .liveBadge");
    if(badge){badge.innerHTML="<i></i> LIVE";badge.classList.remove("mvOff");}
    label("cameraSceneLabel","PHONE CAMERA • LIVE PREVIEW");
@@ -129,6 +134,7 @@ async function start(){
    "PHONE CAMERA COULD NOT START — RELOAD AND TRY AGAIN";
   label("cameraSceneLabel",message);
   label("cameraStatus","Unavailable");
+  notice(message);
  }finally{
   pending=false;setButton();
  }
@@ -141,6 +147,7 @@ function stop(){
  restoreElement();
  window.__defenxSetPhoneCameraActive?.(false);
  const scene=$("camera3DScene");if(scene)scene.style.display="";
+ notice(null);
  label("cameraSceneLabel","ROVER CAMERA • RECONNECTING");
  label("cameraStatus","Checking");
  setButton();
