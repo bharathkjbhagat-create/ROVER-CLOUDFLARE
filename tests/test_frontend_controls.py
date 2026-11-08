@@ -80,9 +80,9 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('startDetection();', self.ai)
 
     def test_face_scan_rechecks_same_camera_element_after_first_frame(self):
-        self.assertIn('if (node === source)', self.face)
-        self.assertIn('!scanning && sourceReady(source)', self.face)
-        self.assertIn('LIVE CAMERA READY • START WHEN YOU CHOOSE', self.face)
+        self.assertIn('if (node !== lastNode)', self.face)  # same element keeps its tracking state
+        self.assertIn('refreshBar(); bootModels();', self.face)
+        self.assertIn('WAITING FOR LIVE CAMERA', self.face)
 
     def test_temporary_phone_camera_uses_local_stream_and_can_stop(self):
         self.assertIn("navigator.mediaDevices?.getUserMedia", self.phone_camera)
@@ -102,10 +102,13 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('frame.dataset.defenxLiveStream="1";', self.js)
 
     def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
-        self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE = !!active", self.face)
-        self.assertIn("window.DEFENX_FACE_SCAN_ACTIVE", self.ai)
-        self.assertIn("scheduleNext(Math.max(detectionDelay, inferenceMs * 2))", self.ai)
-        self.assertIn("schedule(Math.max(scanDelay, inferenceMs * 2))", self.face)
+        # one sequential scheduler: a task never starts while another is running, and both
+        # detectors back off in proportion to how long inference took
+        self.assertIn("if (!running || paused || busy) return;", self.ai)
+        self.assertIn("nextObj = performance.now() + Math.max(OBJECT_DELAY, objMs * 2)", self.ai)
+        self.assertIn("nextFace = performance.now() + Math.max(FACE_DELAY, ms * 1.3)", self.ai)
+        self.assertIn("if (!active() || working) return lastFaces;", self.face)
+        self.assertIn("stats.skippedFrames++", self.ai)  # duplicate frames are not re-processed
 
     def test_live_camera_is_never_covered_by_stale_overlays(self):
         mon = (ROOT / "public/monitor.js").read_text(encoding="utf-8")
