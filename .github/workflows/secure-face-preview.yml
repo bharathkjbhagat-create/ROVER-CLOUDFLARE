@@ -60,7 +60,7 @@ jobs:
           python -m py_compile src/app.py src/worker.py src/biometric_crypto.py
           node --check public/app.js
           node --check public/face-recognition.js
-          uv run --group dev python -m unittest tests.test_biometric_crypto -v
+          uv run --group dev python tests/test_biometric_crypto.py -v
           uv run --group dev python tests/smoke.py
           uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
       - name: Configure isolated Worker identity
