@@ -94,6 +94,7 @@ jobs:
           COOKIE_SECURE: ${{ secrets.COOKIE_SECURE }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DEVICE_OFFLINE_AFTER_SECONDS: ${{ secrets.DEVICE_OFFLINE_AFTER_SECONDS }}
+          FACE_DATA_KEY: ${{ secrets.FACE_DATA_KEY }}
           LEGACY_AUTH_ENABLED: ${{ secrets.LEGACY_AUTH_ENABLED }}
           LEGACY_AUTH_URL: ${{ secrets.LEGACY_AUTH_URL }}
           LIVE_SYNC_SECRET: ${{ secrets.LIVE_SYNC_SECRET }}
