@@ -64,10 +64,19 @@ class FakeCursor:
             assert "TRUE" in sql  # consent is only ever stored as granted
             db.faces.append({"id": ident, "name": name, "descriptor": descriptor, "photo_b64": photo,
                              "created_by": created_by, "created_at": datetime.now(timezone.utc)})
-        elif sql.startswith("SELECT id,name,descriptor,created_at FROM face_enrollments"):
+        elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
+        elif sql.startswith("SELECT id,name,descriptor,photo_b64,created_at FROM face_enrollments"):
+            self.rows = [dict(f) for f in db.faces]
+        elif sql.startswith("UPDATE face_enrollments SET descriptor=%s, photo_b64=%s WHERE id=%s"):
+            descriptor, photo, ident = params
+            for row in db.faces:
+                if row["id"] == ident:
+                    row["descriptor"], row["photo_b64"] = descriptor, photo
         elif sql.startswith("SELECT photo_b64 FROM face_enrollments WHERE id"):
             self.rows = [(f["photo_b64"],) for f in db.faces if f["id"] == params[0]]
+        elif sql == "DELETE FROM face_enrollments":
+            db.faces = []
         elif sql.startswith("DELETE FROM face_enrollments WHERE id"):
             hit = [f for f in db.faces if f["id"] == params[0]]
             db.faces = [f for f in db.faces if f["id"] != params[0]]
@@ -92,12 +101,14 @@ class VisionBackendTests(unittest.TestCase):
     def setUp(self):
         self.client = rover_app.app.test_client()
         self.db = FakeDB()
+        rover_app._LOCAL_FACE_ENROLLMENTS.clear()
         fake_psycopg = types.SimpleNamespace(rows=types.SimpleNamespace(dict_row=object()))
         self.patches = [
             patch.object(rover_app, "db_available", lambda: True),
             patch.object(rover_app, "ensure_db", lambda: None),
             patch.object(rover_app, "get_db", lambda: self.db),
             patch.object(rover_app, "psycopg", fake_psycopg, create=True),
+            patch.dict(os.environ, {"FACE_DATA_KEY": "unit-test-random-biometric-key-material-32-chars"}),
         ]
         for p in self.patches:
             p.start()
@@ -129,6 +140,23 @@ class VisionBackendTests(unittest.TestCase):
         body.update(over)
         return self.client.post("/api/detection-alerts", json=body)
 
+    def durable_face_store_for_test(self, operation):
+        op = operation.get("op")
+        if op == "list":
+            return {"ok": True, "enrollments": list(rover_app._LOCAL_FACE_ENROLLMENTS.values())}
+        if op == "add":
+            row = dict(operation["enrollment"])
+            if row["id"] in rover_app._LOCAL_FACE_ENROLLMENTS:
+                raise RuntimeError("duplicate")
+            rover_app._LOCAL_FACE_ENROLLMENTS[row["id"]] = row
+            return {"ok": True, "id": row["id"]}
+        if op == "get":
+            row = rover_app._LOCAL_FACE_ENROLLMENTS.get(operation["id"])
+            if row is None:
+                raise RuntimeError("not_found")
+            return {"ok": True, "enrollment": dict(row)}
+        raise AssertionError("Unexpected face-store operation: " + str(op))
+
     # ---------- access control ----------
     def test_everything_requires_an_admin_session(self):
         anon = rover_app.app.test_client()
@@ -158,6 +186,9 @@ class VisionBackendTests(unittest.TestCase):
         items = listing.get_json()["enrollments"]
         self.assertEqual([i["name"] for i in items], ["Asha Rao"])
         self.assertEqual(len(items[0]["descriptor"]), 128)
+        stored = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        self.assertTrue(stored["blob"].startswith("a256gcm.v1."))
+        self.assertNotIn(JPEG[:40], stored["blob"])
         self.assertNotIn("photo", items[0])  # photographs are served only by the dedicated protected route
         photo = self.client.get(f"/api/face-enrollments/{ident}/photo")
         self.assertEqual(photo.status_code, 200)
@@ -167,6 +198,93 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(self.client.delete(f"/api/face-enrollments/{ident}").status_code, 200)
         self.assertEqual(self.client.get("/api/face-enrollments").get_json()["enrollments"], [])
         self.assertEqual(self.client.get(f"/api/face-enrollments/{ident}/photo").status_code, 404)
+
+    def test_legacy_plaintext_records_are_encrypted_before_source_rows_are_deleted(self):
+        ident = str(uuid.uuid4())
+        self.db.faces.append({
+            "id": ident, "name": "Legacy person", "consent": True,
+            "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["enrollments"][0]["name"], "Legacy person")
+        self.assertEqual(self.db.faces, [])
+        stored = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        self.assertTrue(stored["blob"].startswith("a256gcm.v1."))
+        self.assertNotIn(JPEG[:40], stored["blob"])
+
+    def test_unconsented_legacy_biometric_rows_are_purged_without_migration(self):
+        self.db.faces.append({
+            "id": str(uuid.uuid4()), "name": "No consent", "consent": False,
+            "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.db.faces, [])
+        self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+
+    def test_legacy_unconsented_rows_are_purged_without_migration(self):
+        ident = str(uuid.uuid4())
+        self.db.faces.append({
+            "id": ident, "name": "No Consent",
+            "consent": False, "descriptor": "not-valid", "photo_b64": "not-valid",
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["enrollments"], [])
+        self.assertEqual(self.db.faces, [])
+        self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+
+    def test_legacy_plaintext_rows_are_preserved_when_encryption_fails(self):
+        ident = str(uuid.uuid4())
+        self.db.faces.append({
+            "id": ident, "name": "Legacy person", "consent": True,
+            "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ), patch.object(rover_app, "encrypt_biometric_bytes", side_effect=rover_app.BiometricCryptoError("test")):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(len(self.db.faces), 1)
+        self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+
+    def test_cloudflare_crypto_check_endpoint_contract(self):
+        response = self.client.get("/api/face-enrollments/crypto-check")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["algorithm"], "AES-256-GCM")
+
+    def test_missing_face_key_fails_closed_without_storing_biometrics(self):
+        with patch.dict(os.environ, {"FACE_DATA_KEY": ""}):
+            response = self.enroll()
+            self.assertEqual(response.status_code, 503)
+            self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
+            self.assertEqual(self.client.get("/api/face-enrollments").status_code, 503)
+
+    def test_tampered_ciphertext_is_never_returned(self):
+        response = self.enroll()
+        self.assertEqual(response.status_code, 200)
+        ident = response.get_json()["id"]
+        row = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        blob = row["blob"]
+        index = len("a256gcm.v1.") + 24
+        row["blob"] = blob[:index] + ("A" if blob[index] != "A" else "B") + blob[index + 1:]
+        listing = self.client.get("/api/face-enrollments")
+        self.assertEqual(listing.status_code, 503)
+        self.assertEqual(listing.get_json()["enrollments"] if "enrollments" in listing.get_json() else [], [])
 
     def test_enrollment_validation(self):
         bad_cases = [
@@ -179,16 +297,20 @@ class VisionBackendTests(unittest.TestCase):
             self.assertEqual(self.enroll(**case).status_code, 400, case if "photo" not in case else list(case))
         self.assertEqual(self.db.faces, [])
 
-    def test_enrollment_unavailable_without_database(self):
+    def test_enrollment_works_without_postgres_using_shared_store(self):
         with patch.object(rover_app, "db_available", lambda: False):
             r = self.enroll()
-            self.assertEqual(r.status_code, 503)
-            self.assertEqual(r.get_json()["storage"], "unavailable")
-            self.assertEqual(self.client.get("/api/face-enrollments").status_code, 503)
+            self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+            listing = self.client.get("/api/face-enrollments")
+            self.assertEqual(listing.status_code, 200)
+            self.assertEqual(listing.get_json()["storage"], "durable-object-encrypted")
 
     def test_enrollment_limit(self):
-        self.db.faces = [{"id": str(uuid.uuid4()), "name": f"u{i}", "descriptor": "[]", "photo_b64": JPEG,
-                          "created_by": "x", "created_at": datetime.now(timezone.utc)} for i in range(rover_app.MAX_FACE_ENROLLMENTS)]
+        for i in range(rover_app.MAX_FACE_ENROLLMENTS):
+            ident = str(uuid.uuid4())
+            rover_app._LOCAL_FACE_ENROLLMENTS[ident] = {
+                "id": ident, "blob": "a256gcm.v1.synthetic", "created_at": "2026-01-01T00:00:00Z",
+            }
         self.assertEqual(self.enroll().status_code, 400)
 
     def test_reference_upload_never_creates_an_alert_or_leaks_biometrics_to_audit(self):

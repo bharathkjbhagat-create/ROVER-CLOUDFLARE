@@ -22,6 +22,7 @@ import uuid
 import json
 import hmac
 import hashlib
+from biometric_crypto import (BiometricCryptoError, PREFIX as BIOMETRIC_CIPHER_PREFIX, decrypt_bytes as decrypt_biometric_bytes, encrypt_bytes as encrypt_biometric_bytes, key_is_valid as biometric_key_is_valid)
 
 try:
     from workers import env as CF_ENV
@@ -1792,11 +1793,20 @@ def _biometric_json(payload, status=200):
     response.headers["Pragma"] = "no-cache"
     return response
 
-def _face_storage_unavailable():
+def _face_data_key():
+    return str(_config("FACE_DATA_KEY", "") or "").strip()
+
+
+def _face_storage_unavailable(message=None):
     return _biometric_json({
         "ok": False, "storage": "unavailable",
-        "error": "Server-side enrollment storage requires the PostgreSQL database (DATABASE_URL).",
+        "error": message or "Encrypted Durable Object storage is unavailable. Face verification is disabled; no plaintext fallback is used.",
     }, 503)
+
+
+def _face_aad(enrollment_id, field="record"):
+    return "defenx-face-enrollment:" + str(enrollment_id) + ":" + field + ":v1"
+
 
 def _valid_descriptor(value):
     if not isinstance(value, list) or len(value) != 128:
@@ -1810,6 +1820,7 @@ def _valid_descriptor(value):
             return None
         out.append(round(number, 6))
     return out
+
 
 def _valid_jpeg_b64(value):
     if not isinstance(value, str):
@@ -1826,33 +1837,189 @@ def _valid_jpeg_b64(value):
         return None
     return value
 
-@app.get("/api/face-enrollments")
-@require_admin
-def face_enrollments_list():
+
+_LOCAL_FACE_ENROLLMENTS = {}
+
+
+def _face_store(operation):
+    """Durable Object storage in Workers; in-memory adapter only for local tests."""
+    if CF_ENV is not None:
+        stub = _realtime_stub()
+        if stub is None or run_sync is None:
+            raise RuntimeError("face_store_unavailable")
+        try:
+            result = run_sync(stub.face_enrollment_op(json.dumps(operation, separators=(",", ":"))))
+        except Exception as exc:
+            raise RuntimeError("face_store_unavailable") from exc
+        if not isinstance(result, dict) or result.get("ok") is not True:
+            code = result.get("error") if isinstance(result, dict) else "face_store_unavailable"
+            raise RuntimeError(str(code or "face_store_unavailable"))
+        return result
+
+    # Flask development and unit tests have no Cloudflare bindings. This
+    # adapter is deliberately never used inside a deployed Worker.
+    op = str(operation.get("op") or "")
+    if op == "list":
+        return {"ok": True, "enrollments": list(_LOCAL_FACE_ENROLLMENTS.values())}
+    if op == "add":
+        row = operation.get("enrollment") or {}
+        ident = str(row.get("id") or "")
+        if ident in _LOCAL_FACE_ENROLLMENTS:
+            raise RuntimeError("duplicate")
+        if len(_LOCAL_FACE_ENROLLMENTS) >= MAX_FACE_ENROLLMENTS:
+            raise RuntimeError("enrollment_limit")
+        _LOCAL_FACE_ENROLLMENTS[ident] = dict(row)
+        return {"ok": True, "id": ident}
+    if op == "get":
+        row = _LOCAL_FACE_ENROLLMENTS.get(str(operation.get("id") or ""))
+        if not row:
+            raise RuntimeError("not_found")
+        return {"ok": True, "enrollment": dict(row)}
+    if op == "delete":
+        ident = str(operation.get("id") or "")
+        if ident not in _LOCAL_FACE_ENROLLMENTS:
+            raise RuntimeError("not_found")
+        del _LOCAL_FACE_ENROLLMENTS[ident]
+        return {"ok": True, "id": ident}
+    raise RuntimeError("bad_request")
+
+
+def _migrate_legacy_face_enrollments(key):
+    """Encrypt existing consented PostgreSQL enrollments before removing plaintext rows.
+
+    Migration is retry-safe: source rows are retained unless every record has a
+    valid encrypted Durable Object copy. It never deletes a partially migrated
+    registry and never returns legacy plaintext to the browser.
+    """
     if not db_available():
-        return _face_storage_unavailable()
+        return True
     try:
         ensure_db()
         with get_db() as conn:
             with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                cur.execute("SELECT id,name,descriptor,created_at FROM face_enrollments WHERE consent ORDER BY created_at ASC")
+                cur.execute(
+                    "SELECT id,name,consent,descriptor,photo_b64,created_by,created_at "
+                    "FROM face_enrollments ORDER BY created_at ASC"
+                )
                 rows = cur.fetchall()
+
+            if not rows:
+                return True
+
+            existing = {
+                str(row.get("id")) for row in _face_store({"op": "list"})["enrollments"]
+            }
+            for row in rows:
+                if row.get("consent") is not True:
+                    continue
+                enrollment_id = str(uuid.UUID(str(row["id"])))
+                name = " ".join(str(row.get("name") or "").split())[:80]
+                descriptor_value = row.get("descriptor")
+                if isinstance(descriptor_value, str):
+                    descriptor_value = json.loads(descriptor_value)
+                descriptor = _valid_descriptor(descriptor_value)
+                photo = _valid_jpeg_b64(row.get("photo_b64"))
+                if not name or descriptor is None or photo is None:
+                    raise BiometricCryptoError("legacy_biometric_record_invalid")
+
+                if enrollment_id in existing:
+                    stored = _face_store({"op": "get", "id": enrollment_id})["enrollment"]
+                    stored_payload = json.loads(decrypt_biometric_bytes(
+                        key, stored.get("blob"), _face_aad(enrollment_id)
+                    ).decode("utf-8"))
+                    if (stored_payload.get("name") != name
+                            or _valid_descriptor(stored_payload.get("descriptor")) != descriptor
+                            or _valid_jpeg_b64(stored_payload.get("photo")) != photo):
+                        raise BiometricCryptoError("legacy_biometric_record_conflict")
+                    continue
+
+                payload = json.dumps(
+                    {"name": name, "descriptor": descriptor, "photo": photo},
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
+                created_at = row.get("created_at")
+                if hasattr(created_at, "isoformat"):
+                    created_at = created_at.isoformat()
+                result = _face_store({
+                    "op": "add",
+                    "enrollment": {
+                        "id": enrollment_id,
+                        "blob": blob,
+                        "created_at": str(created_at or "")[:40],
+                        "created_by": str(row.get("created_by") or "legacy")[:64],
+                    },
+                })
+                if result.get("id") != enrollment_id:
+                    raise RuntimeError("legacy_biometric_migration_failed")
+                existing.add(enrollment_id)
+
+            # Only wipe the old table after all consented records have valid
+            # encrypted copies. Non-consented rows are removed as well because
+            # they must not remain as plaintext biometric material.
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM face_enrollments")
+        return True
     except Exception:
-        mark_db_unavailable()
+        return False
+
+
+@app.get("/api/face-enrollments/crypto-check")
+@require_admin
+def face_enrollment_crypto_check():
+    key = _face_data_key()
+    if not biometric_key_is_valid(key):
         return _face_storage_unavailable()
-    items = []
-    for row in rows:
-        try:
-            descriptor = json.loads(row["descriptor"])
-        except (TypeError, ValueError):
-            continue
-        items.append({"id": str(row["id"]), "name": row["name"], "descriptor": descriptor,
-                      "created_at": row["created_at"].isoformat() if row.get("created_at") else None})
-    return _biometric_json({"ok": True, "storage": "server", "enrollments": items})
+    sample = b"DEFENX biometric AES-GCM self-test"
+    aad = "defenx-face-crypto-self-test:v1"
+    try:
+        encrypted = encrypt_biometric_bytes(key, sample, aad)
+        decrypted = decrypt_biometric_bytes(key, encrypted, aad)
+        if decrypted != sample or not encrypted.startswith(BIOMETRIC_CIPHER_PREFIX):
+            raise BiometricCryptoError("biometric_crypto_self_test_failed")
+    except BiometricCryptoError:
+        return _face_storage_unavailable("AES-256-GCM self-test failed; biometric storage remains disabled.")
+    return _biometric_json({"ok": True, "algorithm": "AES-256-GCM", "storage": "server-encrypted"})
+
+
+@app.get("/api/face-enrollments")
+@require_admin
+def face_enrollments_list():
+    key = _face_data_key()
+    if not biometric_key_is_valid(key):
+        return _face_storage_unavailable()
+    if not _migrate_legacy_face_enrollments(key):
+        return _face_storage_unavailable(
+            "Legacy biometric records could not all be encrypted. Existing records were preserved; no plaintext data was returned."
+        )
+    try:
+        rows = _face_store({"op": "list"})["enrollments"]
+        items = []
+        for row in rows:
+            enrollment_id = str(row.get("id") or "")
+            payload_raw = decrypt_biometric_bytes(key, row.get("blob"), _face_aad(enrollment_id))
+            payload = json.loads(payload_raw.decode("utf-8"))
+            descriptor = _valid_descriptor(payload.get("descriptor"))
+            name = " ".join(str(payload.get("name") or "").split())[:80]
+            if descriptor is None or not name or _valid_jpeg_b64(payload.get("photo")) is None:
+                raise BiometricCryptoError("biometric_record_invalid")
+            items.append({
+                "id": enrollment_id, "name": name, "descriptor": descriptor,
+                "created_at": row.get("created_at"),
+            })
+        return _biometric_json({"ok": True, "storage": "durable-object-encrypted", "enrollments": items})
+    except BiometricCryptoError:
+        return _face_storage_unavailable("A biometric record failed AES-GCM authentication. No record was returned.")
+    except Exception:
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
+
 
 @app.post("/api/face-enrollments")
 @require_admin
 def face_enrollments_create():
+    key = _face_data_key()
+    if not biometric_key_is_valid(key):
+        return _face_storage_unavailable()
     data = request.get_json(silent=True) or {}
     name = " ".join(str(data.get("name", "")).split())[:80]
     if not name:
@@ -1865,28 +2032,33 @@ def face_enrollments_create():
     photo = _valid_jpeg_b64(data.get("photo"))
     if photo is None:
         return _biometric_json({"ok": False, "error": "A JPEG reference photograph (max 24 KB encoded) is required"}, 400)
-    if not db_available():
-        return _face_storage_unavailable()
-    actor = current_user()
     enrollment_id = str(uuid.uuid4())
+    actor = current_user()
     try:
-        ensure_db()
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT COUNT(*) FROM face_enrollments")
-                if int(cur.fetchone()[0]) >= MAX_FACE_ENROLLMENTS:
-                    return _biometric_json({"ok": False, "error": f"Enrollment limit of {MAX_FACE_ENROLLMENTS} reached"}, 400)
-                cur.execute(
-                    """INSERT INTO face_enrollments (id,name,consent,descriptor,photo_b64,created_by)
-                       VALUES (%s,%s,TRUE,%s,%s,%s)""",
-                    (enrollment_id, name, json.dumps(descriptor), photo, actor["username"]),
-                )
+        payload = json.dumps(
+            {"name": name, "descriptor": descriptor, "photo": photo},
+            separators=(",", ":"),
+        ).encode("utf-8")
+        blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
+        _face_store({
+            "op": "add",
+            "enrollment": {
+                "id": enrollment_id, "blob": blob,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "created_by": actor["username"],
+            },
+        })
+    except BiometricCryptoError:
+        return _face_storage_unavailable("AES-256-GCM encryption failed; no biometric record was saved.")
+    except RuntimeError as exc:
+        if str(exc) == "enrollment_limit":
+            return _biometric_json({"ok": False, "error": f"Enrollment limit of {MAX_FACE_ENROLLMENTS} reached"}, 400)
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
     except Exception:
-        mark_db_unavailable()
-        return _face_storage_unavailable()
-    # The audit record carries no biometric data. Enrolling never creates a detection alert.
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
     audit("FACE_ENROLLED", f"Enrolled registered user '{name}' (id {enrollment_id}) with documented consent", actor)
-    return _biometric_json({"ok": True, "id": enrollment_id, "name": name})
+    return _biometric_json({"ok": True, "id": enrollment_id, "name": name, "storage": "durable-object-encrypted"})
+
 
 @app.get("/api/face-enrollments/<enrollment_id>/photo")
 @require_admin
@@ -1895,23 +2067,31 @@ def face_enrollment_photo(enrollment_id):
         uuid.UUID(str(enrollment_id))
     except ValueError:
         return _biometric_json({"ok": False, "error": "Not found"}, 404)
-    if not db_available():
+    key = _face_data_key()
+    if not biometric_key_is_valid(key):
         return _face_storage_unavailable()
     try:
-        ensure_db()
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("SELECT photo_b64 FROM face_enrollments WHERE id=%s", (enrollment_id,))
-                row = cur.fetchone()
+        row = _face_store({"op": "get", "id": enrollment_id})["enrollment"]
+        payload_raw = decrypt_biometric_bytes(key, row.get("blob"), _face_aad(enrollment_id))
+        payload = json.loads(payload_raw.decode("utf-8"))
+        photo = _valid_jpeg_b64(payload.get("photo"))
+        if photo is None:
+            raise BiometricCryptoError("biometric_photo_invalid")
+        photo_raw = base64.b64decode(photo, validate=True)
+    except BiometricCryptoError:
+        return _face_storage_unavailable("The biometric photograph failed AES-GCM authentication.")
+    except RuntimeError as exc:
+        if str(exc) == "not_found":
+            return _biometric_json({"ok": False, "error": "Not found"}, 404)
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
     except Exception:
-        mark_db_unavailable()
-        return _face_storage_unavailable()
-    if not row:
-        return _biometric_json({"ok": False, "error": "Not found"}, 404)
-    response = Response(base64.b64decode(row[0]), mimetype="image/jpeg")
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
+    response = Response(photo_raw, mimetype="image/jpeg")
     response.headers["Cache-Control"] = "private, no-store, max-age=0"
     response.headers["Content-Disposition"] = "inline; filename=enrolled-reference.jpg"
+    response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
 
 @app.delete("/api/face-enrollments/<enrollment_id>")
 @require_admin
@@ -1920,21 +2100,18 @@ def face_enrollment_delete(enrollment_id):
         uuid.UUID(str(enrollment_id))
     except ValueError:
         return _biometric_json({"ok": False, "error": "Not found"}, 404)
-    if not db_available():
-        return _face_storage_unavailable()
     try:
-        ensure_db()
-        with get_db() as conn:
-            with conn.cursor() as cur:
-                cur.execute("DELETE FROM face_enrollments WHERE id=%s RETURNING name", (enrollment_id,))
-                row = cur.fetchone()
+        _face_store({"op": "delete", "id": enrollment_id})
+    except RuntimeError as exc:
+        if str(exc) == "not_found":
+            return _biometric_json({"ok": False, "error": "Not found"}, 404)
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
     except Exception:
-        mark_db_unavailable()
-        return _face_storage_unavailable()
-    if not row:
-        return _biometric_json({"ok": False, "error": "Not found"}, 404)
-    audit("FACE_ENROLLMENT_DELETED", f"Deleted registered user '{row[0]}' (id {enrollment_id}) and their biometric data", current_user())
+        return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
+    actor = current_user()
+    audit("FACE_ENROLLMENT_DELETED", f"Deleted registered user biometric record (id {enrollment_id})", actor)
     return _biometric_json({"ok": True})
+
 
 def _clean_alert_text(value, limit=80):
     return " ".join(str(value or "").split())[:limit]
