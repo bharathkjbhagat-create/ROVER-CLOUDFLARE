@@ -4,8 +4,8 @@
  * - Enrollment photographs are processed on their own canvas and are never fed to
  *   the live pipeline, so an uploaded reference photo cannot raise a detection or alert.
  * - Frames never leave the browser. Enrolled descriptors and reference photographs
- *   are stored only in the admin-only server database as AES-256-GCM ciphertext.
- *   There is no plaintext IndexedDB fallback.
+ *   are encrypted with AES-256-GCM before storage in the admin-only Durable Object.
+ *   There is no plaintext IndexedDB or server-side plaintext fallback.
  * Orchestrated by ai-vision.js through window.DEFENX_FACE.
  */
 (() => {
