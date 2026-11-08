@@ -1920,27 +1920,37 @@ def _migrate_legacy_face_enrollments(key):
                 if not name or descriptor is None or photo is None:
                     raise BiometricCryptoError("legacy_biometric_record_invalid")
 
-                if enrollment_id not in existing:
-                    payload = json.dumps(
-                        {"name": name, "descriptor": descriptor, "photo": photo},
-                        separators=(",", ":"),
-                    ).encode("utf-8")
-                    blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
-                    created_at = row.get("created_at")
-                    if hasattr(created_at, "isoformat"):
-                        created_at = created_at.isoformat()
-                    result = _face_store({
-                        "op": "add",
-                        "enrollment": {
-                            "id": enrollment_id,
-                            "blob": blob,
-                            "created_at": str(created_at or "")[:40],
-                            "created_by": str(row.get("created_by") or "legacy")[:64],
-                        },
-                    })
-                    if result.get("id") != enrollment_id:
-                        raise RuntimeError("legacy_biometric_migration_failed")
-                    existing.add(enrollment_id)
+                if enrollment_id in existing:
+                    stored = _face_store({"op": "get", "id": enrollment_id})["enrollment"]
+                    stored_payload = json.loads(decrypt_biometric_bytes(
+                        key, stored.get("blob"), _face_aad(enrollment_id)
+                    ).decode("utf-8"))
+                    if (stored_payload.get("name") != name
+                            or _valid_descriptor(stored_payload.get("descriptor")) != descriptor
+                            or _valid_jpeg_b64(stored_payload.get("photo")) != photo):
+                        raise BiometricCryptoError("legacy_biometric_record_conflict")
+                    continue
+
+                payload = json.dumps(
+                    {"name": name, "descriptor": descriptor, "photo": photo},
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
+                created_at = row.get("created_at")
+                if hasattr(created_at, "isoformat"):
+                    created_at = created_at.isoformat()
+                result = _face_store({
+                    "op": "add",
+                    "enrollment": {
+                        "id": enrollment_id,
+                        "blob": blob,
+                        "created_at": str(created_at or "")[:40],
+                        "created_by": str(row.get("created_by") or "legacy")[:64],
+                    },
+                })
+                if result.get("id") != enrollment_id:
+                    raise RuntimeError("legacy_biometric_migration_failed")
+                existing.add(enrollment_id)
 
             # Only wipe the old table after all consented records have valid
             # encrypted copies. Non-consented rows are removed as well because
