@@ -65,7 +65,7 @@ class FakeCursor:
             db.faces.append({"id": ident, "name": name, "descriptor": descriptor, "photo_b64": photo,
                              "created_by": created_by, "created_at": datetime.now(timezone.utc)})
         elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
-            self.rows = [dict(f) for f in db.faces if f.get("consent", True)]
+            self.rows = [dict(f) for f in db.faces]
         elif sql.startswith("SELECT id,name,descriptor,photo_b64,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
         elif sql.startswith("UPDATE face_enrollments SET descriptor=%s, photo_b64=%s WHERE id=%s"):
@@ -216,6 +216,20 @@ class VisionBackendTests(unittest.TestCase):
         stored = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
         self.assertTrue(stored["blob"].startswith("a256gcm.v1."))
         self.assertNotIn(JPEG[:40], stored["blob"])
+
+    def test_unconsented_legacy_biometric_rows_are_purged_without_migration(self):
+        self.db.faces.append({
+            "id": str(uuid.uuid4()), "name": "No consent", "consent": False,
+            "descriptor": json.dumps(DESCRIPTOR), "photo_b64": JPEG,
+            "created_by": "admin", "created_at": datetime.now(timezone.utc),
+        })
+        with patch.object(rover_app, "CF_ENV", object()), patch.object(
+            rover_app, "_face_store", side_effect=self.durable_face_store_for_test
+        ):
+            response = self.client.get("/api/face-enrollments")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(self.db.faces, [])
+        self.assertEqual(rover_app._LOCAL_FACE_ENROLLMENTS, {})
 
     def test_legacy_plaintext_rows_are_preserved_when_encryption_fails(self):
         ident = str(uuid.uuid4())
