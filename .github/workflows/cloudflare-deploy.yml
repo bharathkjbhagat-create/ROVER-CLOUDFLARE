@@ -334,20 +334,16 @@ jobs:
           assert data.get("ok") is True, data
           PY
           echo "Valid-login/session checks: PASS"
-          if [ -n "${FACE_DATA_KEY:-}" ]; then
-            crypto_code="$(curl -A 'Mozilla/5.0 (DEFENX AES-GCM runtime test)' -sS -o /tmp/defenx-face-crypto.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/face-enrollments/crypto-check")"
-            echo "/api/face-enrollments/crypto-check -> HTTP $crypto_code"
-            test "$crypto_code" = "200"
-            python - <<'PY'
+          crypto_code="$(curl -A 'Mozilla/5.0 (DEFENX AES-GCM runtime test)' -sS -o /tmp/defenx-face-crypto.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/face-enrollments/crypto-check")"
+          echo "/api/face-enrollments/crypto-check -> HTTP $crypto_code"
+          test "$crypto_code" = "200"
+          python - <<'PY'
           import json
           with open("/tmp/defenx-face-crypto.json", encoding="utf-8") as handle:
               data = json.load(handle)
           assert data.get("ok") is True and data.get("algorithm") == "AES-256-GCM", data
           PY
-            echo "Cloudflare Web Crypto AES-GCM runtime check: PASS"
-          else
-            echo "FACE_DATA_KEY is not configured; encrypted enrollment remains disabled and no biometric data can be saved."
-          fi
+          echo "Cloudflare Web Crypto AES-GCM runtime check: PASS"
 
       - name: Verify regular-user logins remain disabled
         env:
