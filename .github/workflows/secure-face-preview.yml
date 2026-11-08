@@ -99,6 +99,16 @@ jobs:
           uv run pywrangler secret bulk /tmp/defenx-face-aes-preview-secrets.json
       - name: Deploy encrypted preview Worker
         run: uv run pywrangler deploy
+      - name: Install Playwright browser
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Verify dashboard Face ID controls with synthetic live video
+        env:
+          PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
+          PREVIEW_ADMIN_PASSWORD: ${{ secrets.PREVIEW_ADMIN_PASSWORD }}
+          WORKER_URL: https://defenx-face-aes-preview.bindukjagadish.workers.dev
+        run: node tests/face-dashboard-browser.mjs
       - name: Verify login and Cloudflare AES-GCM runtime
         env:
           PREVIEW_ADMIN_USERNAME: ${{ secrets.PREVIEW_ADMIN_USERNAME }}
