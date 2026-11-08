@@ -1800,30 +1800,12 @@ def _face_data_key():
 def _face_storage_unavailable(message=None):
     return _biometric_json({
         "ok": False, "storage": "unavailable",
-        "error": message or "Server-side biometric storage is disabled until a valid FACE_DATA_KEY is configured.",
+        "error": message or "Encrypted Durable Object storage is unavailable. Face verification is disabled; no plaintext fallback is used.",
     }, 503)
 
 
-def _face_aad(enrollment_id, field):
+def _face_aad(enrollment_id, field="record"):
     return "defenx-face-enrollment:" + str(enrollment_id) + ":" + field + ":v1"
-
-
-@app.get("/api/face-enrollments/crypto-check")
-@require_admin
-def face_enrollment_crypto_check():
-    key = _face_data_key()
-    if not biometric_key_is_valid(key):
-        return _face_storage_unavailable()
-    sample = b"DEFENX biometric AES-GCM self-test"
-    aad = "defenx-face-crypto-self-test:v1"
-    try:
-        encrypted = encrypt_biometric_bytes(key, sample, aad)
-        decrypted = decrypt_biometric_bytes(key, encrypted, aad)
-        if decrypted != sample or not encrypted.startswith(BIOMETRIC_CIPHER_PREFIX):
-            raise BiometricCryptoError("biometric_crypto_self_test_failed")
-    except BiometricCryptoError:
-        return _face_storage_unavailable("AES-256-GCM self-test failed; biometric storage remains disabled.")
-    return _biometric_json({"ok": True, "algorithm": "AES-256-GCM", "storage": "server-encrypted"})
 
 
 def _valid_descriptor(value):
@@ -1851,7 +1833,7 @@ def _valid_jpeg_b64(value):
         raw = base64.b64decode(value, validate=True)
     except Exception:
         return None
-    if len(raw) < 100 or raw[:3] != b"\xff\xd8\xff":
+    if len(raw) < 100 or raw[:3] != b"\\xff\\xd8\\xff":
         return None
     return value
 
@@ -1902,47 +1884,6 @@ def _face_store(operation):
     raise RuntimeError("bad_request")
 
 
-def _face_storage_unavailable(message=None):
-    return _biometric_json({
-        "ok": False, "storage": "unavailable",
-        "error": message or "Encrypted Durable Object storage is unavailable. Face verification is disabled; no plaintext fallback is used.",
-    }, 503)
-
-
-def _face_aad(enrollment_id, field="record"):
-    return "defenx-face-enrollment:" + str(enrollment_id) + ":" + field + ":v1"
-
-
-def _valid_descriptor(value):
-    if not isinstance(value, list) or len(value) != 128:
-        return None
-    out = []
-    for item in value:
-        if isinstance(item, bool) or not isinstance(item, (int, float)):
-            return None
-        number = float(item)
-        if not math.isfinite(number) or abs(number) > 5:
-            return None
-        out.append(round(number, 6))
-    return out
-
-
-def _valid_jpeg_b64(value):
-    if not isinstance(value, str):
-        return None
-    if value.startswith("data:image/jpeg;base64,"):
-        value = value[len("data:image/jpeg;base64,"):]
-    if not value or len(value) > MAX_FACE_PHOTO_B64:
-        return None
-    try:
-        raw = base64.b64decode(value, validate=True)
-    except Exception:
-        return None
-    if len(raw) < 100 or raw[:3] != b"\\xff\\xd8\\xff":
-        return None
-    return value
-
-
 @app.get("/api/face-enrollments/crypto-check")
 @require_admin
 def face_enrollment_crypto_check():
@@ -1972,9 +1913,7 @@ def face_enrollments_list():
         items = []
         for row in rows:
             enrollment_id = str(row.get("id") or "")
-            payload_raw = decrypt_biometric_bytes(
-                key, row.get("blob"), _face_aad(enrollment_id),
-            )
+            payload_raw = decrypt_biometric_bytes(key, row.get("blob"), _face_aad(enrollment_id))
             payload = json.loads(payload_raw.decode("utf-8"))
             descriptor = _valid_descriptor(payload.get("descriptor"))
             name = " ".join(str(payload.get("name") or "").split())[:80]
