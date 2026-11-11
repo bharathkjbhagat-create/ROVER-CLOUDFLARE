@@ -66,6 +66,8 @@ jobs:
         run: uv run --group dev python tests/smoke.py
       - name: Run authentication and security regression tests
         run: uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Run independent multi-device sync and reconnect integration
+        run: uv run --group dev python tests/integration_two_clients.py -v
       - name: Verify required frontend assets
         run: |
           set -e
