@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - ROVER-CLOUDFLARE-DEFENX-implemented.zip
+      - .github/workflows/import-defenx-zip.yml
 
 permissions:
   contents: write
@@ -18,12 +19,21 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Download the supplied DEFENX archive when it is not already in the repository
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="ROVER-CLOUDFLARE-DEFENX-implemented.zip"
+          if [ ! -f "$archive" ]; then
+            curl -fL --retry 3 --retry-delay 2 "https://drive.usercontent.google.com/download?id=1Mbry_2dNaSiUKBpXwZ44Id1V-f-rwfLn&export=download&confirm=t" -o "$archive"
+          fi
+          unzip -tq "$archive"
+
       - name: Extract the uploaded project archive
         shell: bash
         run: |
           set -euo pipefail
           archive="ROVER-CLOUDFLARE-DEFENX-implemented.zip"
-          test -f "$archive"
           mkdir -p /tmp/defenx-import
           unzip -q "$archive" -d /tmp/defenx-import
           mapfile -t roots < <(find /tmp/defenx-import -mindepth 1 -maxdepth 1 -type d)
@@ -47,5 +57,5 @@ jobs:
             echo "The archive contained no changes."
             exit 0
           fi
-          git commit -m "Import DEFENX project archive (336 entries)"
+          git commit -m "Import complete DEFENX project archive"
           git push
