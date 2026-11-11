@@ -28,7 +28,7 @@ for variable, (source_path, output_path) in ASSETS.items():
         raise SystemExit(f"Missing source image file: {source_path.relative_to(ROOT)}")
 
     source = source_path.read_text(encoding="utf-8")
-    pattern = rf'window\\.{re.escape(variable)}\\s*=\\s*["\\']data:image/webp;base64,([A-Za-z0-9+/=]+)["\\']'
+    pattern = r'window\\.' + re.escape(variable) + r'\\s*=\\s*["\\']data:image/webp;base64,([A-Za-z0-9+/=]+)["\\']'
     match = re.search(pattern, source)
     if not match:
         raise SystemExit(f"Missing embedded WebP data URI for {variable} in {source_path.name}")
