@@ -46,6 +46,13 @@ jobs:
           cp -a "$source_dir/." .
           rm -f "$archive"
 
+      - name: Preserve repository-managed GitHub Actions workflows
+        shell: bash
+        run: |
+          set -euo pipefail
+          git clean -fd .github/workflows
+          git restore --source=HEAD --staged --worktree .github/workflows
+
       - name: Commit imported project files
         shell: bash
         run: |
