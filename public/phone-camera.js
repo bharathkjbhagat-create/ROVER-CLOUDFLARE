@@ -1,6 +1,6 @@
 (()=>{
 "use strict";
-let stream=null,active=false,pending=false,originalSource=null,videoNode=null,frameTimer=null,playRetryTimer=null;
+let facing="environment",stream=null,active=false,pending=false,originalSource=null,videoNode=null,frameTimer=null,playRetryTimer=null;
 const $=id=>document.getElementById(id);
 const label=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 function notice(text){
@@ -46,7 +46,7 @@ async function start(){
   try{
    acquired=await navigator.mediaDevices.getUserMedia({
     audio:false,
-    video:{facingMode:{ideal:"environment"},width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}
+    video:{facingMode:{ideal:facing},width:{ideal:640},height:{ideal:480},frameRate:{ideal:24,max:30}}
    });
   }catch(firstError){
    if(firstError?.name!=="OverconstrainedError"&&firstError?.name!=="NotFoundError")throw firstError;
@@ -157,6 +157,17 @@ function bind(){
  if(!button||button.dataset.bound==="1")return;
  button.dataset.bound="1";
  button.addEventListener("click",()=>active?stop():start());
+ if(!$("phoneCameraFlipBtn")){
+  const flip=document.createElement("button");
+  flip.type="button";flip.id="phoneCameraFlipBtn";flip.className=button.className;
+  flip.textContent="FLIP CAMERA (REAR)";flip.title="Switch between rear and front camera";
+  flip.addEventListener("click",async()=>{
+   facing=facing==="environment"?"user":"environment";
+   flip.textContent="FLIP CAMERA ("+(facing==="environment"?"REAR":"FRONT")+")";
+   if(active||pending){stop();await new Promise(r=>setTimeout(r,250));start();}
+  });
+  button.insertAdjacentElement("afterend",flip);
+ }
  setButton();
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind,{once:true});

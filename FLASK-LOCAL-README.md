@@ -27,3 +27,16 @@ biometric enrollment records and audit history, configure PostgreSQL via
 Do not replace the Worker entrypoint. Continue deploying with `wrangler.jsonc`
 and `.github/workflows/cloudflare-deploy.yml`; Cloudflare bindings, Durable
 Objects, WebSockets and static assets are handled by `src/worker.py`.
+
+## Simulation Lab on Flask
+
+The dashboard's **Simulation Lab** (software rover simulation, `docs/SIMULATION_LAB.md`) runs in the browser and can sync its
+offline event journal to this Flask server:
+
+* Start with `python run.py` or `scripts/run_local.sh` (both bind to `127.0.0.1`; set `HOST`/`PORT` to change, `HOST=0.0.0.0` only deliberately).
+* Log in as the administrator, open **SIMULATION LAB → OPEN SIMULATION LAB**, choose **Cloud: real Flask server**.
+* Events are posted to `POST /api/fleet/sim/events` (administrator session, max 50 per batch, idempotent by event id) and stored under the
+  reserved id `SIM-ROVER` with `source: "simulation"`. View them with `GET /api/fleet/events?device=SIM-ROVER`; they never appear in the
+  normal rover event feed and never create a device.
+* The Flask app now serves every file in `public/` itself (whitelisted extensions, plain top-level names only), so no separate static server is needed.
+

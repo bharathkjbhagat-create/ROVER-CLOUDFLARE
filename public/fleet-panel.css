@@ -1,0 +1,24 @@
+/* DEFENX fleet & autonomy panel - uses the existing dashboard palette (style.css variables). */
+.fleetCard{padding-bottom:10px}
+.fleetCard .cardHeader{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.fleetConn{font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.fleetConn[data-s=online]{color:var(--accent);border-color:var(--accent)}
+.fleetConn[data-s=connecting],.fleetConn[data-s=reconnecting]{color:#f5b942;border-color:#f5b942}
+.fleetConn[data-s=offline]{color:var(--danger);border-color:var(--danger)}
+.fleetGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 12px}
+.fleetGrid>div{background:#09131d;border:1px solid var(--line);border-radius:8px;padding:7px 8px;min-width:0}
+.fleetGrid span{display:block;color:var(--muted);font-size:9px;letter-spacing:.08em}
+.fleetGrid b{display:block;font-size:12px;overflow-wrap:anywhere}
+.fleetGrid b[data-t=ok]{color:var(--accent)}.fleetGrid b[data-t=warn]{color:#f5b942}.fleetGrid b[data-t=bad]{color:var(--danger)}
+.fleetBanner{margin:6px 12px;padding:8px 10px;border-radius:8px;border:1px solid var(--line);font-size:11px;font-weight:700;display:none}
+.fleetBanner.show{display:block}.fleetBanner[data-t=bad]{border-color:var(--danger);color:var(--danger)}.fleetBanner[data-t=warn]{border-color:#f5b942;color:#f5b942}.fleetBanner[data-t=ok]{border-color:var(--accent);color:var(--accent)}
+.fleetActions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:4px 12px}
+.fleetActions button{min-height:44px;font-size:11px}
+.fleetActions .estop{grid-column:1/-1;background:#4a0f16;border-color:var(--danger);color:#fff;font-size:14px;min-height:52px}
+.fleetList{padding:4px 12px}.fleetDev{display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;flex-wrap:wrap}
+.fleetDev small{color:var(--muted)}.fleetDev .on{color:var(--accent)}.fleetDev .off{color:var(--danger)}
+.fleetDev button{padding:3px 7px;font-size:9px}
+.fleetAdd{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:6px 12px}.fleetAdd input,.fleetAdd select{min-width:0}.fleetAdd button{grid-column:1/-1}
+.fleetSecret{margin:6px 12px;padding:8px;border:1px dashed #f5b942;border-radius:8px;font-size:10px;word-break:break-all;display:none}
+.fleetEvents{padding:4px 12px;max-height:150px;overflow:auto;font-size:10px;color:var(--muted)}.fleetEvents div{padding:2px 0;border-bottom:1px solid #12222f}
+.fleetEvents .warn{color:#f5b942}.fleetEvents .critical{color:var(--danger)}

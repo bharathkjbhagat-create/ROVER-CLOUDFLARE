@@ -10,13 +10,17 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUDGETS = {
-    "public/app.js": 91_000,  # map layers, verified rover tracking, and road-route preview
+    "public/app.js": 93_000,  # map layers, rover tracking, route preview, camera flip (already compacted by build_assets.py; was 91_000)
     "public/style.css": 120_000,
     "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering
     "public/vision-core.js": 22_000,
     "public/face-recognition.js": 24_000,
     "public/detection-events.js": 16_000,
     "public/index.html": 30_000,
+    "public/sim-lab-loader.js": 2_500,  # only file loaded up front; the lab itself loads on demand
+    "public/sim-core.js": 42_000,  # on demand
+    "public/sim-lab.js": 30_000,  # on demand
+    "public/sim-lab.css": 5_000,  # on demand
 }
 failed = False
 

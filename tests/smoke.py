@@ -104,6 +104,6 @@ assert "function scheduleRender()" in phone_gps_js and "requestAnimationFrame" i
 assert "{enableHighAccuracy:true,maximumAge:1000,timeout:20000}" in phone_gps_js
 phone_camera_js = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
 assert "navigator.mediaDevices.getUserMedia" in phone_camera_js
-assert "facingMode:{ideal:\"environment\"}" in phone_camera_js
+assert 'let facing="environment"' in phone_camera_js and "facingMode:{ideal:facing}" in phone_camera_js
 
 print("DEFENX smoke tests: PASS")

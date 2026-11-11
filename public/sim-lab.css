@@ -1,0 +1,33 @@
+/* DEFENX Simulation Lab - uses the dashboard palette (style.css variables). Software simulation only. */
+.simLabCard{padding-bottom:12px}
+.simLabCard .cardHeader{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.simChips{display:inline-flex;gap:6px;flex-wrap:wrap}
+.simChip{font-size:10px;font-weight:800;letter-spacing:.06em;padding:3px 8px;border-radius:99px;border:1px solid var(--line);color:var(--muted)}
+.simChipOk{color:var(--accent);border-color:var(--accent)}.simChipWarn{color:#f5b942;border-color:#f5b942}.simChipBad{color:var(--danger);border-color:var(--danger)}
+.simNote{padding:6px 12px;font-size:11px;color:var(--muted);line-height:1.4}
+.simCanvasWrap{padding:4px 12px;display:flex;justify-content:center}
+.simCanvas{width:100%;max-width:560px;border:1px solid var(--line);border-radius:10px;background:#050b11;touch-action:manipulation;cursor:crosshair}
+.simGrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:8px 12px}
+.simGrid>div{background:#09131d;border:1px solid var(--line);border-radius:8px;padding:7px 8px;min-width:0}
+.simGrid span{display:block;color:var(--muted);font-size:9px;letter-spacing:.08em}
+.simGrid b{display:block;font-size:12px;overflow-wrap:anywhere}
+.simGrid b[data-t=ok]{color:var(--accent)}.simGrid b[data-t=warn]{color:#f5b942}.simGrid b[data-t=bad]{color:var(--danger)}
+.simMsg{margin:0 12px 6px;padding:7px 10px;border-radius:8px;border:1px solid var(--line);font-size:12px;min-height:18px;overflow-wrap:anywhere}
+.simMsg[data-k=ok]{border-color:var(--accent);color:var(--accent)}.simMsg[data-k=warn]{border-color:#f5b942;color:#f5b942}.simMsg[data-k=bad]{border-color:var(--danger);color:var(--danger)}
+.simRow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:4px 12px}
+.simRowLabel{flex:0 0 100%;font-size:9px;letter-spacing:.1em;color:var(--muted)}
+.simBtn,.simSel,.simNum{min-height:38px;border-radius:8px;border:1px solid var(--line);background:#0b1824;color:var(--text,#e8f2f8);font-size:11px;font-weight:700;letter-spacing:.03em;padding:6px 10px;font-family:inherit}
+.simBtn{cursor:pointer}.simBtn:hover:not(:disabled){border-color:var(--accent)}
+.simBtn:disabled{opacity:.4;cursor:not-allowed}
+.simBtn.on,.simBtn[aria-pressed=true]{border-color:#f5b942;color:#f5b942}
+.simPrimary{border-color:var(--accent);color:var(--accent)}
+.simDanger{border-color:var(--danger);color:var(--danger)}
+.simNum{width:72px}
+.simChk{display:inline-flex;gap:6px;align-items:center;font-size:11px;color:var(--muted);min-height:32px}
+.simLogTitle{padding:8px 12px 2px;font-size:9px;letter-spacing:.1em;color:var(--muted)}
+.simLog{padding:2px 12px;font-size:11px;display:grid;gap:3px}
+.simLogRow{display:flex;gap:6px;align-items:flex-start;overflow-wrap:anywhere;color:var(--muted)}
+.simLogRow i{font-style:normal;color:var(--accent);flex:0 0 14px}
+.simLogRow[data-sev=warn] span{color:#f5b942}.simLogRow[data-sev=critical] span{color:var(--danger)}
+.simRoverIcon div{width:26px;height:26px;line-height:26px;text-align:center;font-size:20px;color:#fff;text-shadow:0 0 4px #000,0 0 8px #168fff;transform-origin:50% 50%}
+@media (max-width:520px){.simBtn{flex:1 1 calc(50% - 6px)}.simSel{flex:1 1 100%}}

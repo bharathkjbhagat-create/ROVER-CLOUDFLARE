@@ -275,20 +275,23 @@
     }
     return null;
   }
-  async function enrollFromPhoto() {
-    const name = ($("faceEnrollName").value || "").trim(), file = $("faceEnrollFile").files[0];
+  async function enrollFromPhoto(liveCanvas) {
+    const name = ($("faceEnrollName").value || "").trim(), file = liveCanvas ? null : $("faceEnrollFile").files[0];
     if (!name) return enrollMsg("Enter the person's name.", true);
-    if (!file) return enrollMsg("Choose a clear, front-facing photograph.", true);
+    if (!file && !liveCanvas) return enrollMsg("Choose a clear, front-facing photograph.", true);
     if (!$("faceEnrollConsent").checked) return enrollMsg("Documented consent from this person is required.", true);
     if (storageMode !== "server") return enrollMsg("Encrypted server storage is unavailable. No biometric data was saved.", true);
-    const button = $("faceEnrollBtn"); button.disabled = true;
+    const button = $(liveCanvas ? "faceEnrollLiveBtn" : "faceEnrollBtn"); button.disabled = true;
     try {
       enrollMsg("Loading face models…");
       await ensureModels();
-      const source = await loadImage(file);
-      const k = Math.min(1, 800 / Math.max(source.width, source.height));
-      const canvas = document.createElement("canvas"); canvas.width = Math.round(source.width * k); canvas.height = Math.round(source.height * k);
-      canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      let canvas = liveCanvas;
+      if (!canvas) {
+        const source = await loadImage(file);
+        const k = Math.min(1, 800 / Math.max(source.width, source.height));
+        canvas = document.createElement("canvas"); canvas.width = Math.round(source.width * k); canvas.height = Math.round(source.height * k);
+        canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      }
       enrollMsg("Analysing photograph…");
       const found = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 })).withFaceLandmarks(true).withFaceDescriptors();
       if (found.length !== 1) throw new Error(found.length ? "The photograph must contain exactly one face." : "No clear face found. Use a well-lit, front-facing photograph.");
@@ -331,7 +334,19 @@
     });
     // other code paths (e.g. the alerts bell) also show the users/audit panels: keep exactly one visible
     others.forEach(id => { const el = $(id); if (el && window.MutationObserver) new MutationObserver(() => { if (!el.classList.contains("hidden")) tab.classList.add("hidden"); }).observe(el, { attributes: true, attributeFilter: ["class"] }); });
-    $("faceEnrollBtn").addEventListener("click", enrollFromPhoto);
+    $("faceEnrollBtn").addEventListener("click", () => enrollFromPhoto());
+    const liveBtn = $("faceEnrollLiveBtn");
+    if (liveBtn) liveBtn.addEventListener("click", () => {
+      // Single frame from the LIVE camera element, processed in the browser; the frame itself is never uploaded
+      // (only the 128-value descriptor and a small reference thumbnail, encrypted server-side).
+      const video = $("roverRealCamera");
+      if (!video || video.dataset.defenxLiveStream !== "1" || video.tagName !== "VIDEO" || video.readyState < 2 || !video.videoWidth)
+        return enrollMsg("Start the phone camera (or a live video feed) and wait for video before enrolling from the camera.", true);
+      const c = document.createElement("canvas"), k = Math.min(1, 800 / Math.max(video.videoWidth, video.videoHeight));
+      c.width = Math.round(video.videoWidth * k); c.height = Math.round(video.videoHeight * k);
+      c.getContext("2d").drawImage(video, 0, 0, c.width, c.height);
+      enrollFromPhoto(c);
+    });
     $("faceEnrollList").addEventListener("click", e => { const b = e.target.closest("[data-del]"); if (b) removeEnrollment(b.dataset.del); });
     const closeBtn = document.querySelector('[data-close="adminModal"]');
     if (closeBtn) closeBtn.addEventListener("click", () => { thumbUrls.forEach(u => URL.revokeObjectURL(u)); thumbUrls = []; });

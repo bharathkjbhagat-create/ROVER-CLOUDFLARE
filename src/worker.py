@@ -10,6 +10,7 @@ from js import WebSocketPair, WebSocketRequestResponsePair, fetch as js_fetch
 from workers import DurableObject, Response, WorkerEntrypoint, wsgi
 from werkzeug.security import check_password_hash
 
+from fleet_do import FleetDOLogic
 from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME, runtime_users, runtime_password_hashes, safe_check_password_hash
 
 
@@ -184,6 +185,13 @@ class RealtimeHub(DurableObject):
             await self.ctx.storage.put("face_enrollments", retained)
             return {"ok": True, "id": ident}
         return {"ok": False, "error": "bad_request"}
+
+    async def fleet_op(self, request_json):
+        """Device-fleet persistence (registry, status, replay table, command queue, events).
+
+        Logic lives in fleet_do.FleetDOLogic so it is unit-tested with a fake storage.
+        Durable Object input gates serialise storage read-modify-write sequences."""
+        return await FleetDOLogic(self.ctx.storage).handle(request_json)
 
     async def set_last_known_loss(self, loss_event):
         if not isinstance(loss_event, dict):

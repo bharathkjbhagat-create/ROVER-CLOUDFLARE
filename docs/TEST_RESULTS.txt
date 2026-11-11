@@ -1,0 +1,24 @@
+DEFENX test evidence — final run of the requirements-document update (2026-11-11)
+All results below were produced in the delivery sandbox (Linux, Python 3.12, Node, g++, Playwright Chromium, NO internet,
+NO Cloudflare credentials, NO hardware). Everything is software/simulation. Commands: scripts/run_all_tests.sh (run in chunks).
+
+== Python unit/regression tests (python -m unittest discover -s tests -p 'test_*.py') ==
+Ran 152 tests ... OK            (was 134; +18: assets served 4, button audit 5, sim journal -> real signed API 3, Flask sim endpoint 6)
+== Existing smoke test ==                 DEFENX smoke tests: PASS
+== Vision decision-logic JS tests ==       # pass 18  # fail 0
+== Cross-language signing JS tests ==      # pass 4   # fail 0
+== Simulation core + presentation-attack JS tests (node --test tests/sim_core.test.js tests/spoof_attacks.test.js) ==
+# pass 37  # fail 0                        (29 simulation + 8 attack scenarios)
+== Frontend performance budgets ==         Frontend performance budgets: PASS   (app.js 92,016 B vs budget raised 91,000 -> 93,000)
+== JS syntax (node --check public/*.js) == all files OK
+== Firmware navigation simulation (C++17, -Wall -Wextra) == 67 checks passed, 0 failed (300 random worlds, 0 collisions); nav_core.h copies identical
+== Multi-process two-client integration == Ran 5 tests ... OK
+== Existing fleet dashboard, real Chromium (mobile + desktop) == 30/30 browser checks passed
+== Simulation Lab, real Chromium (mobile + desktop) == 115/115 checks passed   (3 consecutive clean runs after the last fix)
+== Secret scan == clean
+== Local Flask launchers over real HTTP (run.py, scripts/run_local.sh): login 200, /index.html 200, all lab assets 200,
+   POST /api/fleet/sim/events accepted then deduped on resend, anonymous -> 401; run_local.sh now binds 127.0.0.1 only ==
+
+NOT RUN / NOT POSSIBLE HERE: deployed Cloudflare Workers + Durable Objects tests; real Leaflet map tiles (overlay tested against a
+recording stand-in for the Leaflet API); real camera / neural-network face models; real phones; physical rover hardware;
+tests/browser_integration.py (needs a live deployed URL and credentials).

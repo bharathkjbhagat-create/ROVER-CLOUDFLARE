@@ -86,7 +86,9 @@ class FrontendControlTests(unittest.TestCase):
 
     def test_temporary_phone_camera_uses_local_stream_and_can_stop(self):
         self.assertIn("navigator.mediaDevices?.getUserMedia", self.phone_camera)
-        self.assertIn('facingMode:{ideal:"environment"}', self.phone_camera)
+        self.assertIn('let facing="environment"', self.phone_camera)  # rear camera remains the default
+        self.assertIn('facingMode:{ideal:facing}', self.phone_camera)
+        self.assertIn('phoneCameraFlipBtn', self.phone_camera)  # front/rear selection
         self.assertIn("created.srcObject=acquired", self.phone_camera)
         self.assertIn("stopTracks(acquired)", self.phone_camera)
         self.assertIn('window.__defenxSetPhoneCameraActive?.(true)', self.phone_camera)

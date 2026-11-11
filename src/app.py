@@ -507,6 +507,10 @@ state = {
     "camera_source": "SIMULATION", "target_source": "SIMULATION",
     "device_online": True, "last_seen_at": datetime.now(timezone.utc).isoformat(),
     "signal_lost_at": None, "last_known_loss": None,
+    # Populated only from authenticated rover-device heartbeats (see fleet_api.py).
+    "autonomous_navigation": False, "obstacle_avoidance": False, "obstacle_sensor_healthy": False,
+    "safety_controller_healthy": False, "obstacle_valid": False, "fleet_fsm": None, "estop": False,
+    "offline_autonomy": False, "rtb": None, "fleet_link": None, "real_device_epoch": 0.0,
 }
 track = []
 recent_actions = []
@@ -976,6 +980,40 @@ def app_js():
 @app.get("/style.css")
 def style_css():
     return cached_static("style.css", "text/css")
+
+_FLEET_ASSETS = {
+    "fleet-panel.js": "application/javascript", "fleet-panel.css": "text/css",
+    "fleet-protocol.js": "application/javascript", "device-client.js": "application/javascript",
+    "device-client.html": "text/html; charset=utf-8",
+}
+
+# Static files in public/ that a standalone Flask host (run.py / scripts/run_local.sh) must serve itself.
+# On Cloudflare the Workers Assets binding answers these paths before the Worker runs, so this only
+# matters locally.  Without it the single-segment route below shadowed every public asset (vision-core.js,
+# monitor.js, ...) with a JSON 404.  Only plain top-level files with a whitelisted extension are served;
+# HTML pages other than device-client.html stay behind their own explicit routes.
+_PUBLIC_ASSET_TYPES = {
+    ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png",
+    ".webp": "image/webp", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".ico": "image/x-icon",
+    ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml",
+}
+_PUBLIC_ASSET_NAME = __import__("re").compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}$")
+
+def _public_asset_type(name):
+    if not _PUBLIC_ASSET_NAME.match(name):
+        return None
+    mimetype = _PUBLIC_ASSET_TYPES.get(os.path.splitext(name)[1].lower())
+    if mimetype and (BASE_DIR / name).is_file():
+        return mimetype
+    return None
+
+@app.get("/<name>")
+def fleet_static(name):
+    mimetype = _FLEET_ASSETS.get(name) or _public_asset_type(name)
+    if mimetype is None:
+        return jsonify({"ok": False, "error": "Not found"}), 404
+    # Public static code only. Device secrets are never embedded; every API call is authenticated.
+    return cached_static(name, mimetype)
 
 @app.get("/sw.js")
 def service_worker():
@@ -2494,6 +2532,14 @@ def mode():
 @require_control
 def simulate():
     u = current_user()
+    # A live, authenticated rover heartbeat is authoritative. Never overwrite real telemetry
+    # (battery, obstacle distance, signal, targets) with simulated values.
+    if time.time() - float(state.get("real_device_epoch") or 0) < DEVICE_OFFLINE_AFTER_SECONDS + 10:
+        snapshot = read_shared_live_state()
+        if snapshot:
+            apply_shared_live_state(snapshot)
+        with lock:
+            return jsonify({"ok": True, "telemetry": {**state}, "simulation": "suppressed-live-device"})
     # Simulation is an active local state update; avoid a Blob read before each
     # button-triggered tick now that simulation state is kept in realtime memory.
     with lock:
@@ -2551,5 +2597,17 @@ def simulate():
     return jsonify({"ok": True, "telemetry": snapshot or None})
 
 
+# Device fleet synchronisation, offline-event sync and gated rover commands.
+from fleet_api import register_fleet  # noqa: E402
+
+register_fleet(app, {
+    "config": _config, "cloudflare": CF_ENV is not None, "realtime_stub": _realtime_stub, "run_sync": run_sync,
+    "require_login": require_login, "require_admin": require_admin, "current_user": current_user,
+    "audit": audit, "client_ip": client_ip, "state": state, "lock": lock, "add_track": add_track,
+    "write_shared_live_state": write_shared_live_state,
+})
+
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=False)
+    # Local development server: loopback only by default (set HOST=0.0.0.0 deliberately to expose it).
+    app.run(host=os.getenv("HOST", "127.0.0.1"), port=int(os.getenv("PORT", "5000")), debug=False)

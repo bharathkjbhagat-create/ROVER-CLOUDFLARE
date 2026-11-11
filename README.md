@@ -46,3 +46,6 @@ Face enrollment descriptors and reference photographs are encrypted with AES-256
 ## DEFENX Return to Base
 
 The current feature branch contains dashboard scaffolding for selecting a base and a fail-closed Return to Base request. Physical autonomous movement is intentionally disabled until controller capabilities and a hardware command/acknowledgement protocol are implemented and tested. See [`docs/RETURN_TO_BASE.md`](docs/RETURN_TO_BASE.md) for the proposed GPS + obstacle sensors + camera architecture, fail-safe state machine, device protocol contract, and acceptance tests. Do not merge/deploy this feature as hardware-ready.
+
+## DEFENX Simulation Lab (software only)
+`docs/SIMULATION_LAB.md` — dashboard card that simulates autonomous exploration, 10–15 minute offline operation, offline event journal + sync, obstacle detours, safe stops and return-to-base (map-selected base, arrival radius, stop-and-verify arrival). Loaded on demand. Not hardware evidence.
