@@ -1,67 +1,68 @@
 # DEFENX Return-to-Base Architecture and Safety Contract
 
-## Implementation status
+## Status
 
-The repository contains two separate implementations. They must not be confused:
+Software route-preview controls are now included for dashboard testing: direct preview, a synthetic alternate route for a simulated obstacle, and clear preview. These are illustrative map overlays only, not road routing, live obstacle detection, or autonomous navigation. Physical movement remains disabled until a verified software command/acknowledgement path and telemetry exist. This document does not certify that the rover can navigate autonomously.
 
-1. **Physical-device software path:** authenticated dashboard command -> fleet API -> signed, expiring device command -> ESP32 firmware state machine in `firmware/esp32_rover/nav_core.h`. The ESP32 makes local movement decisions and enforces sensor, GPS, battery, link-loss and emergency-stop checks. The device reports its own state and arrival.
-2. **Simulation Lab:** `public/sim-core.js` and `public/sim-lab.js` simulate exploration, offline journaling, route planning and return-to-base in software. The simulation never drives a physical rover.
+## Recommended architecture
 
-The firmware and server-side path are implemented in source and covered by software tests/simulation. They have **not** been compiled/flashed on the user's ESP32 or validated on a physical rover. No physical navigation or docking capability is certified.
+- **Website / Cloudflare control centre:** authenticated operator selects a base on the map, requests return, cancels, and views acknowledged state. The website is not the real-time motor controller.
+- **Onboard navigation computer:** recommended Raspberry Pi-class computer for route planning, localization fusion, and camera inference. Select final model only after measuring camera workload, power budget, heat, and cost.
+- **Independent safety controller:** ESP32-class microcontroller supervises motor outputs, sensor freshness, speed limits, watchdog, and emergency stop. Navigation software cannot override its stop state.
+- **Localization:** GNSS/GPS plus wheel encoders and IMU; use GNSS accuracy/fix age and consistency checks. GPS coordinates alone do not prove traversability or precise docking.
+- **Obstacle sensing:** multi-direction ranging sensors appropriate to the environment plus camera-based object/scene detection. Camera inference is supplementary, not the sole collision-protection layer.
+- **Motor driver:** compatible with motor voltage and stall/startup current, with a hardware means to disable motor power safely.
+- **Communications:** authenticated, replay-resistant, time-bounded command protocol with request ID, expiry, explicit acknowledgement, and telemetry. Network loss must not leave a stale movement command active.
 
-## Implemented physical-device path
+## Software-only dashboard simulation
 
-- The authenticated Fleet panel can register devices, save a base, request/cancel return, and display device-reported status.
-- Device requests use per-device HMAC authentication, timestamp/nonce replay protection, signed server responses, command expiry and explicit acknowledgements.
-- The server applies an admin-only return-to-base gate and preflight checks against fresh telemetry, device role/status, GPS, battery, obstacle sensors, safety-controller health, e-stop and saved base.
-- The ESP32 runs the local finite-state machine in `firmware/esp32_rover/nav_core.h`; the website is not the motor controller.
-- Local checks enforce motor output limits, stale/invalid sensor stops, GPS freshness/plausibility, compass freshness, battery reserve, watchdog and latched emergency stop.
-- Offline event history is journalled to LittleFS and uploaded idempotently after reconnection. Manual movement commands expire; link-loss autonomy is time-limited. Automatic return after link loss is opt-in and disabled by default.
-- Arrival is reported only by the device after it is stopped and multiple trusted GPS fixes are inside the configured arrival radius. This is a GPS arrival estimate, not proof of physical docking.
+- Select a base on the map and use Preview Route to draw a direct illustrative line from the dashboard rover marker to the selected base.
+- Use Simulate Blocked Route to draw a synthetic offset path that demonstrates the alternate-route UI concept; no obstacle is actually detected and no safe route is computed.
+- Use Clear Preview to remove the overlay.
+- These controls send no rover movement commands. The displayed rover marker can be a demo marker; do not treat this preview as a real route or live position.
 
-## Hardware configuration still required
+## Return workflow
 
-Before any physical movement is enabled, the owner must configure and validate the exact motor driver, wheel polarity, sensor pinout, battery divider, GPS, compass, emergency-stop circuit, and device credentials. The example firmware configuration is a template, not a ready-to-drive configuration.
+1. Operator selects a base on the live map. Validate coordinate bounds and persist the base with an explicit timestamp and device association.
+2. Operator requests return. The server authenticates control permission, validates the selected device/base, records an audit event, and sends a request—not a sequence of raw steering commands.
+3. Onboard controller checks valid fresh localization, sensor health, battery reserve, motor/safety controller status, geofence, route feasibility, and autonomous mode.
+4. Controller plans a traversable route and follows it locally. Website displays only device-acknowledged states.
+5. On obstacle detection, slow/stop, assess a collision-free alternative using current sensor data, and replan only when confidence and clearance thresholds pass. If no safe route exists, stop, report a fault, and await operator intervention.
+6. At the base, verify arrival using position confidence plus a suitable docking landmark/beacon/contact sensor where precision matters. Stop and acknowledge ARRIVED only after verification.
 
-Important limitations in the current example:
-- No rear range sensor is fitted; reverse movement is intentionally refused by the safety core.
-- The example camera health field is false; the separate ESP32-CAM stream is not independently health-checked by this firmware.
-- GPS accuracy is estimated from HDOP and is not a precision docking sensor.
-- `TLS_ROOT_CA nullptr` uses insecure TLS for bench-only convenience. Do not use that configuration on an untrusted network; configure a trusted CA certificate before field use.
-- `OFFLINE_AUTO_RTB` defaults to 0. Keep it disabled until supervised, controlled tests validate the complete physical setup.
+## Required state machine
 
-## Simulation Lab
+IDLE -> PRECHECK -> PLANNING -> RETURNING -> VERIFYING_DOCK -> ARRIVED
 
-The Simulation Lab is an independent software-only environment. It supports exploration, simulated GPS and ultrasonic sensors, obstacle detours, offline event journaling, reconnection sync, base selection, return-to-base, arrival verification and injected fault scenarios. Its rover marker and map overlays are explicitly labelled as simulated. Simulation results do not establish physical rover safety or performance.
+Failure transitions: PRECHECK/PLANNING/RETURNING -> PAUSED_OBSTACLE, PAUSED_LOCALIZATION, PAUSED_SENSOR_FAULT, PAUSED_LOW_BATTERY, LINK_LOST_SAFE_STOP, or FAILED. A valid operator cancellation or emergency stop must transition to STOPPING -> STOPPED. Recovery from a fault requires fresh healthy telemetry and an explicit safe resume policy; never automatically resume blindly.
 
-## Physical acceptance checklist
+## Fail-safe requirements
 
-Do not test with wheels on the ground until the electrical safety checks are complete. A qualified adult/supervisor should oversee battery, motor-driver and wiring work.
+- Unknown/unconfigured controller capability: refuse to start; send no motor command.
+- Invalid, stale, jumping, or low-confidence GPS/localization: stop autonomous movement.
+- Sensor timeout, controller watchdog trip, or unsafe range: motor cutoff and fault status.
+- No validated alternate route: stop and alert; do not attempt blind turns or reverse maneuvers.
+- Low battery: stop or follow only a validated recovery policy with sufficient reserve.
+- Network loss: onboard controller owns the decision; expire remote commands and stop if local autonomy/safety cannot continue.
+- Emergency stop must be available locally and must not depend on the website, internet, camera AI, or cloud service.
+- Do not claim arrival, obstacle clearance, GPS lock, or physical stop from a website-side optimistic update; require device acknowledgements and telemetry.
+- Test initially with motors disconnected, then wheels lifted, then a controlled low-speed area with an operator and physical kill switch.
 
-1. With motors disconnected, verify boot/reset always leaves motor outputs disabled.
-2. Verify the normally-closed emergency-stop switch and independent hardware motor-power cut; do not rely on software alone.
-3. Verify each range sensor, its voltage divider, stale/timeout handling and obstacle-stop behavior.
-4. Verify GPS fix quality, age and dropout handling outdoors; verify compass calibration and orientation.
-5. Verify battery measurement and low-battery stop thresholds using a safe, appropriate power setup.
-6. Verify command expiry, signed response validation, STOP and emergency stop before any low-speed movement test.
-7. Verify link loss stops manual motion; keep automatic offline return disabled during initial tests.
-8. Verify offline event persistence and deduplicated upload after reconnection.
-9. Only after all previous checks pass, perform supervised low-speed tests in a clear, controlled area with a physical emergency stop operator.
-10. Record measured stopping distance, GPS error, sensor errors and any failed test. Do not treat a passing simulation as a substitute.
+## Device protocol (future implementation contract)
 
-## What is and is not verified
+The device must explicitly report capability and health fields before autonomous return is enabled, including: autonomous_navigation, obstacle_avoidance, gps_fix, gps_accuracy_m, gps_last_epoch (or equivalent timestamp), obstacle_sensor_healthy, camera_healthy (if required by the configured policy), safety_controller_healthy, battery_pct, and device_timestamp.
 
-| Area | Current evidence |
-|---|---|
-| Fleet authentication, replay protection, command gating and acknowledgements | Automated software tests |
-| Two independent device clients | Separate OS-process integration tests; not two physical phones |
-| ESP32 navigation state machine | C++ simulation tests; not an ESP32 build/flash |
-| Offline journal and server deduplication | Software tests and simulation |
-| Dashboard Simulation Lab | Browser tests in a simulated environment |
-| Cloudflare Durable Object runtime behavior for all fleet flows | Requires production runtime testing |
-| Real camera recognition and anti-spoof accuracy | Not validated with real camera/model sessions |
-| Physical GPS, compass, range sensors, motors, battery and return-to-base | Not tested on hardware |
+A return request should include a unique request ID, device ID, base latitude/longitude, request timestamp, and expiry. Device response must acknowledge the same request ID and provide a state plus reason code. Cancellation and emergency-stop commands must be separately handled and acknowledged.
 
-## Required fail-safe behavior
+These field names are a proposed contract, not fields known to exist in current firmware. Do not enable physical movement until firmware and server implement and validate this contract end-to-end.
 
-Unknown capability, invalid or stale localization, sensor faults, unsafe obstacle range, low battery, e-stop, expired commands, or loss of a required safety input must result in refusal or a stopped state. No dashboard-side optimistic update may claim movement, obstacle clearance, GPS lock, stop, or arrival without device telemetry/acknowledgement.
+## Acceptance tests before enabling hardware
+
+- Unauthorized user cannot request return or cancel another device's operation.
+- Missing base, stale GPS, invalid coordinates, poor GPS accuracy, low battery, unhealthy sensor, and unknown capability each fail closed.
+- A valid request is acknowledged by the physical device; duplicate and expired requests do not trigger motion.
+- Each detected obstacle causes a verified stop before replanning; a blocked/no-route scenario remains stopped and alerts.
+- Loss of internet, camera, GNSS, range sensor, navigation process, or safety-controller heartbeat produces the specified safe state.
+- Cancel and local emergency stop work independently of cloud connectivity.
+- Arrival is verified physically, motors are stopped, and the dashboard/audit log reflect device-confirmed status.
+- Automated tests/build and supervised field tests pass before the draft PR is merged or deployed.

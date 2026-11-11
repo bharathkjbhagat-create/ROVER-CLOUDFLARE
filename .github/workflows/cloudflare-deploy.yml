@@ -6,20 +6,12 @@ on:
   push:
     branches:
       - main
-  workflow_run:
-    workflows:
-      - Import DEFENX ZIP into repository
-    types:
-      - completed
-    branches:
-      - main
 
 permissions:
   contents: read
 
 jobs:
   deploy:
-    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
@@ -58,6 +50,12 @@ jobs:
           node --check public/ai-vision.js
       - name: Run vision decision-logic unit tests
         run: node --test tests/vision_core.test.js
+      - name: Validate and test the software simulation (Simulation Lab)
+        run: |
+          node --check public/sim-core.js
+          node --check public/sim-lab.js
+          node --check public/sim-lab-loader.js
+          node --test tests/sim_core.test.js tests/spoof_attacks.test.js
       - name: Validate face recognition JavaScript
         run: node --check public/face-recognition.js
       - name: Validate detection event history JavaScript
@@ -92,6 +90,10 @@ jobs:
           test -f public/favicon.svg
           test -f public/robots.txt
           test -f public/sitemap.xml
+          test -f public/sim-lab-loader.js
+          test -f public/sim-core.js
+          test -f public/sim-lab.js
+          test -f public/sim-lab.css
       - name: Verify Cloudflare credentials
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub Actions secret: CLOUDFLARE_API_TOKEN"; exit 1; }
