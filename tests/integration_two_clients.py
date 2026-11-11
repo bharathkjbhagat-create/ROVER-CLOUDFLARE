@@ -65,8 +65,7 @@ class TwoClientIntegration(unittest.TestCase):
         cls.port = free_port()
         cls.base = f"http://127.0.0.1:{cls.port}"
         env = dict(os.environ, SESSION_SECRET="s" * 40, ADMIN_USERNAME="ADMIN", ADMIN_PASSWORD="integration-admin-pass-1",
-                   FLEET_MASTER_SECRET=MASTER, DEVICE_OFFLINE_AFTER_SECONDS="5", COOKIE_SECURE="false",
-                   PYTHONPATH=os.pathsep.join((str(ROOT / "src"), str(ROOT / "vendor"), os.environ.get("PYTHONPATH", ""))))
+                   FLEET_MASTER_SECRET=MASTER, DEVICE_OFFLINE_AFTER_SECONDS="5", COOKIE_SECURE="false", PYTHONPATH=str(ROOT / "src"))
         code = ("import app; app.app.config['SESSION_COOKIE_SECURE']=False; "
                 f"app.app.run(host='127.0.0.1', port={cls.port}, threaded=True, use_reloader=False)")
         cls.server = subprocess.Popen([PY, "-c", code], cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
