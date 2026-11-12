@@ -28,6 +28,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
         cls.rtc = (ROOT / "public" / "rtc-camera-sync.js").read_text(encoding="utf-8")
         cls.worker = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        cls.server_app = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
         cls.css = (ROOT / "public" / "style.css").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
@@ -158,7 +159,16 @@ class FrontendControlTests(unittest.TestCase):
         # other signed-in browsers while the Durable Object relays signaling only.
         self.assertIn('window.DefenxRtcCamera?.setLocalStream(acquired);', self.phone_camera)
         self.assertIn('window.DefenxRtcCamera?.setLocalStream(null);', self.phone_camera)
-        self.assertIn('new RTCPeerConnection(rtcConfig)', self.rtc)
+        self.assertIn('new RTCPeerConnection(config)', self.rtc)
+        self.assertIn('fetch("/api/rtc/ice-config"', self.rtc)
+        self.assertIn('rtcConfigPromise', self.rtc)
+        self.assertIn('RTC_TURN_SHARED_SECRET', self.server_app)
+        self.assertIn('hmac.new(turn_secret.encode("utf-8")', self.server_app)
+        self.assertIn('type: "rtc_camera_state"', self.rtc)
+        self.assertIn('shouldInitiate(id)', self.rtc)
+        self.assertIn('defenx-realtime-ready', self.rtc)
+        self.assertIn('defenx-realtime-ready', self.js)
+        self.assertIn('src="/rtc-camera-sync.js?v=20261112-01"', self.html)
         self.assertIn('pc.addTrack(track, localStream)', self.rtc)
         self.assertIn('pc.ontrack', self.rtc)
         self.assertIn('type: "rtc_signal"', self.rtc)
