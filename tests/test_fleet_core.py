@@ -509,10 +509,12 @@ class DurableObjectLogicTests(unittest.TestCase):
 
     def test_device_websocket_tickets_are_single_use_and_bound_to_key_version(self):
         clock = Clock()
-        logic = FleetDOLogic(FakeStorage(), clock=clock)
+        storage = FakeStorage()
+        logic = FleetDOLogic(storage, clock=clock)
         loop = asyncio.new_event_loop()
         svc = F.FleetService(SyncStoreAdapter(clock), MASTER, clock=clock)
         device, _ = svc.register_device("PHONE-01", "Phone", "phone", "admin")
+        loop.run_until_complete(logic.handle({"op": "put", "key": "dev:PHONE-01", "value": device}))
         digest = "a" * 64
         issued = loop.run_until_complete(logic.handle({
             "op": "ws_ticket_issue", "ticket_hash": digest, "device_id": device["id"],
