@@ -87,7 +87,11 @@ async function start(){
   acquired.getVideoTracks().forEach(track=>{
    track.addEventListener("unmute",resumePreview);
    track.addEventListener("ended",()=>{
-    if(active){label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");}
+    if(active){
+     window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
+     stream=null;active=false;setButton();
+     label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");
+    }
    });
   });
   created.srcObject=acquired;
