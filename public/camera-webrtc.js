@@ -122,6 +122,23 @@
     if (play && play.catch) play.catch(() => status("REMOTE CAMERA READY • TAP VIDEO TO PLAY", true));
   }
 
+  function setRemoteCameraActive(id, active) {
+    const safeId = String(id || "").replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+    const video = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"))
+      .find(node => node.dataset.defenxPeerId === safeId);
+    if (!video) return;
+    video.style.visibility = active ? "visible" : "hidden";
+    video.dataset.defenxCameraActive = active ? "1" : "0";
+    if (active) {
+      updateRemoteLayout(video);
+      const play = video.play();
+      if (play && play.catch) play.catch(() => {});
+      status("REMOTE DEVICE CAMERA • LIVE", true);
+    } else if (!localStream && video.id === "roverRealCamera") {
+      status("REMOTE DEVICE CAMERA • PAUSED", true);
+    }
+  }
+
   function removeRemoteVideo(id) {
     const safeId = String(id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
     const video = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"))
@@ -187,6 +204,8 @@
       const stream = event.streams && event.streams[0]
         ? event.streams[0] : new MediaStream([event.track]);
       showRemoteVideo(id, stream);
+      event.track.addEventListener("unmute", () => setRemoteCameraActive(id, true));
+      event.track.addEventListener("mute", () => setRemoteCameraActive(id, false));
       event.track.addEventListener("ended", () => removeRemoteVideo(id), { once: true });
     };
     pc.onconnectionstatechange = () => {
