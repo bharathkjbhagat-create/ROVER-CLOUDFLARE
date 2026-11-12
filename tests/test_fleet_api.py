@@ -107,7 +107,7 @@ class FleetApiTests(unittest.TestCase):
                          F.sign_response(secret, "PHONE-01", nonce, r.get_data()))
         self.assertNotIn(data["ticket"], json.dumps(self.service.store._kv))
         digest = __import__("hashlib").sha256(data["ticket"].encode("ascii")).hexdigest()
-        self.assertIn("ws_ticket:" + digest, self.service.store._data)
+        self.assertIn("ws_ticket:" + digest, self.service.store._kv)
 
     def test_valid_heartbeat_signed_response_and_replay_protection(self):
         secret = self.register("ROVER-01", "rover")
