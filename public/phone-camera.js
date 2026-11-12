@@ -54,6 +54,14 @@ async function start(){
   }
   if(!viewport.isConnected)throw new Error("Camera view is no longer available");
   old=$("roverRealCamera");
+  // Keep an incoming second-device feed visible as picture-in-picture instead of
+  // detaching it when this device starts its own camera.
+  if(old?.dataset?.defenxRemoteCamera==="1"){
+   const remoteId=String(old.dataset.defenxPeerId||"remote").replace(/[^A-Za-z0-9_-]/g,"").slice(0,64);
+   old.id="defenxRemoteCamera-"+remoteId;
+   viewport.appendChild(old);
+   old=null;
+  }
   created=document.createElement("video");
   created.id="roverRealCamera";
   created.dataset.defenxLiveStream="1";
@@ -87,7 +95,11 @@ async function start(){
   acquired.getVideoTracks().forEach(track=>{
    track.addEventListener("unmute",resumePreview);
    track.addEventListener("ended",()=>{
-    if(active){label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");}
+    if(active){
+     stream=null;active=false;setButton();restoreElement();
+     window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
+     label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");
+    }
    });
   });
   created.srcObject=acquired;
@@ -96,6 +108,7 @@ async function start(){
   stream=acquired;active=true;
   const scene=$("camera3DScene");if(scene)scene.style.display="none";
   window.__defenxSetPhoneCameraActive?.(true);
+  window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:acquired,active:true}}));
   setButton();
   try{await created.play();}catch(playError){
    // Some mobile browsers reject the play promise even though the granted stream is attached.
@@ -126,6 +139,7 @@ async function start(){
    else created.remove();
   }
   stream=null;active=false;videoNode=null;originalSource=null;
+  window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
   window.__defenxSetPhoneCameraActive?.(false);
   const message=error?.name==="NotAllowedError"?"ALLOW CAMERA PERMISSION IN CHROME":
    error?.name==="NotFoundError"?"NO PHONE CAMERA FOUND":
@@ -145,6 +159,7 @@ function stop(){
  if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
  stopTracks(stream);stream=null;active=false;pending=false;
  restoreElement();
+ window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
  window.__defenxSetPhoneCameraActive?.(false);
  const scene=$("camera3DScene");if(scene)scene.style.display="";
  notice(null);
@@ -172,5 +187,5 @@ function bind(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind,{once:true});
 else bind();
-window.addEventListener("pagehide",()=>{if(frameTimer)clearTimeout(frameTimer);if(playRetryTimer)clearTimeout(playRetryTimer);stopTracks(stream);stream=null;active=false;});
+window.addEventListener("pagehide",()=>{if(frameTimer)clearTimeout(frameTimer);if(playRetryTimer)clearTimeout(playRetryTimer);window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));stopTracks(stream);stream=null;active=false;});
 })();

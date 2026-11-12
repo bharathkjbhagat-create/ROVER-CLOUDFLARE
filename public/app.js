@@ -515,9 +515,9 @@ const labels={FORWARD:"CAMERA • FORWARD",REVERSE:"CAMERA • REVERSE",LEFT:"CA
 camera.textContent=labels[liveCommand]||"DEMO CAMERA VIEW • SIMULATION";
 }
 }
-setText("cameraStatus",d.camera===false?"Offline":(String(d.camera_source||"SIMULATION")==="ROVER_DEVICE"?"ROVER CAMERA":"Working"));
+setText("cameraStatus",window.__defenxRemoteCameraActive?"REMOTE DEVICE LIVE":(d.camera===false?"Offline":(String(d.camera_source||"SIMULATION")==="ROVER_DEVICE"?"ROVER CAMERA":"Working")));
 setText("tempText",(d.temp_c??32)+"°C");
-if(realCameraActive&&d.camera===false&&!phoneCameraActive){
+if(realCameraActive&&d.camera===false&&!phoneCameraActive&&!window.__defenxRemoteCameraActive){
 const media=$("roverRealCamera");if(media){media.pause?.();media.src="";}
 if($("camera3DScene"))$("camera3DScene").style.display="";
 realCameraActive=false;
@@ -526,7 +526,7 @@ const batteryPct=Math.max(0,Math.min(100,Number(d.battery||0)));const signalPct=
 const batteryBar=$("batteryBar");if(batteryBar)batteryBar.style.width=batteryPct+"%";
 const signalBar=$("signalBar");if(signalBar)signalBar.style.width=signalPct+"%";
 setText("person","0");setText("vehicle","0");setText("object","0");setText("obstacle",(d.obstacle_cm??"--")+" cm");setText("confidence","0%");
-setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",d.camera===false?"OFF":"READY");setText("deviceAiState","WAITING");
+setText("deviceOnline",d.network?"● ONLINE":"● OFFLINE");setText("deviceGpsState",d.gps_fix?"LOCKED":"SEARCHING");setText("deviceCameraState",window.__defenxRemoteCameraActive?"REMOTE LIVE":(d.camera===false?"OFF":"READY"));setText("deviceAiState","WAITING");
 setText("missionObstacle",(d.obstacle_cm??"--")+" cm");setText("missionTracking",d.tracking===false?"PAUSED":"ACTIVE");setText("missionGeofence",d.geofence===false?"OFF":"ACTIVE");setText("missionNetwork",d.network||"ONLINE");setText("missionState",(Number(d.obstacle_cm||999)<45)?"WARNING":"READY");
 updateWarningControlUI(d);
 const t=d.target||{type:"Object",range_m:0,speed_kmh:0,heading:0,direction:"N",size_m:0,confidence:0,lat:Number(d.lat),lon:Number(d.lon),detected:false};
@@ -789,7 +789,7 @@ viewport.insertBefore(media,viewport.firstChild);
 try{
 const r=await api("/api/camera-config");
 const d=await r.json();
-if(phoneCameraActive)return;
+if(phoneCameraActive||window.__defenxRemoteCameraActive)return;
 if(!r.ok||!d.enabled||!d.url){
 realCameraActive=false;
 if(scene)scene.style.display="none";
