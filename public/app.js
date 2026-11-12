@@ -458,7 +458,14 @@ function updateUI(input){
 const rawInput=input&&typeof input==="object"?input:{};
 const incomingVersion=String(rawInput.sync_version||"");
 const currentVersion=String(window.ROVER_SYNC_VERSION||"");
-if(incomingVersion&&currentVersion&&incomingVersion<currentVersion)return false;
+const incomingStamp=Number((/^live-(\\d{13})-/.exec(incomingVersion)||[])[1]);
+const currentStamp=Number((/^live-(\\d{13})-/.exec(currentVersion)||[])[1]);
+const staleVersion=incomingVersion&&currentVersion&&(
+Number.isFinite(incomingStamp)&&Number.isFinite(currentStamp)
+? incomingStamp<currentStamp
+: incomingVersion<currentVersion
+);
+if(staleVersion)return false;
 if(incomingVersion)window.ROVER_SYNC_VERSION=incomingVersion;
 const deviceGps=!demoMode&&String(rawInput.gps_source||"")==="ROVER_DEVICE"&&rawInput.gps_fix===true&&isValidMapPoint(rawInput.lat,rawInput.lon);
 const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
