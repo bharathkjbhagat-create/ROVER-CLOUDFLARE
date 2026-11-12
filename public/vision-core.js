@@ -17,8 +17,6 @@
     UNKNOWN: "UNKNOWN PERSON", NOT_CLEAR: "FACE NOT CLEAR"
   };
   const VEHICLE_CLASSES = new Set(["bicycle", "car", "motorcycle", "bus", "truck", "train"]);
-  // COCO classes that are themselves picture-bearing surfaces. A person/vehicle
-  // sitting inside one of these is a picture of that thing, not the thing.
   const SCREEN_CLASSES = new Set(["tv", "laptop", "cell phone", "book"]);
   const DEFAULT_ALERT_OBJECTS = ["backpack", "handbag", "suitcase", "knife", "scissors", "baseball bat"];
   const T = {
@@ -50,7 +48,6 @@
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
   /* ---------------- screen / photo context ---------------- */
-  // Returns the picture-bearing detection that contains `det`, if any.
   function screenContext(det, all) {
     let best = null;
     for (const other of all) {
@@ -243,7 +240,7 @@
       if (side) this.turn = side;
       else if (this.turn) { this.accept("turn_" + this.turn, now); this.turn = null; }
     }
-    verified(now) { return this.challengeIndex === this.challenge.length && this.challengeAt > 0 && now - this.challengeAt <= T.livenessHoldMs; }
+    verified(now) { if (this.challengeIndex === this.challenge.length && now - this.challengeAt > T.livenessHoldMs) { this.challengeIndex = this.challengeAt = 0; this.eyes = []; this.closed = this.mouthOpen = false; this.turn = null; } return this.challengeIndex === this.challenge.length && this.challengeAt > 0; }
   }
 
   function faceClarity(face, img) {
@@ -353,7 +350,6 @@
     if (best.d >= T.unknown) return { state: "UNKNOWN", name: null, distance: best.d, confidence: clamp(0.5 + (best.d - T.unknown) * 2, 0.5, 0.99) };
     return { state: "UNVERIFIED", name: null, distance: best.d, confidence: 0.4, possible: best.e.name };
   }
-  // Majority vote over the last frames so a single noisy descriptor cannot flip identity.
   function smoothIdentity(history) {
     const recent = history.slice(-5);
     if (recent.length < 3) return { state: "UNVERIFIED", confidence: 0 };
