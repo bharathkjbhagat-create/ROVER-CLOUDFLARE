@@ -96,6 +96,7 @@ async function start(){
   stream=acquired;active=true;
   const scene=$("camera3DScene");if(scene)scene.style.display="none";
   window.__defenxSetPhoneCameraActive?.(true);
+  window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:acquired,active:true}}));
   setButton();
   try{await created.play();}catch(playError){
    // Some mobile browsers reject the play promise even though the granted stream is attached.
@@ -143,6 +144,7 @@ function stop(){
  if(!active&&!pending)return;
  if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
  if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
+ window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
  stopTracks(stream);stream=null;active=false;pending=false;
  restoreElement();
  window.__defenxSetPhoneCameraActive?.(false);
@@ -172,5 +174,5 @@ function bind(){
 }
 if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",bind,{once:true});
 else bind();
-window.addEventListener("pagehide",()=>{if(frameTimer)clearTimeout(frameTimer);if(playRetryTimer)clearTimeout(playRetryTimer);stopTracks(stream);stream=null;active=false;});
+window.addEventListener("pagehide",()=>{if(frameTimer)clearTimeout(frameTimer);if(playRetryTimer)clearTimeout(playRetryTimer);window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));stopTracks(stream);stream=null;active=false;});
 })();
