@@ -11,10 +11,12 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
   let peerId = makePeerId();
-  const fallbackIceServers = [{ urls: "stun:stun.l.google.com:19302" }];
-  let iceServers = Array.isArray(window.DEFENX_RTC_ICE_SERVERS) && window.DEFENX_RTC_ICE_SERVERS.length
-    ? window.DEFENX_RTC_ICE_SERVERS
-    : fallbackIceServers;
+  const fallbackIceServers = [
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478" }
+  ];
+  let iceServers = fallbackIceServers.slice();
   let iceConfigPromise = null;
   async function loadIceServers() {
     if (!iceConfigPromise) {
@@ -27,7 +29,21 @@
         return response.json();
       }).then(config => {
         if (Array.isArray(config?.iceServers) && config.iceServers.length) {
-          iceServers = config.iceServers;
+          // This project stays on free STUN only; TURN relays are deliberately excluded.
+          const combined = [...config.iceServers, ...fallbackIceServers];
+          const seen = new Set();
+          iceServers = combined.map(server => {
+            const urls = (Array.isArray(server.urls) ? server.urls : [server.urls])
+              .filter(url => typeof url === "string" && url.trim().toLowerCase().startsWith("stun:"));
+            return urls.length ? { urls } : null;
+          }).filter(server => {
+            if (!server) return false;
+            const key = server.urls.slice().sort().join("|");
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          if (!iceServers.length) iceServers = fallbackIceServers.slice();
         }
         return iceServers;
       }).catch(() => {
