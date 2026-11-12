@@ -126,6 +126,8 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('type: "rtc_signal"', self.camera_webrtc)
         self.assertIn('type: "rtc_join"', self.camera_webrtc)
         self.assertIn('data-defenx-remote-camera', self.camera_webrtc)
+        self.assertIn('video.id = videoId', self.camera_webrtc)
+        self.assertIn('if (!localStream && !$("roverRealCamera") && remoteVideos[0]) remoteVideos[0].id = "roverRealCamera";', self.camera_webrtc)
         self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
 
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
