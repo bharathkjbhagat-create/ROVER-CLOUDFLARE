@@ -166,7 +166,7 @@
         const live = d.live.verified(now) && !spoof;
         const resolved = core.resolveFace({ clarity, mask, identity, live });
         results.push({
-          id: tr.id, bbox: face.bbox, score: face.score, live, spoof,
+          id: tr.id, bbox: face.bbox, score: face.score, live, spoof, liveChallenge: d.live.prompt(),
           identity: resolved.identity, mask: resolved.mask, name: resolved.name, alerts: resolved.alerts,
           identityConfidence: identity.confidence || 0, maskConfidence: mask.confidence || 0,
           reasons: resolved.reasons, possible: identity.possible || null, at: now
@@ -208,7 +208,9 @@
       }
       const idLine = f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity;
       const conf = f.identity === STATUS.RECOGNIZED || f.identity === STATUS.UNKNOWN ? " • " + Math.round(f.identityConfidence * 100) + "%" : "";
-      const extra = f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""));
+      const promptLabel = { blink: "BLINK", mouth: "OPEN AND CLOSE MOUTH", turn_left: "TURN HEAD LEFT", turn_right: "TURN HEAD RIGHT" };
+      const prompt = f.liveChallenge ? " • ACTION: " + (promptLabel[f.liveChallenge] || "FOLLOW PROMPT") : "";
+      const extra = (f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""))) + prompt;
       const maskText = f.mask + (f.mask === STATUS.NOT_CLEAR ? "" : " • " + Math.round(f.maskConfidence * 100) + "%");
       row.children[0].textContent = idLine + conf;
       row.children[1].textContent = maskText + extra;
