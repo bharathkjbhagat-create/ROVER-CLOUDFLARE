@@ -174,7 +174,7 @@
       badge.innerHTML = remoteActive ? "<i></i> REMOTE LIVE" : "<i></i> CONNECTING";
       badge.classList.toggle("mvOff", !remoteActive);
     }
-    status(remoteActive ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", !remoteActive);
+    status(remoteActive ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", remoteActive);
     const play = video.play();
     if (play && play.catch) play.catch(() => status("REMOTE CAMERA READY • TAP VIDEO TO PLAY", true));
   }
@@ -218,7 +218,7 @@
         const badge = document.querySelector("#liveCamera .liveBadge");
         if (badge) { badge.innerHTML = "<i></i> REMOTE LIVE"; badge.classList.remove("mvOff"); }
       }
-      status(video ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", true);
+      status(video ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", !!video);
     } else if (!localStream && !remoteActive) {
       status("REMOTE DEVICE CAMERA • PAUSED");
       const badge = document.querySelector("#liveCamera .liveBadge");
