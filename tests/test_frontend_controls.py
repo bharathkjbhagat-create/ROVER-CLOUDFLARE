@@ -26,6 +26,8 @@ class FrontendControlTests(unittest.TestCase):
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
+        cls.rtc = (ROOT / "public" / "rtc-camera-sync.js").read_text(encoding="utf-8")
+        cls.worker = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
         cls.css = (ROOT / "public" / "style.css").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
@@ -149,6 +151,25 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn("video.captureStream", self.js)
         self.assertIn('$("camRecordBtn")', self.js)
         self.assertNotIn('recording=!recording;const b=$("camRecordBtn")', self.js)
+
+
+    def test_phone_camera_stream_is_relayed_to_other_authenticated_dashboard_peers(self):
+        # The phone's local preview remains local; WebRTC sends its MediaStream to
+        # other signed-in browsers while the Durable Object relays signaling only.
+        self.assertIn('window.DefenxRtcCamera?.setLocalStream(acquired);', self.phone_camera)
+        self.assertIn('window.DefenxRtcCamera?.setLocalStream(null);', self.phone_camera)
+        self.assertIn('new RTCPeerConnection(rtcConfig)', self.rtc)
+        self.assertIn('pc.addTrack(track, localStream)', self.rtc)
+        self.assertIn('pc.ontrack', self.rtc)
+        self.assertIn('type: "rtc_signal"', self.rtc)
+        self.assertIn('message.type === "rtc_signal"', self.rtc)
+        self.assertIn('message.type === "rtc_peer_joined"', self.rtc)
+        self.assertIn('message.type === "rtc_peer_left"', self.rtc)
+        self.assertIn('startsWith("rtc_")', self.js)
+        self.assertIn('action in {"rtc_signal", "rtc_camera_state"}', self.worker)
+        self.assertIn('target_info.get("kind") != "operator"', self.worker)
+        self.assertIn('{"offer", "answer", "ice"}', self.worker)
+        self.assertIn('196608', self.worker)
 
 
 if __name__ == "__main__":
