@@ -28,6 +28,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
         cls.camera_webrtc = (ROOT / "public" / "camera-webrtc.js").read_text(encoding="utf-8")
         cls.worker = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        cls.server_app = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
         cls.css = (ROOT / "public" / "style.css").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
@@ -132,6 +133,13 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('promoteRemoteVideo(video);', self.camera_webrtc)
         self.assertIn('window.__defenxRemoteCameraActive = true;', self.camera_webrtc)
         self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
+        self.assertIn('async function loadIceServers()', self.camera_webrtc)
+        self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
+        self.assertIn('setInterval(() => {', self.camera_webrtc)
+        self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
+        self.assertIn('@app.get("/api/rtc/ice-config")', self.server_app)
+        self.assertIn('RTC_TURN_SHARED_SECRET', self.server_app)
+        self.assertIn('turnEnabled', self.server_app)
 
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
         self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal"}:', self.worker)
