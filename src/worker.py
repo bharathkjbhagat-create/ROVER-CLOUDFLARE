@@ -1031,6 +1031,73 @@ class Default(WorkerEntrypoint):
                         headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
                     )
 
+            if url.path == "/api/rtc/ice-config":
+                if not valid_session_cookie:
+                    return Response(
+                        json.dumps({"ok": False, "error": "Authentication required"}),
+                        status=401,
+                        headers={"Content-Type": "application/json", "Cache-Control": "no-store"},
+                    )
+                turn_key_id = self._env_value(self.env, "RTC_TURN_KEY_ID")
+                turn_api_token = self._env_value(self.env, "RTC_TURN_API_TOKEN")
+                if turn_key_id and turn_api_token:
+                    try:
+                        turn_request = js.Request.new(
+                            "https://rtc.live.cloudflare.com/v1/turn/keys/"
+                            + turn_key_id + "/credentials/generate-ice-servers",
+                            {
+                                "method": "POST",
+                                "headers": {
+                                    "Authorization": "Bearer " + turn_api_token,
+                                    "Content-Type": "application/json",
+                                    "Accept": "application/json",
+                                },
+                                "body": json.dumps({"ttl": 86400}),
+                            },
+                        )
+                        turn_response = await js.fetch(turn_request)
+                        turn_data = json.loads(str(await turn_response.text() or "{}"))
+                        if int(turn_response.status) < 200 or int(turn_response.status) >= 300:
+                            raise RuntimeError("TURN credential service rejected request")
+                        ice_servers = turn_data.get("iceServers")
+                        if not isinstance(ice_servers, list) or not ice_servers:
+                            raise RuntimeError("TURN credential response missing ICE servers")
+                        # Port 53 is blocked by several browsers/ISPs; trickle ICE
+                        # makes the primary UDP/TCP/TLS URLs sufficient.
+                        for server in ice_servers:
+                            urls = server.get("urls") if isinstance(server, dict) else None
+                            if isinstance(urls, list):
+                                server["urls"] = [
+                                    item for item in urls
+                                    if ":53" not in str(item).split("?")[0]
+                                ]
+                        return Response(
+                            json.dumps({
+                                "ok": True,
+                                "iceServers": ice_servers,
+                                "turnEnabled": True,
+                            }, separators=(",", ":")),
+                            status=200,
+                            headers={
+                                "Content-Type": "application/json; charset=utf-8",
+                                "Cache-Control": "no-store",
+                            },
+                        )
+                    except BaseException as exc:
+                        print(f"DEFENX TURN credential request failed: {type(exc).__name__}")
+                return Response(
+                    json.dumps({
+                        "ok": True,
+                        "iceServers": [{"urls": ["stun:stun.cloudflare.com:3478"]}],
+                        "turnEnabled": False,
+                    }, separators=(",", ":")),
+                    status=200,
+                    headers={
+                        "Content-Type": "application/json; charset=utf-8",
+                        "Cache-Control": "no-store",
+                    },
+                )
+
             if url.path == "/api/ws":
                 upgrade = str(request.headers.get("Upgrade") or "").lower()
                 if upgrade != "websocket":
