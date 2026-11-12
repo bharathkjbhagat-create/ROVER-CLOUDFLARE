@@ -106,7 +106,11 @@ static int signedPost(const char *path, const String &body, String &resp) {
   String sig = hmacHex(DEVICE_SECRET, canonical);
   WiFiClientSecure tls; WiFiClient plain; HTTPClient http; http.setTimeout(4000);
 #if DEFENX_USE_TLS
-  if (TLS_ROOT_CA) tls.setCACert(TLS_ROOT_CA); else tls.setInsecure();
+  if (!TLS_ROOT_CA || TLS_ROOT_CA[0] == '\0') {
+    Serial.println("TLS_ROOT_CA is required; refusing insecure HTTPS");
+    return -4;
+  }
+  tls.setCACert(TLS_ROOT_CA);
   if (!http.begin(tls, DEFENX_HOST, DEFENX_PORT, path, true)) return -1;
 #else
   if (!http.begin(plain, DEFENX_HOST, DEFENX_PORT, path)) return -1;
