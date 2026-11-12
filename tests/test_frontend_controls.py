@@ -26,6 +26,8 @@ class FrontendControlTests(unittest.TestCase):
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
+        cls.camera_webrtc = (ROOT / "public" / "camera-webrtc.js").read_text(encoding="utf-8")
+        cls.worker = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
         cls.css = (ROOT / "public" / "style.css").read_text(encoding="utf-8")
 
     def test_dashboard_element_ids_are_unique(self):
@@ -111,6 +113,29 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('href="/phone-camera.css?v=20261107-01"', self.html)
         self.assertIn("if(phoneCameraActive)return;", self.js)
         self.assertIn("!phoneCameraActive", self.js)
+
+    def test_live_phone_camera_streams_to_other_authenticated_dashboards(self):
+        # Local preview remains active while WebRTC sends the same MediaStream to peers.
+        self.assertIn('new CustomEvent("defenx-camera-stream"', self.phone_camera)
+        self.assertIn('detail:{stream:acquired,active:true}', self.phone_camera)
+        self.assertIn('detail:{stream:null,active:false}', self.phone_camera)
+        self.assertIn('new RTCPeerConnection(', self.camera_webrtc)
+        self.assertIn('pc.addTransceiver("video", { direction: "sendrecv" })', self.camera_webrtc)
+        self.assertIn('entry.transceiver.sender.replaceTrack(track)', self.camera_webrtc)
+        self.assertIn('pc.ontrack = event =>', self.camera_webrtc)
+        self.assertIn('type: "rtc_signal"', self.camera_webrtc)
+        self.assertIn('type: "rtc_join"', self.camera_webrtc)
+        self.assertIn('data-defenx-remote-camera', self.camera_webrtc)
+        self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
+
+    def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
+        self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal"}:', self.worker)
+        self.assertIn('self._handle_rtc_message(ws, data, attachment)', self.worker)
+        self.assertIn('def _rtc_broadcast(self, payload, exclude_peer=None, target_peer=None):', self.worker)
+        self.assertIn('if info.get("rtc_room") != "defenx-global" or not peer_id:', self.worker)
+        self.assertIn('"rtc_peer_list"', self.worker)
+        self.assertIn('"rtc_peer_left"', self.worker)
+        self.assertIn('Authentication expired', self.worker)
 
     def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
         self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)
