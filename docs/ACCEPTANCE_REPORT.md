@@ -5,7 +5,7 @@ Legend: ✔ done and tested · ◐ done, partially tested · ✘ not done / not 
 | Capability | Status |
 |---|---|
 | Real phone-camera face recognition | **Partially implemented** (pre-existing pipeline audited + extended; accuracy/anti-spoof unvalidated) |
-| Two physical devices live synchronisation | **Partially implemented** (protocol complete and tested between independent OS processes; no real devices; HTTPS polling, not WebSocket) |
+| Two physical devices live synchronisation | **Partially implemented** (phone client now has ticket-authenticated signed WebSocket sync with HTTPS fallback; ESP32 still uses signed HTTPS polling; no real devices) |
 | Physical rover, GPS and obstacle sensors | **Partially implemented** (firmware + adapter + dashboard written; firmware not compiled on ESP32; no hardware tests) |
 | Offline autonomous operation | **Partially implemented** (FSM + journal + sync; PC simulation only) |
 | Safe return-to-base | **Partially implemented** (PC simulation only; no physical test) |
@@ -13,7 +13,7 @@ Legend: ✔ done and tested · ◐ done, partially tested · ✘ not done / not 
 | Capability | Source | Backend | Frontend | Automated tests | Simulation tests | Real-device | Physical hardware |
 |---|---|---|---|---|---|---|---|
 | Face recognition | ✔ (existing `face-recognition.js`, `vision-core.js`, encrypted enrolment API; **new:** live-camera enrolment, front/rear flip) | ✔ (existing) | ✔ | ◐ existing 64 tests + JS vision tests; new flip/enrol assertions | n/a | ✘ | n/a |
-| Device sync | ✔ `fleet.py`, `fleet_api.py`, `fleet_do.py`, `device-client.*`, `tools/` | ✔ | ✔ Fleet panel + phone client | ✔ 44 core + 25 API + 5 multi-process + 4 cross-language JS | ✔ rover simulator process | ✘ | ✘ |
+| Device sync | ✔ `fleet.py`, `fleet_api.py`, `fleet_do.py`, `device-client.*`, `tools/`; this update adds one-time WebSocket tickets and signed socket requests for the browser phone client | ✔ | ✔ Fleet panel + phone client | **Pending CI for WebSocket-ticket regressions**; existing protocol/integration suites | ✔ rover simulator process | ✘ | ✘ |
 | Rover hardware/GPS/sensors | ✔ `firmware/esp32_rover` | ✔ validation + mirror into dashboard telemetry | ✔ GPS/obstacle/sensor-fault/camera states | ◐ server side only | ✔ ray-cast sensor sim | ✘ | ✘ |
 | Offline autonomy | ✔ `nav_core.h` + journal in `.ino` | ✔ idempotent event/GPS upload | ✔ offline status + queue size | ✔ (server dedupe/resume) | ✔ link classification, offline RTB, autonomy cap | ✘ | ✘ |
 | Safe RTB | ✔ | ✔ gate + admin-only + persisted base | ✔ buttons + device-confirmed arrival | ✔ gate tests, Chromium e2e | ✔ obstacle detour, no-route stop, GPS/sensor/battery/e-stop, 300 random worlds: 0 collisions | ✘ | ✘ |
