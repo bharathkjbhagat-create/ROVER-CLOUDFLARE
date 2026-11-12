@@ -4,6 +4,7 @@
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
+#include <WebSocketsClient.h>
 #include <LittleFS.h>
 #include <Wire.h>
 #include <ArduinoJson.h>
@@ -127,8 +128,75 @@ static int signedPost(const char *path, const String &body, String &resp) {
   return code;
 }
 
+
 // ------------------------------------------------------------------ links ---
 static bool serverOk = false; static uint32_t lastServerOkMs = 0, lastInternetProbe = 0; static bool internetOk = true;
+
+static WebSocketsClient deviceSocket;
+static bool deviceSocketConnected = false, wsResponseReady = false;
+static String wsPendingNonce, wsResponseBody;
+static int wsResponseStatus = 0;
+static uint32_t wsPendingAt = 0, wsReconnectAt = 0, wsRetryMs = 2000;
+
+static bool sendWsRequest(const char *path, const String &body) {
+  if (!deviceSocketConnected || wsPendingNonce.length() || WiFi.status() != WL_CONNECTED) return false;
+  time_t now = time(nullptr); if (now < 1700000000) return false;
+  char ts[24]; snprintf(ts, sizeof ts, "%ld.000", (long)now);
+  String nonce = randomNonce();
+  String canonical = String("POST\n") + path + "\n" + DEVICE_ID + "\n" + ts + "\n" + nonce + "\n" + sha256Hex(body);
+  JsonDocument frame;
+  frame["type"] = "device_request"; frame["path"] = path; frame["timestamp"] = ts;
+  frame["nonce"] = nonce; frame["signature"] = hmacHex(DEVICE_SECRET, canonical); frame["body"] = body;
+  String message; serializeJson(frame, message);
+  if (!deviceSocket.sendTXT(message)) return false;
+  wsPendingNonce = nonce; wsPendingAt = millis();
+  return true;
+}
+
+static void onDeviceSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
+  if (type == WStype_CONNECTED) {
+    deviceSocketConnected = true; wsRetryMs = 2000; serverOk = true; lastServerOkMs = millis();
+    return;
+  }
+  if (type == WStype_DISCONNECTED) {
+    deviceSocketConnected = false; wsReconnectAt = millis() + wsRetryMs;
+    wsRetryMs = wsRetryMs < 15000 ? wsRetryMs * 2 : 30000;
+    wsPendingNonce = ""; wsResponseReady = false;
+    return;
+  }
+  if (type != WStype_TEXT || !payload || !length || length > 32768) return;
+  JsonDocument frame; if (deserializeJson(frame, payload, length)) return;
+  if (String(frame["type"] | "") != "device_response") return;
+  String nonce = frame["nonce"] | "";
+  if (!wsPendingNonce.length() || nonce != wsPendingNonce) return;
+  String body = frame["body"] | "";
+  String got = frame["signature"] | "";
+  String expected = hmacHex(DEVICE_SECRET, String("RESP\n") + DEVICE_ID + "\n" + nonce + "\n" + sha256Hex(body));
+  if (!constTimeEq(expected, got)) { wsPendingNonce = ""; serverOk = false; return; }
+  wsResponseStatus = frame["status"] | 0; wsResponseBody = body;
+  wsResponseReady = true; wsPendingNonce = "";
+}
+
+static void connectDeviceSocket() {
+#if DEFENX_USE_TLS
+  if (deviceSocketConnected || WiFi.status() != WL_CONNECTED || millis() < wsReconnectAt) return;
+  if (!TLS_ROOT_CA || TLS_ROOT_CA[0] == '\0') return;
+  String resp;
+  if (signedPost("/api/fleet/ws-ticket", "{}", resp) != 200) {
+    wsReconnectAt = millis() + wsRetryMs; wsRetryMs = min<uint32_t>(30000, wsRetryMs * 2); return;
+  }
+  JsonDocument ticketBody;
+  if (deserializeJson(ticketBody, resp) || !ticketBody["ticket"].is<const char *>()) {
+    wsReconnectAt = millis() + wsRetryMs; return;
+  }
+  String url = String("/api/ws?device_ticket=") + String(ticketBody["ticket"].as<const char *>());
+  deviceSocket.onEvent(onDeviceSocketEvent);
+  deviceSocket.setReconnectInterval(30000);
+  deviceSocket.enableHeartbeat(25000, 5000, 2);
+  deviceSocket.beginSslWithCA(DEFENX_HOST, DEFENX_PORT, url.c_str(), TLS_ROOT_CA);
+  wsReconnectAt = millis() + 30000;
+#endif
+}
 static uint32_t hbSeq = 0; static String lastCmdIds[8]; static int lastCmdIdx = 0;
 static LinkState currentLink() {
   bool wifi = WiFi.status() == WL_CONNECTED;
@@ -146,27 +214,7 @@ static CmdType cmdFromName(const char *n) {
   for (auto &e : m) if (!strcmp(e.n, n)) return e.t; return CMD_NONE;
 }
 
-static void sendHeartbeat(Fsm fsm) {
-  JsonDocument d; Inputs dummy;
-  d["seq"] = ++hbSeq; d["boot_id"] = bootId; d["fw"] = "defenx-esp32-1"; d["fsm"] = fsmName(fsm); d["fsm_reason"] = reasonName(rover.reason());
-  d["estop"] = rover.estop(); d["offline_autonomy"] = rover.offline(); d["motors_enabled"] = !rover.estop(); d["uptime_s"] = millis() / 1000;
-  d["link"] = rover.linkClass() == LINK_ONLINE ? "ONLINE" : (rover.linkClass() == LINK_WIFI_DOWN ? "WIFI_DOWN" : (rover.linkClass() == LINK_INTERNET_DOWN ? "INTERNET_DOWN" : "SERVER_DOWN"));
-  d["network"] = "wifi"; d["signal"] = constrain(2 * (WiFi.RSSI() + 100), 0, 100); d["pending_events"] = pendingEvents; d["camera"] = false;  // camera health comes from the ESP32-CAM, see docs
-  if (battIn.valid) d["battery"] = battIn.pct;
-  if (gpsIn.fix) { d["lat"] = gpsIn.lat; d["lon"] = gpsIn.lon; d["gps_fix"] = true; d["accuracy_m"] = gpsIn.acc_m; d["gps_sats"] = gpsIn.sats; d["gps_age_ms"] = millis() - gpsIn.t_ms; d["speed_kmh"] = gpsParser.speed.kmph(); }
-  else d["gps_fix"] = false;
-  if (hdgIn.valid) d["heading"] = hdgIn.deg;
-  JsonObject o = d["obstacle"].to<JsonObject>();
-  auto put = [&](const char *k, const Range &r) { JsonObject x = o[k].to<JsonObject>(); x["cm"] = r.cm; x["valid"] = r.valid; x["age_ms"] = millis() - r.t_ms; };
-  put("front", rFront); put("left", rLeft); put("right", rRight);
-  JsonObject c = d["caps"].to<JsonObject>();
-  c["obstacle_sensor_healthy"] = rover.sensorHealthy(); c["safety_controller_healthy"] = sensorBusOk; c["gps_module"] = gpsParser.charsProcessed() > 10;
-  c["autonomous_navigation"] = hdgIn.valid && rover.hasBase(); c["obstacle_avoidance"] = rLeft.valid && rRight.valid && rFront.valid; c["motors"] = true;
-  JsonObject r = d["rtb"].to<JsonObject>(); r["state"] = fsmName(fsm); r["distance_m"] = rover.rtbDistanceM(); r["arrived"] = rover.arrived(); r["reason"] = reasonName(rover.reason());
-  String body, resp; serializeJson(d, body);
-  int code = signedPost("/api/fleet/heartbeat", body, resp);
-  if (code != 200) { serverOk = false; return; }
-  serverOk = true; lastServerOkMs = millis();
+static void processHeartbeatResponse(const String &resp) {
   JsonDocument in; if (deserializeJson(in, resp)) return;
   if (!in["base"].isNull() && !rover.hasBase()) rover.setBase(in["base"]["lat"], in["base"]["lon"]);
   for (JsonObject c2 : in["commands"].as<JsonArray>()) {
@@ -180,6 +228,34 @@ static void sendHeartbeat(Fsm fsm) {
     JsonDocument a; a["id"] = id; a["status"] = dup ? "ignored" : (cm.type == CMD_NONE ? "rejected" : "executed"); a["detail"] = dup ? "duplicate" : "";
     String ab, ar; serializeJson(a, ab); signedPost("/api/fleet/commands/ack", ab, ar);
   }
+}
+
+static void sendHeartbeat(Fsm fsm) {
+  JsonDocument d;
+  d["seq"] = ++hbSeq; d["boot_id"] = bootId; d["fw"] = "defenx-esp32-1"; d["fsm"] = fsmName(fsm); d["fsm_reason"] = reasonName(rover.reason());
+  d["estop"] = rover.estop(); d["offline_autonomy"] = rover.offline(); d["motors_enabled"] = !rover.estop(); d["uptime_s"] = millis() / 1000;
+  d["link"] = rover.linkClass() == LINK_ONLINE ? "ONLINE" : (rover.linkClass() == LINK_WIFI_DOWN ? "WIFI_DOWN" : (rover.linkClass() == LINK_INTERNET_DOWN ? "INTERNET_DOWN" : "SERVER_DOWN"));
+  d["network"] = "wifi"; d["signal"] = constrain(2 * (WiFi.RSSI() + 100), 0, 100); d["pending_events"] = pendingEvents; d["camera"] = false;
+  if (battIn.valid) d["battery"] = battIn.pct;
+  if (gpsIn.fix) { d["lat"] = gpsIn.lat; d["lon"] = gpsIn.lon; d["gps_fix"] = true; d["accuracy_m"] = gpsIn.acc_m; d["gps_sats"] = gpsIn.sats; d["gps_age_ms"] = millis() - gpsIn.t_ms; d["speed_kmh"] = gpsParser.speed.kmph(); }
+  else d["gps_fix"] = false;
+  if (hdgIn.valid) d["heading"] = hdgIn.deg;
+  JsonObject o = d["obstacle"].to<JsonObject>();
+  auto put = [&](const char *k, const Range &r) { JsonObject x = o[k].to<JsonObject>(); x["cm"] = r.cm; x["valid"] = r.valid; x["age_ms"] = millis() - r.t_ms; };
+  put("front", rFront); put("left", rLeft); put("right", rRight);
+  JsonObject c = d["caps"].to<JsonObject>();
+  c["obstacle_sensor_healthy"] = rover.sensorHealthy(); c["safety_controller_healthy"] = sensorBusOk; c["gps_module"] = gpsParser.charsProcessed() > 10;
+  c["autonomous_navigation"] = hdgIn.valid && rover.hasBase(); c["obstacle_avoidance"] = rLeft.valid && rRight.valid && rFront.valid; c["motors"] = true;
+  JsonObject r = d["rtb"].to<JsonObject>(); r["state"] = fsmName(fsm); r["distance_m"] = rover.rtbDistanceM(); r["arrived"] = rover.arrived(); r["reason"] = reasonName(rover.reason());
+  String body, resp; serializeJson(d, body);
+  if (deviceSocketConnected) {
+    sendWsRequest("/api/fleet/heartbeat", body);
+    return;
+  }
+  int code = signedPost("/api/fleet/heartbeat", body, resp);
+  if (code != 200) { serverOk = false; return; }
+  serverOk = true; lastServerOkMs = millis();
+  processHeartbeatResponse(resp);
 }
 
 // Upload queued events (<=20) and drop only those the server confirms.
@@ -249,6 +325,19 @@ static void Preferences_saveBase() { prefs.putDouble("blat", rover.baseLat()); p
 static uint32_t lastHb = 0, lastSample = 0, lastSync = 0; static bool prevHadBase = false;
 void loop() {
   esp_task_wdt_reset();
+  deviceSocket.loop();
+  if (wsResponseReady) {
+    wsResponseReady = false;
+    if (wsResponseStatus == 200) {
+      serverOk = true; lastServerOkMs = millis();
+      const String response = wsResponseBody; wsResponseBody = "";
+      processHeartbeatResponse(response);
+    } else {
+      serverOk = false; wsResponseBody = "";
+    }
+  }
+  if (wsPendingNonce.length() && (uint32_t)(millis() - wsPendingAt) > 8000) { wsPendingNonce = ""; serverOk = false; }
+  connectDeviceSocket();
   while (gpsSerial.available()) gpsParser.encode(gpsSerial.read());
   uint32_t now = millis();
   if (now - lastSample >= 100) {                                         // 10 Hz control + sensing
@@ -268,7 +357,7 @@ void loop() {
     drainCoreEvents(false); if (rover.offline()) trackPoint();
     if (rover.hasBase() && !prevHadBase) { Preferences_saveBase(); prevHadBase = true; }
   }
-  if (now - lastHb >= 1000) {                                            // 1 Hz heartbeat; a blocking HTTP call can never starve the 10 Hz loop's safety: rover.tick uses link state + TTLs
+  if (now - lastHb >= 1000) {                                            // 1 Hz authenticated heartbeat over WebSocket; HTTPS fallback
     lastHb = now; sendHeartbeat(rover.fsm());
   }
   if (now - lastSync >= 3000) { lastSync = now; syncJournal(); }
