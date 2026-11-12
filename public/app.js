@@ -382,8 +382,8 @@ camera.textContent=labels[c]||"DEMO CAMERA VIEW • SIMULATION";
 return;
 }
 if(message.type==="state"&&message.telemetry){
-if(message.telemetry.sync_version)window.ROVER_SYNC_VERSION=message.telemetry.sync_version;
-updateUI(message.telemetry);
+const applied=updateUI(message.telemetry);
+if(applied===false)return;
 setText("conn",connectionText(message.telemetry));
 return;
 }
@@ -456,6 +456,17 @@ window.roverReconnectTimer=setTimeout(()=>{window.roverReconnectTimer=null;conne
 }
 function updateUI(input){
 const rawInput=input&&typeof input==="object"?input:{};
+const incomingVersion=String(rawInput.sync_version||"");
+const currentVersion=String(window.ROVER_SYNC_VERSION||"");
+const incomingStamp=incomingVersion.startsWith("live-")?Number(incomingVersion.slice(5,18)):NaN;
+const currentStamp=currentVersion.startsWith("live-")?Number(currentVersion.slice(5,18)):NaN;
+const staleVersion=incomingVersion&&currentVersion&&(
+Number.isFinite(incomingStamp)&&Number.isFinite(currentStamp)
+? incomingStamp<currentStamp
+: incomingVersion<currentVersion
+);
+if(staleVersion)return false;
+if(incomingVersion)window.ROVER_SYNC_VERSION=incomingVersion;
 const deviceGps=!demoMode&&String(rawInput.gps_source||"")==="ROVER_DEVICE"&&rawInput.gps_fix===true&&isValidMapPoint(rawInput.lat,rawInput.lon);
 const simPoint=randomDemoPoint(),simTarget=randomDemoPoint();
 const displayPoint=demoMode?simPoint:(deviceGps?{lat:Number(rawInput.lat),lon:Number(rawInput.lon)}:null);
@@ -855,8 +866,8 @@ return;
 const r=await api("/api/telemetry");
 const d=await r.json();
 if(!r.ok)throw new Error(d.error);
-if(d&&d.sync_version)window.ROVER_SYNC_VERSION=d.sync_version;
-updateUI(d);
+const applied=updateUI(d);
+if(applied===false)return;
 setText("conn",connectionText(d));setText("serverHeaderSub","Backend reachable");
 }catch(e){
 if(me){

@@ -52,6 +52,19 @@ class FrontendControlTests(unittest.TestCase):
             self.js,
         )
 
+    def test_cross_device_state_rejects_stale_telemetry_versions(self):
+        # WebSocket pushes and the polling fallback share one monotonic version gate.
+        self.assertIn('const staleVersion=incomingVersion&&currentVersion&&(', self.js)
+        self.assertIn('incomingStamp<currentStamp', self.js)
+        self.assertIn('if(staleVersion)return false;', self.js)
+        self.assertIn('if(incomingVersion)window.ROVER_SYNC_VERSION=incomingVersion;', self.js)
+        self.assertIn('const applied=updateUI(message.telemetry);', self.js)
+        self.assertIn('const applied=updateUI(d);', self.js)
+        self.assertIn('if(applied===false)return;', self.js)
+        # A stale poll or socket message must not replace the newer snapshot.
+        self.assertNotIn('if(message.telemetry.sync_version)window.ROVER_SYNC_VERSION=message.telemetry.sync_version;', self.js)
+        self.assertNotIn('if(d&&d.sync_version)window.ROVER_SYNC_VERSION=d.sync_version;', self.js)
+
     def test_rover_commands_and_modes_wait_for_api_confirmation(self):
         self.assertIn('api("/api/command"', self.js)
         self.assertIn('api("/api/mode"', self.js)
