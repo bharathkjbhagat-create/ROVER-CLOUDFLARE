@@ -410,7 +410,36 @@ class RealtimeHub(DurableObject):
             ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
             return
         if action in {"rtc_signal", "rtc_camera_state"}:
-            # Authenticated operator-to-operator WebRTC signaling only.
+            # Revalidate the signed session and revocation state on every relay.
+            # A dashboard that logged out must not keep a usable signaling socket.
+            try:
+                from app import app
+                session_cookie = None
+                for part in cookie.split(";"):
+                    name, sep, value = part.strip().partition("=")
+                    if name == app.config.get("SESSION_COOKIE_NAME", "rover_session") and sep:
+                        session_cookie = value
+                        break
+                serializer = app.session_interface.get_signing_serializer(app)
+                if not session_cookie or serializer is None:
+                    raise ValueError("Session missing")
+                serializer.loads(
+                    session_cookie,
+                    max_age=int(app.permanent_session_lifetime.total_seconds())
+                )
+                session_hash = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
+                if await self.is_session_revoked(session_hash):
+                    raise ValueError("Session revoked")
+            except Exception:
+                ws.send(json.dumps({
+                    "type": "rtc_signal_error",
+                    "error": "Authentication expired; reconnect required"
+                }))
+                try:
+                    ws.close(4401, "Authentication expired")
+                except Exception:
+                    pass
+                return
             # Media stays peer-to-peer; the Durable Object relays small SDP/ICE
             # control messages and never receives or stores camera frames.
             sender_id = str(attachment.get("id") or "")
