@@ -4,7 +4,7 @@ Legend: ✔ done and tested · ◐ done, partially tested · ✘ not done / not 
 
 | Capability | Status |
 |---|---|
-| Real phone-camera face recognition | **Partially implemented** (pre-existing pipeline audited + extended; accuracy/anti-spoof unvalidated) |
+| Real phone-camera face recognition | **Partially implemented** (consented admin enrollment; up to three encrypted reference photos/descriptors per profile; accuracy/liveness/anti-spoof unvalidated) |
 | Two physical devices live synchronisation | **Partially implemented** (phone client now has ticket-authenticated signed WebSocket sync with HTTPS fallback; ESP32 still uses signed HTTPS polling; no real devices) |
 | Physical rover, GPS and obstacle sensors | **Partially implemented** (firmware + adapter + dashboard written; firmware not compiled on ESP32; no hardware tests) |
 | Offline autonomous operation | **Partially implemented** (FSM + journal + sync; PC simulation only) |
@@ -12,7 +12,7 @@ Legend: ✔ done and tested · ◐ done, partially tested · ✘ not done / not 
 
 | Capability | Source | Backend | Frontend | Automated tests | Simulation tests | Real-device | Physical hardware |
 |---|---|---|---|---|---|---|---|
-| Face recognition | ✔ (existing `face-recognition.js`, `vision-core.js`, encrypted enrolment API; **new:** live-camera enrolment, front/rear flip) | ✔ (existing) | ✔ | ◐ existing 64 tests + JS vision tests; new flip/enrol assertions | n/a | ✘ | n/a |
+| Face recognition | ✔ (`face-recognition.js`, `vision-core.js`, encrypted enrollment API; new: up to three reference photos per profile, live-camera enrollment, front/rear flip) | ✔ (existing) | ✔ | ◐ existing 64 tests + JS vision tests; new flip/enrol assertions | n/a | ✘ | n/a |
 | Device sync | ✔ `fleet.py`, `fleet_api.py`, `fleet_do.py`, `device-client.*`, `tools/`; this update adds one-time WebSocket tickets and signed socket requests for the browser phone client | ✔ | ✔ Fleet panel + phone client | **Pending CI for WebSocket-ticket regressions**; existing protocol/integration suites | ✔ rover simulator process | ✘ | ✘ |
 | Rover hardware/GPS/sensors | ✔ `firmware/esp32_rover` | ✔ validation + mirror into dashboard telemetry | ✔ GPS/obstacle/sensor-fault/camera states | ◐ server side only | ✔ ray-cast sensor sim | ✘ | ✘ |
 | Offline autonomy | ✔ `nav_core.h` + journal in `.ino` | ✔ idempotent event/GPS upload | ✔ offline status + queue size | ✔ (server dedupe/resume) | ✔ link classification, offline RTB, autonomy cap | ✘ | ✘ |
@@ -57,3 +57,12 @@ Evidence: `docs/TEST_RESULTS.txt`. Feature guide: `docs/SIMULATION_LAB.md`.
 New: `public/sim-core.js`, `sim-lab.js`, `sim-lab-loader.js`, `sim-lab.css`, `docs/SIMULATION_LAB.md`, `tests/sim_core.test.js`, `spoof_attacks.test.js`, `browser_sim_lab.py`, `test_assets_served.py`, `test_button_audit.py`, `test_sim_server_sync.py`, `test_sim_flask_endpoint.py`.
 Modified: `src/app.py`, `src/fleet.py`, `src/fleet_api.py`, `public/index.html`, `scripts/check_performance_budget.py`, `scripts/run_all_tests.sh`, `.github/workflows/cloudflare-deploy.yml`, `README.md`, `FLASK-LOCAL-README.md`, `docs/ACCEPTANCE_REPORT.md`, `docs/TEST_RESULTS.txt`.
 The GitHub main branch was not touched.
+
+
+## Update 2026-11-12 — face profiles and phone WebSocket sync
+
+- Face enrollment accepts one to three clear reference photos after documented consent. Each image is processed in-browser; descriptors and small JPEG thumbnails are encrypted together in the admin-only Durable Object. The admin view can inspect and delete the stored profile. Old one-photo records remain readable.
+- Matching compares a live descriptor with each saved descriptor and uses the closest sample for the person's profile. This improves reference coverage but does not establish an accuracy rate or validated liveness.
+- The browser phone device client obtains a short-lived single-use ticket and sends HMAC-signed heartbeat, event and command-ack requests over WebSocket. The ticket is bound to the current device key; reconnect uses jitter and falls back to signed HTTPS. ESP32 firmware remains on HTTPS polling.
+- Added backend tests for multi-photo encryption/retrieval/validation, matching tests for multi-descriptor profiles, and Durable Object ticket lifecycle/API tests. CI for this update is pending.
+- Real phone-camera matching, spoof testing with people and screens, phone-to-rover hardware synchronization, and production WebSocket runtime behavior still require device/runtime verification.
