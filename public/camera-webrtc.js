@@ -7,9 +7,10 @@
   if (!("RTCPeerConnection" in window) || !("WebSocket" in window)) return;
 
   const $ = id => document.getElementById(id);
-  const peerId = (window.crypto?.randomUUID?.() || (
+  const makePeerId = () => (window.crypto?.randomUUID?.() || (
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+  let peerId = makePeerId();
   const iceServers = Array.isArray(window.DEFENX_RTC_ICE_SERVERS) && window.DEFENX_RTC_ICE_SERVERS.length
     ? window.DEFENX_RTC_ICE_SERVERS
     : [{ urls: "stun:stun.l.google.com:19302" }];
@@ -241,6 +242,7 @@
     ws.onclose = () => {
       if (socket === ws) socket = null;
       for (const id of Array.from(peers.keys())) closePeer(id);
+      peerId = makePeerId();
       if (!stopped) {
         status("CAMERA SYNC RECONNECTING");
         clearTimeout(retryTimer);
