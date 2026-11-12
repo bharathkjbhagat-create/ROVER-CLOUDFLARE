@@ -258,10 +258,11 @@ def register_fleet(app, hooks):
         ticket = secrets.token_urlsafe(32)
         ticket_hash = hashlib.sha256(ticket.encode("ascii")).hexdigest()
         expires = int(time.time()) + 60
-        if isinstance(store, DOFleetStore):
-            store.issue_ws_ticket(ticket_hash, rec["id"], rec["key_version"], expires)
+        ticket_store = service.store
+        if isinstance(ticket_store, DOFleetStore):
+            ticket_store.issue_ws_ticket(ticket_hash, rec["id"], rec["key_version"], expires)
         else:
-            store.put("ws_ticket:" + ticket_hash, {
+            ticket_store.put("ws_ticket:" + ticket_hash, {
                 "device_id": rec["id"], "key_version": rec["key_version"], "expires_at": expires,
             })
         return {"ok": True, "ticket": ticket, "expires_at": expires, "transport": "websocket"}
