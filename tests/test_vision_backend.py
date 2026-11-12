@@ -217,7 +217,7 @@ class VisionBackendTests(unittest.TestCase):
             suffix = "/photo" if index == 0 else "/photo/" + str(index)
             photo = self.client.get(f"/api/face-enrollments/{ident}" + suffix)
             self.assertEqual(photo.status_code, 200)
-            self.assertEqual(photo.data[:3], b"\\xff\\xd8\\xff")
+            self.assertEqual(photo.data[:3], b"\xff\xd8\xff")
 
     def test_multiple_face_references_require_matching_one_to_three_photos_and_descriptors(self):
         r = self.enroll(descriptors=[DESCRIPTOR, DESCRIPTOR], photos=["data:image/jpeg;base64," + JPEG])
