@@ -39,6 +39,10 @@ jobs:
           npm install --no-save playwright
           npx playwright install --with-deps chromium
 
+      - name: Run dashboard refinement browser interaction tests
+        if: github.event_name == 'pull_request'
+        run: node tests/dashboard-refinement-browser.mjs
+
       - name: Run read-only production browser checks
         env:
           DEFENX_BASE_URL: https://defenx.bindukjagadish.workers.dev
