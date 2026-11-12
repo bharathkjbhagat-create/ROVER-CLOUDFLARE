@@ -46,6 +46,11 @@
       menu.setAttribute("aria-label", shouldOpen ? "Close navigation" : "Open navigation");
       sidebar.setAttribute("aria-hidden", String(!shouldOpen));
       backdrop.setAttribute("aria-hidden", String(!shouldOpen));
+      // Keep the overlay state synchronized even if a host page stylesheet has
+      // stronger visibility rules than this refinement stylesheet.
+      backdrop.style.opacity = shouldOpen ? "1" : "0";
+      backdrop.style.visibility = shouldOpen ? "visible" : "hidden";
+      backdrop.style.pointerEvents = shouldOpen ? "auto" : "none";
 
       if (shouldOpen) {
         sidebar.removeAttribute("inert");
