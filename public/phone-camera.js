@@ -54,6 +54,14 @@ async function start(){
   }
   if(!viewport.isConnected)throw new Error("Camera view is no longer available");
   old=$("roverRealCamera");
+  // Keep an incoming second-device feed visible as picture-in-picture instead of
+  // detaching it when this device starts its own camera.
+  if(old?.dataset?.defenxRemoteCamera==="1"){
+   const remoteId=String(old.dataset.defenxPeerId||"remote").replace(/[^A-Za-z0-9_-]/g,"").slice(0,64);
+   old.id="defenxRemoteCamera-"+remoteId;
+   viewport.appendChild(old);
+   old=null;
+  }
   created=document.createElement("video");
   created.id="roverRealCamera";
   created.dataset.defenxLiveStream="1";
@@ -131,6 +139,7 @@ async function start(){
    else created.remove();
   }
   stream=null;active=false;videoNode=null;originalSource=null;
+  window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
   window.__defenxSetPhoneCameraActive?.(false);
   const message=error?.name==="NotAllowedError"?"ALLOW CAMERA PERMISSION IN CHROME":
    error?.name==="NotFoundError"?"NO PHONE CAMERA FOUND":
