@@ -8,6 +8,8 @@ unchanged.
 from __future__ import annotations
 
 import json
+import hashlib
+import secrets
 import threading
 import time
 from collections import defaultdict, deque
@@ -73,6 +75,10 @@ class DOFleetStore:
 
     def queue_list(self, device_id, limit=30):
         return self._op("q_list", device=device_id, limit=limit)["items"]
+
+    def issue_ws_ticket(self, ticket_hash, device_id, key_version, expires_at):
+        self._op("ws_ticket_issue", ticket_hash=ticket_hash, device_id=device_id,
+                 key_version=key_version, expires_at=expires_at)
 
     def events_append(self, device_id, events):
         r = self._op("ev_append", device=device_id, events=events)
@@ -248,6 +254,18 @@ def register_fleet(app, hooks):
                 "base": ({"lat": base["lat"], "lon": base["lon"], "saved_at": base["saved_at"]} if base else None),
                 "peers": service.peers_for(rec["id"])}
 
+    def ws_ticket(rec, data):
+        ticket = secrets.token_urlsafe(32)
+        ticket_hash = hashlib.sha256(ticket.encode("ascii")).hexdigest()
+        expires = int(time.time()) + 60
+        if isinstance(store, DOFleetStore):
+            store.issue_ws_ticket(ticket_hash, rec["id"], rec["key_version"], expires)
+        else:
+            store.put("ws_ticket:" + ticket_hash, {
+                "device_id": rec["id"], "key_version": rec["key_version"], "expires_at": expires,
+            })
+        return {"ok": True, "ticket": ticket, "expires_at": expires, "transport": "websocket"}
+
     def events(rec, data):
         return {"ok": True, **service.ingest_events(rec, data), "server_time": time.time()}
 
@@ -255,6 +273,7 @@ def register_fleet(app, hooks):
         c = service.ack_command(rec, data)
         return {"ok": True, "status": c["status"]}
 
+    app.add_url_rule("/api/fleet/ws-ticket", "fleet_ws_ticket", device_endpoint(ws_ticket), methods=["POST"])
     app.add_url_rule("/api/fleet/heartbeat", "fleet_heartbeat", device_endpoint(heartbeat), methods=["POST"])
     app.add_url_rule("/api/fleet/events/upload", "fleet_events_upload", device_endpoint(events), methods=["POST"])
     app.add_url_rule("/api/fleet/commands/ack", "fleet_command_ack", device_endpoint(ack), methods=["POST"])
