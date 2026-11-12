@@ -1,10 +1,10 @@
 <!doctype html><html lang="en"><head><script>(function(){try{if(new URLSearchParams(location.search).get("demo")==="1")return;var nav=performance.getEntriesByType("navigation")[0];if(nav&&nav.type==="reload"){document.documentElement.style.visibility="hidden";location.replace("/api/logout");}}catch(_){}})();</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261107-camera-02"><link rel="stylesheet" href="/monitor.css?v=20261107-cam-03"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"><link rel="stylesheet" href="/defenx-refinement.css?v=20261103-03"><link rel="stylesheet" href="/detection-events.css?v=20261108-01"><link rel="stylesheet" href="/map-enhancements.css?v=20261106-01"><link rel="stylesheet" href="/face-recognition.css?v=20261108-01"><link rel="stylesheet" href="/phone-camera.css?v=20261107-01"><link rel="stylesheet" href="/fleet-panel.css?v=20261109-01">
+<title>DEFENX — Intelligence in Motion</title><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="shortcut icon" type="image/svg+xml" href="/favicon.svg"><link rel="stylesheet" href="/style.css?v=20261107-camera-02"><link rel="stylesheet" href="/monitor.css?v=20261107-cam-03"><link rel="manifest" href="/manifest.webmanifest"><meta name="theme-color" content="#04090f"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="DEFENX"><link rel="preconnect" href="https://www.openstreetmap.org" crossorigin><link rel="dns-prefetch" href="//www.openstreetmap.org"><link rel="stylesheet" href="/defenx-refinement.css?v=20261103-03"><link rel="stylesheet" href="/detection-events.css?v=20261108-01"><link rel="stylesheet" href="/map-enhancements.css?v=20261106-01"><link rel="stylesheet" href="/face-recognition.css?v=20261108-01"><link rel="stylesheet" href="/phone-camera.css?v=20261107-01"><link rel="stylesheet" href="/fleet-panel.css?v=20261109-01"><link rel="stylesheet" href="/dashboard-refinement.css?v=20261112-01">
 </head>
 <body>
 <header class="topbar">
   <div class="brandCluster">
-    <div class="brandWords"><div class="brandName defenxBrandName">DEFENX</div><div class="brandSub">DEFENX - Intelligence in Motion.</div><button id="mobileMenuBtn" class="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Open navigation"><span></span><span></span><span></span></button></div>
+    <div class="brandWords"><div class="brandName defenxBrandName">DEFENX</div><div class="brandSub">DEFENX - Intelligence in Motion.</div><button id="mobileMenuBtn" class="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="commandSidebar" aria-label="Open navigation"><span></span><span></span><span></span></button></div>
   </div>
   <div class="topStatus">
     <div class="statusBlock"><span class="statusDot"></span><div><b>ROVER LINK STATUS</b><small id="connStatus">● CHECKING</small></div></div>
@@ -21,37 +21,11 @@
     <button type="button" id="logoutBtn" class="topLogout">⏻</button>
   </div>
 </header>
-<div id="mobileNavPanel" class="mobileNavPanel" aria-hidden="true"><nav class="mobileNavGrid"></nav></div>
-<script>
-(function(){
-  function bindRoverMobileMenu(){
-    var btn=document.getElementById("mobileMenuBtn");
-    var panel=document.getElementById("mobileNavPanel");
-    if(!btn||!panel||btn.dataset.menuClickBound==="1") return;
-    btn.dataset.menuClickBound="1";
-    btn.addEventListener("click",function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
-      var open=!panel.classList.contains("open");
-      panel.classList.toggle("open",open);
-      panel.setAttribute("aria-hidden",String(!open));
-      btn.setAttribute("aria-expanded",String(open));
-    });
-    document.addEventListener("click",function(ev){
-      if(!panel.classList.contains("open")) return;
-      if(panel.contains(ev.target)||btn.contains(ev.target)) return;
-      panel.classList.remove("open");
-      panel.setAttribute("aria-hidden","true");
-      btn.setAttribute("aria-expanded","false");
-    });
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bindRoverMobileMenu);
-  else bindRoverMobileMenu();
-})();
-</script>
+<div id="mobileNavPanel" class="mobileNavPanel" aria-hidden="true"></div>
+
 
 <div class="appShell">
-  <aside class="sidebar">
+  <aside id="commandSidebar" class="sidebar" aria-hidden="true" inert>
     <div class="sideTitle">COMMAND CENTRE</div>
     <nav class="sideNav">
       <button type="button" class="navItem active" data-scroll="dashboardTop"><span>⌂</span>Dashboard</button>
@@ -297,4 +271,4 @@
 <div id="auditTab" class="hidden"><div class="panelTitle">WHO LOGGED IN / WHAT THEY DID</div><div id="detectionAuditTools" class="detectionAuditTools"><button type="button" id="exportDetectionAuditBtn">EXPORT PERSON EVENTS CSV</button><small>Admin-only export • person-presence event metadata only</small></div><div id="auditTable" class="tablewrap"></div></div></div></div>
 
 <script src="/phone-camera.js?v=20261107-07" defer></script>
-<script src="/phone-gps.js?v=20261107-03" defer></script><script src="/app.js?v=20261107-cam-05" defer></script><script src="/fleet-panel.js?v=20261109-01" defer></script><script src="/sim-lab-loader.js?v=20261110-01" defer></script><script src="/vision-core.js?v=20261108-01" defer></script><script src="/ai-vision.js?v=20261108-01" defer></script><script src="/face-recognition.js?v=20261108-01" defer></script><script src="/detection-events.js?v=20261108-01" defer></script><script src="/monitor.js?v=20261107-cam-04" defer></script><script src="/dashboard-layout.js?v=20261103-01" defer></script></body></html>
+<script src="/phone-gps.js?v=20261107-03" defer></script><script src="/app.js?v=20261107-cam-05" defer></script><script src="/fleet-panel.js?v=20261109-01" defer></script><script src="/sim-lab-loader.js?v=20261110-01" defer></script><script src="/vision-core.js?v=20261108-01" defer></script><script src="/ai-vision.js?v=20261108-01" defer></script><script src="/face-recognition.js?v=20261108-01" defer></script><script src="/detection-events.js?v=20261108-01" defer></script><script src="/monitor.js?v=20261107-cam-04" defer></script><script src="/dashboard-layout.js?v=20261103-01" defer></script><script src="/dashboard-refinement.js?v=20261112-01" defer></script></body></html>

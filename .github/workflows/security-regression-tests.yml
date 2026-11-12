@@ -32,7 +32,9 @@ jobs:
       - name: Validate Python source
         run: python -m py_compile src/app.py src/worker.py src/biometric_crypto.py
       - name: Validate JavaScript
-        run: node --check public/app.js
+        run: |
+          node --check public/app.js
+          node --check public/dashboard-refinement.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
       - name: Validate full-screen monitor JavaScript
@@ -41,6 +43,8 @@ jobs:
         run: node --check public/face-recognition.js
       - name: Validate face dashboard browser test
         run: node --check tests/face-dashboard-browser.mjs
+      - name: Validate dashboard refinement browser test
+        run: node --check tests/dashboard-refinement-browser.mjs
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Install PlatformIO for firmware compile check
