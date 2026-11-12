@@ -123,7 +123,12 @@ class FleetDOLogic:
         if expires <= now or expires > now + 90:
             return {"ok": False, "error": "bad_request"}
         key = "fleet_ws_ticket:" + digest
+        by_device = "fleet_ws_ticket_device:" + device
+        previous = await self.s.get(by_device)
+        if isinstance(previous, str) and re.fullmatch(r"[0-9a-f]{64}", previous):
+            await self.s.delete("fleet_ws_ticket:" + previous)
         await self.s.put(key, {"device_id": device, "key_version": version, "expires_at": expires})
+        await self.s.put(by_device, digest)
         return {"ok": True}
 
     async def _op_ws_ticket_consume(self, r):
@@ -135,6 +140,10 @@ class FleetDOLogic:
         # Delete before returning any result: tickets are single-use even when
         # expired, revoked, or presented with an obsolete device key.
         await self.s.delete(key)
+        device_hint = str(ticket.get("device_id") or "") if isinstance(ticket, dict) else ""
+        by_device = "fleet_ws_ticket_device:" + device_hint
+        if device_hint and await self.s.get(by_device) == digest:
+            await self.s.delete(by_device)
         if not isinstance(ticket, dict) or int(ticket.get("expires_at") or 0) <= int(self.clock()):
             return {"ok": False, "error": "ticket_invalid"}
         device = str(ticket.get("device_id") or "")
