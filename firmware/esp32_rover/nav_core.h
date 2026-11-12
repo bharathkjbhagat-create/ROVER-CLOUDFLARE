@@ -97,7 +97,7 @@ enum Fsm : uint8_t {
   FSM_ESTOP, FSM_FAILED
 };
 enum Reason : uint8_t {
-  R_NONE = 0, R_OK, R_NO_BASE, R_NO_GPS, R_NO_HEADING, R_SENSOR_FAULT, R_BATTERY_LOW, R_ESTOP_LATCHED, R_OBSTACLE,
+  R_NONE = 0, R_SUCCESS, R_NO_BASE, R_NO_GPS, R_NO_HEADING, R_SENSOR_FAULT, R_BATTERY_LOW, R_ESTOP_LATCHED, R_OBSTACLE,
   R_NO_SAFE_ROUTE, R_NO_PROGRESS, R_TURN_TIMEOUT, R_AUTONOMY_TIMEOUT, R_MANUAL_LINK_LOSS, R_CMD_EXPIRED,
   R_USER_STOP, R_HW_FAULT, R_GPS_GLITCH, R_REJECTED, R_OFFLINE_AUTO, R_BUTTON_HELD
 };
@@ -179,7 +179,7 @@ class Controller {
         if (fsm_ == FSM_IDLE || fsm_ == FSM_MANUAL) {
           manual_ = c.type; manual_at_ = now;
           manual_ttl_ = c.ttl_ms ? c.ttl_ms : 1500;
-          if (fsm_ != FSM_MANUAL) setFsm(FSM_MANUAL, R_OK, now);
+          if (fsm_ != FSM_MANUAL) setFsm(FSM_MANUAL, R_SUCCESS, now);
         } else {
           push(EV_CMD_REJECTED, now, R_REJECTED);
         }
@@ -190,7 +190,7 @@ class Controller {
             fsm_ == FSM_PAUSED_LOCALIZATION || fsm_ == FSM_PAUSED_SENSOR_FAULT || fsm_ == FSM_PAUSED_LOW_BATTERY ||
             fsm_ == FSM_FAILED) {
           manual_ = CMD_NONE; resumes_ = 0; detours_ = 0;
-          startRtb(now, R_OK);
+          startRtb(now, R_SUCCESS);
         } else {
           push(EV_CMD_REJECTED, now, R_REJECTED);
         }
@@ -215,10 +215,10 @@ class Controller {
     if (!in.hw_ok && fsm_ != FSM_ESTOP) { latchEstop(now, R_HW_FAULT); }
     if (reset_req_) {
       reset_req_ = false;
-      if (fsm_ == FSM_ESTOP && !in.estop_button && in.hw_ok && front_ok_) setFsm(FSM_IDLE, R_OK, now);
+      if (fsm_ == FSM_ESTOP && !in.estop_button && in.hw_ok && front_ok_) setFsm(FSM_IDLE, R_SUCCESS, now);
       else push(EV_CMD_REJECTED, now, R_REJECTED);
     }
-    if (fsm_ == FSM_BOOT) { if (in.hw_ok) setFsm(FSM_IDLE, R_OK, now); return finish(Motors(), in); }
+    if (fsm_ == FSM_BOOT) { if (in.hw_ok) setFsm(FSM_IDLE, R_SUCCESS, now); return finish(Motors(), in); }
 
     // 2. Battery state machine (events once per transition).
     batteryCheck(in, now);
@@ -310,7 +310,7 @@ class Controller {
     const uint32_t now = in.now_ms;
     if (in.link == LINK_ONLINE) {
       link_bad_ = false;
-      if (offline_) { offline_ = false; push(EV_LINK_RESTORED, now, R_OK, link_class_, 0, (float)(now - offline_since_) / 1000.f); }
+      if (offline_) { offline_ = false; push(EV_LINK_RESTORED, now, R_SUCCESS, link_class_, 0, (float)(now - offline_since_) / 1000.f); }
       link_class_ = LINK_ONLINE;
       return;
     }
@@ -318,7 +318,7 @@ class Controller {
     link_class_ = in.link;
     if (!offline_ && now - link_bad_since_ >= cfg_.link_loss_declare_ms) {
       offline_ = true; offline_since_ = now; offline_auto_started_ = false;
-      push(EV_LINK_LOST, now, R_OK, in.link);
+      push(EV_LINK_LOST, now, R_SUCCESS, in.link);
     }
   }
   bool fresh(const Range& r, uint32_t now) const {
@@ -412,15 +412,15 @@ class Controller {
   }
   void stepPrecheck(const Inputs& in, uint32_t now) {
     if (!precheck(in, now, true)) return;
-    setFsm(FSM_RTB_NAVIGATE, R_OK, now); last_progress_ = now; best_dist_ = 1e9;
+    setFsm(FSM_RTB_NAVIGATE, R_SUCCESS, now); last_progress_ = now; best_dist_ = 1e9;
   }
   void stepLocalizationPause(const Inputs& in, uint32_t now) {
     // Bounded, explicit safe-resume policy: only localisation faults, only with fresh healthy data,
     // only a limited number of times.  Anything else needs a new operator command.
     if (now - pause_since_ > cfg_.resume_window_ms) return;
     if (resumes_ < cfg_.max_resumes && gps_ok_ && hdg_ok_ && front_ok_ && has_base_) {
-      resumes_++; push(EV_RESUME, now, R_OK, resumes_);
-      setFsm(FSM_RTB_PRECHECK, R_OK, now);
+      resumes_++; push(EV_RESUME, now, R_SUCCESS, resumes_);
+      setFsm(FSM_RTB_PRECHECK, R_SUCCESS, now);
     }
     (void)in;
   }
@@ -447,7 +447,7 @@ class Controller {
     if (!gps_ok_ || !hdg_ok_) { pause_since_ = now; setFsm(FSM_PAUSED_LOCALIZATION, gps_ok_ ? R_NO_HEADING : R_NO_GPS, now); push(EV_RTB_FAILED, now, gps_ok_ ? R_NO_HEADING : R_NO_GPS); return m; }
     if (offline_ && now - offline_since_ > cfg_.offline_max_autonomy_ms) { fail(now, R_AUTONOMY_TIMEOUT); return m; }
     rtb_dist_ = distanceM(in.gps.lat, in.gps.lon, base_lat_, base_lon_);
-    if (rtb_dist_ <= cfg_.arrive_radius_m) { confirm_ = 0; last_confirm_ = 0; setFsm(FSM_RTB_VERIFY_DOCK, R_OK, now); return m; }
+    if (rtb_dist_ <= cfg_.arrive_radius_m) { confirm_ = 0; last_confirm_ = 0; setFsm(FSM_RTB_VERIFY_DOCK, R_SUCCESS, now); return m; }
     if (rtb_dist_ < best_dist_ - 1.0) { best_dist_ = rtb_dist_; last_progress_ = now; }
     if (now - last_progress_ > cfg_.progress_timeout_ms) { fail(now, R_NO_PROGRESS); return m; }
     if (in.front.cm <= cfg_.stop_cm) {
@@ -525,7 +525,7 @@ class Controller {
           push(EV_OBSTACLE_STOP, now, R_OBSTACLE, 0, 0, in.front.cm);
           detours_++; phase_ = PH_SETTLE; phase_at_ = now; return m;
         }
-        if (travelled(in) >= cfg_.detour_m) { setFsm(FSM_RTB_NAVIGATE, R_OK, now); last_progress_ = now; best_dist_ = 1e9; return m; }
+        if (travelled(in) >= cfg_.detour_m) { setFsm(FSM_RTB_NAVIGATE, R_SUCCESS, now); last_progress_ = now; best_dist_ = 1e9; return m; }
         if (now - phase_at_ > cfg_.progress_timeout_ms) { fail(now, R_NO_PROGRESS); return m; }
         if (sideTight(in)) return rotateAway(in);
         int pp = cfg_.pwm_auto; if (in.front.cm < cfg_.slow_cm) pp = (pp * 6) / 10;
@@ -539,12 +539,12 @@ class Controller {
     // "Arrived" is only declared after N consecutive trusted fixes inside the radius while stopped.
     if (!gps_ok_) { pause_since_ = now; setFsm(FSM_PAUSED_LOCALIZATION, R_NO_GPS, now); push(EV_RTB_FAILED, now, R_NO_GPS); return; }
     rtb_dist_ = distanceM(in.gps.lat, in.gps.lon, base_lat_, base_lon_);
-    if (rtb_dist_ > cfg_.arrive_radius_m * 1.6) { setFsm(FSM_RTB_NAVIGATE, R_OK, now); last_progress_ = now; best_dist_ = 1e9; return; }
+    if (rtb_dist_ > cfg_.arrive_radius_m * 1.6) { setFsm(FSM_RTB_NAVIGATE, R_SUCCESS, now); last_progress_ = now; best_dist_ = 1e9; return; }
     if (rtb_dist_ <= cfg_.arrive_radius_m && now - last_confirm_ >= cfg_.arrive_sample_gap_ms) {
       last_confirm_ = now;
       if (++confirm_ >= cfg_.arrive_confirm_samples) {
-        push(EV_RTB_ARRIVED, now, R_OK, 0, 0, (float)rtb_dist_, in.gps.acc_m);
-        setFsm(FSM_RTB_ARRIVED, R_OK, now);
+        push(EV_RTB_ARRIVED, now, R_SUCCESS, 0, 0, (float)rtb_dist_, in.gps.acc_m);
+        setFsm(FSM_RTB_ARRIVED, R_SUCCESS, now);
       }
     }
   }
