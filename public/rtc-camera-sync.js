@@ -44,6 +44,19 @@
       return false;
     }
   };
+  const sendCameraState = (to, active) => {
+    const ws = socket();
+    const payload = { type: "rtc_camera_state", to, active: !!active };
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (pendingSignals.length < 128) pendingSignals.push(payload);
+      return false;
+    }
+    try { ws.send(JSON.stringify(payload)); return true; }
+    catch (_) {
+      if (pendingSignals.length < 128) pendingSignals.push(payload);
+      return false;
+    }
+  };
   function ensureRemoteVideo() {
     if (remoteVideo?.isConnected) return remoteVideo;
     const viewport = document.getElementById("cameraViewport");
@@ -224,7 +237,7 @@
       localStream = stream || null;
       const videoTrack = localStream?.getVideoTracks?.()[0] || null;
       for (const id of knownPeers) {
-        send(id, { type: "camera-state", active: !!videoTrack });
+        sendCameraState(id, !!videoTrack);
         const pc = peers.get(id);
         if (pc) {
           const videoTransceiver = pc.getTransceivers().find(t => t.receiver?.track?.kind === "video");
