@@ -47,13 +47,15 @@
     const viewport = $("cameraViewport");
     if (!viewport) return;
     const safeId = String(id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-    const videoId = "defenxRemoteCamera-" + safeId;
-    let video = $(videoId);
+    const primarySource = !localStream && !$("roverRealCamera");
+    const videoId = primarySource ? "roverRealCamera" : "defenxRemoteCamera-" + safeId;
+    let video = document.querySelector("[data-defenx-remote-camera='1'][data-defenx-peer-id='" + safeId + "']");
     if (!video) {
       video = document.createElement("video");
       video.id = videoId;
       video.dataset.defenxLiveStream = "1";
       video.dataset.defenxRemoteCamera = "1";
+      video.dataset.defenxPeerId = safeId;
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
@@ -77,8 +79,11 @@
 
   function removeRemoteVideo(id) {
     const safeId = String(id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
-    const video = $("defenxRemoteCamera-" + safeId);
+    const video = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"))
+      .find(node => node.dataset.defenxPeerId === safeId);
     if (video) { video.pause(); video.srcObject = null; video.remove(); }
+    const nextRemote = document.querySelector("[data-defenx-remote-camera='1']");
+    if (nextRemote && !$("roverRealCamera") && !localStream) nextRemote.id = "roverRealCamera";
     if (!document.querySelector("[data-defenx-remote-camera='1']")) {
       const badge = document.querySelector("#liveCamera .liveBadge");
       if (badge && !localStream) { badge.innerHTML = "<i></i> CHECKING"; badge.classList.add("mvOff"); }
@@ -185,7 +190,12 @@
       entry.transceiver.sender.replaceTrack(track).catch(() => {});
     }
     send({ type: "rtc_camera", active: !!localStream });
-    document.querySelectorAll("[data-defenx-remote-camera='1']").forEach(updateRemoteLayout);
+    const remoteVideos = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"));
+    remoteVideos.forEach(video => {
+      if (localStream && video.id === "roverRealCamera") video.id = "defenxRemoteCamera-" + (video.dataset.defenxPeerId || "remote");
+      updateRemoteLayout(video);
+    });
+    if (!localStream && !$("roverRealCamera") && remoteVideos[0]) remoteVideos[0].id = "roverRealCamera";
     if (localStream) status("LOCAL + REMOTE CAMERA LIVE", true);
   }
 
