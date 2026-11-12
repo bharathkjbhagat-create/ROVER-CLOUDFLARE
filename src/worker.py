@@ -233,6 +233,139 @@ class RealtimeHub(DurableObject):
         if upgrade != "websocket":
             return Response("Expected WebSocket", status=426)
 
+        # Physical/browser devices obtain a short-lived, single-use ticket through
+        # the signed fleet API. The ticket is stored as a hash and bound to the
+        # current key version, so revoke/rotate immediately invalidates it.
+        query = str(request.url).split("?", 1)[1] if "?" in str(request.url) else ""
+        params = {}
+        for part in query.split("&"):
+            key, sep, value = part.partition("=")
+            if sep:
+                params[key] = value
+        device_ticket = params.get("device_ticket", "")
+        attachment = None
+        if device_ticket:
+            try:
+                ticket_hash = hashlib.sha256(device_ticket.encode("ascii")).hexdigest()
+                result = await self.fleet_op(json.dumps({
+                    "op": "ws_ticket_consume", "ticket_hash": ticket_hash,
+                }, separators=(",", ":")))
+                if hasattr(result, "to_py"):
+                    result = result.to_py()
+                if not isinstance(result, dict) or result.get("ok") is not True:
+                    return Response("Device ticket invalid or expired", status=401)
+                attachment = {
+                    "kind": "device", "device_id": str(result.get("device_id") or ""),
+                    "key_version": int(result.get("key_version") or 0),
+                }
+            except Exception:
+                return Response("Device ticket invalid or expired", status=401)
+
+        if attachment is None:
+            cookie = str(request.headers.get("Cookie") or "")
+            if not cookie:
+                return Response("Authentication required", status=401)
+
+            # Validate the signed Flask session before exposing live telemetry.
+            try:
+                from app import app
+                session_cookie = None
+                for part in cookie.split(";"):
+                    name, sep, value = part.strip().partition("=")
+                    if name == app.config.get("SESSION_COOKIE_NAME", "session") and sep:
+                        session_cookie = value
+                        break
+                if not session_cookie:
+                    return Response("Authentication required", status=401)
+                serializer = app.session_interface.get_signing_serializer(app)
+                if serializer is None:
+                    return Response("Authentication service unavailable", status=503)
+                try:
+                    serializer.loads(session_cookie, max_age=int(app.permanent_session_lifetime.total_seconds()))
+                except Exception:
+                    return Response("Authentication required", status=401)
+                session_hash = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
+                if await self.is_session_revoked(session_hash):
+                    return Response("Authentication required", status=401)
+                attachment = {"kind": "operator", "cookie": cookie}
+            except Exception:
+                return Response("Authentication service unavailable", status=503)
+
+        client, server = WebSocketPair.new().object_values()
+        self.ctx.acceptWebSocket(server)
+        session_id = str(uuid.uuid4())
+        attachment["id"] = session_id
+        server.serializeAttachment(attachment)
+        self.sessions[session_id] = server
+
+        if attachment.get("kind") == "device":
+            server.send(json.dumps({"type": "connected", "realtime": True, "device_id": attachment["device_id"]}))
+        else:
+            server.send(json.dumps({"type": "connected", "realtime": True}))
+            state = await self.get_state()
+            if state:
+                server.send(json.dumps({
+                    "type": "state", "telemetry": state, "source": "initial"
+                }, separators=(",", ":")))
+        return Response(None, status=101, web_socket=client)
+
+    async def _device_websocket_message(self, ws, data, attachment):
+        if str(data.get("type") or "") == "ping":
+            ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
+            return
+        if str(data.get("type") or "") != "device_request":
+            return
+        device_id = str(attachment.get("device_id") or "")
+        path = str(data.get("path") or "")
+        if path not in {"/api/fleet/heartbeat", "/api/fleet/events/upload", "/api/fleet/commands/ack"}:
+            ws.send(json.dumps({"type": "device_error", "error": "Request path not allowed"}))
+            return
+        body = data.get("body")
+        ts, nonce, signature = (str(data.get(k) or "") for k in ("timestamp", "nonce", "signature"))
+        if not isinstance(body, str) or len(body.encode("utf-8")) > 32768:
+            ws.send(json.dumps({"type": "device_error", "error": "Request body invalid"}))
+            return
+        try:
+            request = js.Request.new(
+                "https://defenx.internal" + path,
+                {
+                    "method": "POST",
+                    "headers": {
+                        "Content-Type": "application/json",
+                        "X-Device-Id": device_id,
+                        "X-Timestamp": ts,
+                        "X-Nonce": nonce,
+                        "X-Signature": signature,
+                    },
+                    "body": body,
+                },
+            )
+            response = await self.ctx.exports.Default.fetch(request)
+            response_body = str(await response.text())
+            server_signature = str(response.headers.get("X-Server-Signature") or "")
+            ws.send(json.dumps({
+                "type": "device_response", "nonce": nonce,
+                "status": int(response.status), "body": response_body,
+                "signature": server_signature,
+            }, separators=(",", ":")))
+            if int(response.status) == 200 and path in {"/api/fleet/heartbeat", "/api/fleet/events/upload"}:
+                self._broadcast_device_sync(device_id)
+        except Exception:
+            ws.send(json.dumps({"type": "device_error", "error": "Device synchronization temporarily unavailable"}))
+
+    def _broadcast_device_sync(self, source_device):
+        payload = json.dumps({"type": "fleet_sync", "source_device": source_device}, separators=(",", ":"))
+        for socket in self.ctx.getWebSockets():
+            try:
+                info = socket.deserializeAttachment() or {}
+                if info.get("kind") == "device" and info.get("device_id") != source_device:
+                    socket.send(payload)
+            except Exception:
+                pass
+
+        if upgrade != "websocket":
+            return Response("Expected WebSocket", status=426)
+
         cookie = str(request.headers.get("Cookie") or "")
         if not cookie:
             return Response("Authentication required", status=401)
@@ -286,6 +419,14 @@ class RealtimeHub(DurableObject):
 
     async def webSocketMessage(self, ws, message):
         attachment = ws.deserializeAttachment() or {}
+        if attachment.get("kind") == "device":
+            try:
+                data = json.loads(str(message))
+            except Exception:
+                ws.send(json.dumps({"type": "device_error", "error": "Invalid message"}))
+                return
+            await self._device_websocket_message(ws, data, attachment)
+            return
         cookie = str(attachment.get("cookie") or "")
 
         try:
