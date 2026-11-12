@@ -43,6 +43,8 @@ jobs:
         run: node --check public/face-recognition.js
       - name: Validate face dashboard browser test
         run: node --check tests/face-dashboard-browser.mjs
+      - name: Validate dashboard refinement browser test
+        run: node --check tests/dashboard-refinement-browser.mjs
       - name: Check frontend performance budget
         run: python scripts/check_performance_budget.py
       - name: Install PlatformIO for firmware compile check
