@@ -105,7 +105,7 @@ class FleetApiTests(unittest.TestCase):
         self.assertGreaterEqual(data["expires_at"], int(time.time()))
         self.assertEqual(r.headers["X-Server-Signature"],
                          F.sign_response(secret, "PHONE-01", nonce, r.get_data()))
-        self.assertNotIn(data["ticket"], json.dumps(self.service.store._data))
+        self.assertNotIn(data["ticket"], json.dumps(self.service.store._kv))
         digest = __import__("hashlib").sha256(data["ticket"].encode("ascii")).hexdigest()
         self.assertIn("ws_ticket:" + digest, self.service.store._data)
 
