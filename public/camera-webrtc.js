@@ -11,13 +11,39 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
   let peerId = makePeerId();
-  const iceServers = Array.isArray(window.DEFENX_RTC_ICE_SERVERS) && window.DEFENX_RTC_ICE_SERVERS.length
+  const fallbackIceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+  let iceServers = Array.isArray(window.DEFENX_RTC_ICE_SERVERS) && window.DEFENX_RTC_ICE_SERVERS.length
     ? window.DEFENX_RTC_ICE_SERVERS
-    : [{ urls: "stun:stun.l.google.com:19302" }];
+    : fallbackIceServers;
+  let iceConfigPromise = null;
+  async function loadIceServers() {
+    if (!iceConfigPromise) {
+      iceConfigPromise = fetch("/api/rtc/ice-config", {
+        credentials: "same-origin",
+        headers: { "Accept": "application/json" },
+        cache: "no-store"
+      }).then(response => {
+        if (!response.ok) throw new Error("ICE configuration unavailable");
+        return response.json();
+      }).then(config => {
+        if (Array.isArray(config?.iceServers) && config.iceServers.length) {
+          iceServers = config.iceServers;
+        }
+        return iceServers;
+      }).catch(() => {
+        iceConfigPromise = null; // allow a later retry if the endpoint was temporarily unavailable
+        return iceServers;
+      });
+    }
+    return iceConfigPromise;
+  }
 
   let socket = null;
   let retryTimer = null;
+  let heartbeatTimer = null;
+  let pongTimer = null;
   let retryDelay = 1000;
+  const offersInFlight = new Set();
   let localStream = null;
   let stopped = false;
   const peers = new Map();
@@ -178,7 +204,9 @@
     removeRemoteVideo(id);
   }
 
-  function createPeer(id) {
+  async function createPeer(id) {
+    if (peers.has(id)) return peers.get(id);
+    await loadIceServers();
     if (peers.has(id)) return peers.get(id);
     const pc = new RTCPeerConnection({
       iceServers,
@@ -224,17 +252,24 @@
   }
 
   async function makeOffer(id, iceRestart = false) {
-    const entry = createPeer(id);
-    const offer = await entry.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
-    await entry.pc.setLocalDescription(offer);
-    send({ type: "rtc_signal", target: id, signal: {
-      type: "offer", sdp: entry.pc.localDescription.sdp
-    }});
+    if (offersInFlight.has(id)) return;
+    offersInFlight.add(id);
+    try {
+      const entry = await createPeer(id);
+      if (entry.pc.signalingState !== "stable") return;
+      const offer = await entry.pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
+      await entry.pc.setLocalDescription(offer);
+      send({ type: "rtc_signal", target: id, signal: {
+        type: "offer", sdp: entry.pc.localDescription.sdp
+      }});
+    } finally {
+      offersInFlight.delete(id);
+    }
   }
 
   async function handleSignal(from, signal) {
     if (!from || from === peerId || !signal || typeof signal !== "object") return;
-    const entry = createPeer(from);
+    const entry = await createPeer(from);
     const pc = entry.pc;
     if (signal.type === "offer") {
       await pc.setRemoteDescription({ type: "offer", sdp: signal.sdp });
@@ -282,17 +317,22 @@
 
   function handleMessage(message) {
     if (!message || typeof message !== "object") return;
+    if (message.type === "pong") {
+      clearTimeout(pongTimer);
+      pongTimer = null;
+      return;
+    }
     if (message.type === "rtc_peer_list") {
       (message.peers || []).forEach(peer => {
         if (!peer || !peer.id || peer.id === peerId) return;
-        createPeer(peer.id);
         if (peerId < peer.id) makeOffer(peer.id).catch(() => {});
+        else createPeer(peer.id).catch(() => {});
       });
     } else if (message.type === "rtc_peer_joined") {
       const peer = message.peer || {};
       if (!peer.id || peer.id === peerId) return;
-      createPeer(peer.id);
       if (peerId < peer.id) makeOffer(peer.id).catch(() => {});
+      else createPeer(peer.id).catch(() => {});
     } else if (message.type === "rtc_peer_left") {
       closePeer(message.peer_id);
     } else if (message.type === "rtc_camera") {
@@ -314,12 +354,25 @@
       send({ type: "rtc_join", peer_id: peerId });
       if (localStream) send({ type: "rtc_camera", active: true });
       status(localStream ? "LOCAL CAMERA • CONNECTING TO DEVICES" : "CAMERA SYNC CONNECTED");
+      clearInterval(heartbeatTimer);
+      heartbeatTimer = setInterval(() => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        send({ type: "ping", t: Date.now() });
+        clearTimeout(pongTimer);
+        pongTimer = setTimeout(() => {
+          try { ws.close(4000, "Camera sync heartbeat timeout"); } catch (_) {}
+        }, 10000);
+      }, 20000);
     };
     ws.onmessage = event => {
       try { handleMessage(JSON.parse(event.data)); } catch (_) {}
     };
     ws.onerror = () => { try { ws.close(); } catch (_) {} };
     ws.onclose = () => {
+      clearInterval(heartbeatTimer);
+      clearTimeout(pongTimer);
+      heartbeatTimer = null;
+      pongTimer = null;
       if (socket === ws) socket = null;
       for (const id of Array.from(peers.keys())) closePeer(id);
       peerId = makePeerId();
@@ -341,6 +394,8 @@
   window.addEventListener("pagehide", () => {
     stopped = true;
     clearTimeout(retryTimer);
+    clearInterval(heartbeatTimer);
+    clearTimeout(pongTimer);
     for (const id of Array.from(peers.keys())) closePeer(id);
     if (socket) { try { socket.close(1000, "page hidden"); } catch (_) {} }
     socket = null;
