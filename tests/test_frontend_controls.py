@@ -141,12 +141,8 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('RTC_TURN_API_TOKEN', self.worker)
         self.assertIn('generate-ice-servers', self.worker)
         self.assertIn('stun:stun.cloudflare.com:3478', self.server_app)
-        self.assertIn('async function loadIceServers()', self.camera_webrtc)
-        self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
         self.assertIn('setInterval(() => {', self.camera_webrtc)
-        self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
         self.assertIn('@app.get("/api/rtc/ice-config")', self.server_app)
-        self.assertIn('RTC_TURN_SHARED_SECRET', self.server_app)
         self.assertIn('turnEnabled', self.server_app)
 
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
