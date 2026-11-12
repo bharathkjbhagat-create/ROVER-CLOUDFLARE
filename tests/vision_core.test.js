@@ -175,6 +175,7 @@ test("liveness: randomized three-step challenge requires the requested actions i
   assert.equal(lv.prompt(), null);
   assert.equal(lv.verified(t), true);
   assert.equal(lv.verified(t + 20000), false);
+  assert.notEqual(lv.prompt(), null);
 });
 
 /* ---------- face clarity ---------- */
