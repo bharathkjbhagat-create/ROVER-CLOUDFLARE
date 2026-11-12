@@ -31,18 +31,22 @@
         return response.json();
       }).then(config => {
         if (Array.isArray(config?.iceServers) && config.iceServers.length) {
-          // Keep the independent free STUN fallbacks even if the server supplies
-          // only one STUN endpoint. Preserve any short-lived TURN credentials
-          // only if explicitly configured server-side by the project owner.
+          // Strict free-only mode: accept STUN URLs only. Never use TURN relays,
+          // even if TURN credentials are later added to the server configuration.
           const combined = [...config.iceServers, ...fallbackIceServers];
           const seen = new Set();
-          iceServers = combined.filter(server => {
-            const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
-            const key = urls.filter(Boolean).sort().join("|");
-            if (!key || seen.has(key)) return false;
+          iceServers = combined.map(server => {
+            const urls = (Array.isArray(server.urls) ? server.urls : [server.urls])
+              .filter(url => typeof url === "string" && url.trim().toLowerCase().startsWith("stun:"));
+            return urls.length ? { urls } : null;
+          }).filter(server => {
+            if (!server) return false;
+            const key = server.urls.slice().sort().join("|");
+            if (seen.has(key)) return false;
             seen.add(key);
             return true;
           });
+          if (!iceServers.length) iceServers = fallbackIceServers.slice();
         }
         return iceServers;
       }).catch(() => {
