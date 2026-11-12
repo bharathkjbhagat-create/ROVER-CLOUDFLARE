@@ -68,10 +68,10 @@ FSM states: BOOT, IDLE, MANUAL, RTB_PRECHECK, RTB_NAVIGATE, RTB_AVOID, RTB_VERIF
 7. Offline run (≥10–15 min, battery logged): events/GPS track persisted; reconnect ⇒ upload, no duplicates, dashboard restored.
 8. RTB on open ground at low PWM with a person on the e-stop: obstacle (box) detour, no-route (wall) ⇒ safe stop, GPS-block ⇒ pause, low battery.
 9. Two real phones + dashboard: location/status propagate, airplane-mode phone shows OFFLINE then recovers.
-10. Face recognition: enrol ≥3 people, test lighting/angles, printed photo + screen replay attacks; record FAR/FRR before trusting it.
+10. Face recognition: enroll up to three reference photos per person; test ≥3 people, lighting/angles, printed photo + screen replay attacks; record FAR/FRR before trusting it.
 
 ## Known limitations
-* ESP32 firmware uses signed HTTPS polling; the browser phone client supports signed WebSocket requests with HTTPS fallback. ESP32 WebSocket firmware support remains outstanding.
+* ESP32 firmware uses signed HTTPS polling; the browser phone client supports signed WebSocket requests with HTTPS fallback. ESP32 WebSocket firmware support and real runtime verification remain outstanding.
 * Per-instance rate limiter (add Cloudflare WAF rate-limit rules for production).
 * Server preflight sees telemetry up to 4 s old; the rover re-validates locally.
 * Phone device secret lives in browser storage if "Remember" is ticked.
