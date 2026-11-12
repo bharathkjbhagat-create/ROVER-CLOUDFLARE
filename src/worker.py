@@ -391,6 +391,14 @@ class RealtimeHub(DurableObject):
             ):
                 ws.send(json.dumps({"type": "rtc_error", "error": "Invalid camera peer ID"}))
                 return
+            for socket in self.ctx.getWebSockets():
+                try:
+                    info = socket.deserializeAttachment() or {}
+                    if socket != ws and info.get("rtc_room") == "defenx-global" and info.get("rtc_peer_id") == requested:
+                        ws.send(json.dumps({"type": "rtc_error", "error": "Camera peer ID already connected"}))
+                        return
+                except Exception:
+                    pass
             attachment["rtc_peer_id"] = requested
             attachment["rtc_room"] = "defenx-global"
             attachment["rtc_camera"] = False
