@@ -317,7 +317,8 @@
         retryDelay = 1000;
         status(localStream ? "LOCAL + REMOTE DEVICE LINK LIVE" : "REMOTE DEVICE LINK LIVE", true);
       } else if (pc.connectionState === "failed") {
-        status("CAMERA LINK FAILED • NETWORK RELAY MAY BE REQUIRED");
+        setRemoteCameraActive(id, false);
+        status("CAMERA LINK FAILED • CHECK NETWORK CONNECTION");
       }
     };
     return entry;
