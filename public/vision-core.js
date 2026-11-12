@@ -214,7 +214,7 @@
   }
 
   class Liveness {
-    constructor() { this.eyes = []; this.prev = null; this.nonRigidRun = 0; this.evidenceAt = 0; this.evidence = { blinks: 0, mouth: 0, nonRigid: 0 }; this.closed = false; this.mouthOpen = false; }
+    constructor() { this.eyes = []; this.prev = null; this.nonRigidRun = 0; this.evidenceAt = 0; this.evidence = { blinks: 0, mouth: 0, nonRigid: 0 }; this.evidenceByTypeAt = { blinks: 0, mouth: 0, nonRigid: 0 }; this.closed = false; this.mouthOpen = false; }
     update(pts, now) {
       const e = eyeAspect(pts), m = mouthAspect(pts);
       this.eyes.push(e); if (this.eyes.length > 90) this.eyes.shift();
@@ -222,20 +222,21 @@
       const base = sorted[Math.floor(sorted.length * 0.75)] || e; // typical open-eye level
       if (this.eyes.length >= 6 && base >= T.ear.minOpen) {
         const isClosed = e < base * T.ear.closedRatio;
-        if (this.closed && !isClosed) { this.evidence.blinks++; this.evidenceAt = now; }
+        if (this.closed && !isClosed) { this.evidence.blinks++; this.evidenceAt = now; this.evidenceByTypeAt.blinks = now; }
         this.closed = isClosed;
       }
       const open = m > 0.35;
-      if (this.mouthOpen && !open) { this.evidence.mouth++; this.evidenceAt = now; }
+      if (this.mouthOpen && !open) { this.evidence.mouth++; this.evidenceAt = now; this.evidenceByTypeAt.mouth = now; }
       this.mouthOpen = open;
       if (this.prev) {
         const r = shapeResidual(this.prev, pts);
         this.nonRigidRun = r >= T.nonRigid ? this.nonRigidRun + 1 : 0;
-        if (this.nonRigidRun >= 3) { this.evidence.nonRigid++; this.evidenceAt = now; this.nonRigidRun = 0; }
+        if (this.nonRigidRun >= 3) { this.evidence.nonRigid++; this.evidenceAt = now; this.evidenceByTypeAt.nonRigid = now; this.nonRigidRun = 0; }
       }
       this.prev = pts;
     }
-    verified(now) { return this.evidenceAt > 0 && now - this.evidenceAt <= T.livenessHoldMs; }
+    // Conservative multi-cue presence heuristic; this is not validated presentation-attack detection.
+    verified(now) { return Object.values(this.evidenceByTypeAt).filter(at => at > 0 && now - at <= T.livenessHoldMs).length >= 2; }
   }
 
   /* ---------------- face clarity & mask ---------------- */
