@@ -370,6 +370,9 @@ return window.roverWS?.readyState===WebSocket.OPEN?"● ONLINE • REALTIME":"�
 }
 function applyRemoteState(message){
 if(!message)return;
+if(message.type==="connected"&&message.peer_id){
+window.dispatchEvent(new CustomEvent("defenx-rtc-message",{detail:{type:"rtc_connected",peer_id:message.peer_id}}));
+}
 if(String(message.type||"").startsWith("rtc_")){
 window.dispatchEvent(new CustomEvent("defenx-rtc-message",{detail:message}));
 return;
