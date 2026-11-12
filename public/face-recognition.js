@@ -390,6 +390,12 @@
   const viewport = $("cameraViewport");
   if (viewport && window.MutationObserver) new MutationObserver(onCameraChange).observe(viewport, { childList: true, subtree: true });
   window.addEventListener("defenx-camera-live", onCameraChange);
+  window.addEventListener("defenx-face-profiles-changed", async () => {
+    const tab = document.getElementById("faceTab");
+    if (!document.hidden && tab && !tab.classList.contains("hidden")) {
+      await loadEnrollments(); await renderEnrollList(); refreshBar();
+    }
+  });
   bindEnrollmentUi();
   refreshBar();
   if (!demoMode) loadEnrollments().then(() => { refreshBar(); bootModels(); });

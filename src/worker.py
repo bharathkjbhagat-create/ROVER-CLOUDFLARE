@@ -172,6 +172,7 @@ class RealtimeHub(DurableObject):
                 "created_by": str(enrollment.get("created_by") or "")[:64],
             })
             await self.ctx.storage.put("face_enrollments", rows)
+            self._broadcast({"type": "face_profiles_changed", "operation": "added", "profile_id": ident})
             return {"ok": True, "id": ident}
         if operation == "get":
             ident = str(request.get("id") or "")
@@ -183,6 +184,7 @@ class RealtimeHub(DurableObject):
             if len(retained) == len(rows):
                 return {"ok": False, "error": "not_found"}
             await self.ctx.storage.put("face_enrollments", retained)
+            self._broadcast({"type": "face_profiles_changed", "operation": "deleted", "profile_id": ident})
             return {"ok": True, "id": ident}
         return {"ok": False, "error": "bad_request"}
 
