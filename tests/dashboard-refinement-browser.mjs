@@ -117,6 +117,15 @@ try {
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".defenx-drawer-backdrop")).visibility), "visible");
   assert.equal(await page.evaluate(() => document.activeElement.classList.contains("navItem")), true);
 
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.scroll), "liveMap");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "sideLogoutBtn");
+  await page.keyboard.press("Tab");
+  assert.equal(await page.evaluate(() => document.activeElement.dataset.scroll), "dashboardTop");
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "sideLogoutBtn");
+
   await page.keyboard.press("Escape");
   await page.waitForFunction(() => !document.body.classList.contains("defenx-drawer-open"));
   assert.equal(await menu.getAttribute("aria-expanded"), "false");
@@ -124,7 +133,8 @@ try {
   assert.equal(await page.evaluate(() => document.activeElement.id), "mobileMenuBtn");
 
   await menu.click();
-  await page.locator(".defenx-drawer-backdrop").click({ position: { x: 8, y: 8 } });
+  const viewport = page.viewportSize();
+  await page.locator(".defenx-drawer-backdrop").click({ position: { x: viewport.width - 8, y: 8 } });
   await page.waitForFunction(() => !document.body.classList.contains("defenx-drawer-open"));
 
   await menu.click();
