@@ -417,7 +417,18 @@ class RealtimeHub(DurableObject):
             target_id = str(data.get("to") or "")
             if not sender_id or not target_id or sender_id == target_id:
                 return
-            target = self.sessions.get(target_id)
+            # Resolve the peer from live Durable Object sockets rather than
+            # relying only on an isolate-local dictionary. This survives object
+            # hibernation/re-instantiation because socket attachments persist.
+            target = None
+            for candidate in self.ctx.getWebSockets():
+                try:
+                    candidate_info = candidate.deserializeAttachment() or {}
+                    if candidate_info.get("kind") == "operator" and str(candidate_info.get("id") or "") == target_id:
+                        target = candidate
+                        break
+                except Exception:
+                    pass
             if target is None:
                 ws.send(json.dumps({
                     "type": "rtc_signal_error", "to": target_id,
