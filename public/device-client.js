@@ -52,14 +52,29 @@
       if (!stored.size) break;
     }
   }
+  const peerRows = new Map();
   function renderPeers(peers) {
-    const box = $("peers"); box.textContent = "";
-    if (!peers.length) { box.textContent = "No other devices registered yet."; return; }
-    peers.forEach(p => { const d = document.createElement("div"); d.className = "peer";
-      d.textContent = p.id + " (" + p.role + ") — " + (p.online ? "ONLINE" : "OFFLINE") +
+    const box = $("peers");
+    if (peers.length && peerRows.size === 0) box.textContent = "";
+    const seen = new Set();
+    for (const p of peers) {
+      const id = String(p.id);
+      seen.add(id);
+      let row = peerRows.get(id);
+      if (!row) { row = document.createElement("div"); row.className = "peer"; peerRows.set(id, row); }
+      row.textContent = id + " (" + p.role + ") — " + (p.online ? "ONLINE" : "OFFLINE") +
         (p.lat !== undefined ? " · " + p.lat.toFixed(5) + ", " + p.lon.toFixed(5) : " · no GPS") +
         (p.battery !== undefined ? " · " + Math.round(p.battery) + "%" : "") + (p.estop ? " · E-STOP" : "");
-      box.appendChild(d); });
+      box.appendChild(row);
+    }
+    for (const [id, row] of peerRows) {
+      if (seen.has(id)) continue;
+      row.remove(); peerRows.delete(id);
+    }
+    if (!peers.length) {
+      peerRows.clear();
+      box.textContent = "No other devices registered yet.";
+    }
   }
   async function tick() {
     if (!running) return;

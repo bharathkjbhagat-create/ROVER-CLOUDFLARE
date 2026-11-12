@@ -193,16 +193,32 @@
     toggle.textContent = wanted ? "STOP FACE ID" : "START FACE ID";
     toggle.disabled = demoMode || storageMode !== "server" || next === "loading" || !sourceOk();
   }
+  const faceStatusRows = new Map();
   function renderList(results) {
     if (!list) return;
-    if (!results.length) { list.innerHTML = ""; return; }
-    list.innerHTML = results.map(f => {
-      const idLine = f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + esc(f.name) : f.identity;
+    const seen = new Set();
+    for (const f of results) {
+      const key = String(f.id);
+      seen.add(key);
+      let row = faceStatusRows.get(key);
+      if (!row) {
+        row = document.createElement("div"); row.className = "faceStatusRow"; row.dataset.id = key;
+        row.append(document.createElement("b"), document.createElement("span"));
+        faceStatusRows.set(key, row);
+      }
+      const idLine = f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity;
       const conf = f.identity === STATUS.RECOGNIZED || f.identity === STATUS.UNKNOWN ? " • " + Math.round(f.identityConfidence * 100) + "%" : "";
-      const extra = f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + esc(f.reasons.join(", ")) : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""));
+      const extra = f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""));
       const maskText = f.mask + (f.mask === STATUS.NOT_CLEAR ? "" : " • " + Math.round(f.maskConfidence * 100) + "%");
-      return '<div class="faceStatusRow" data-id="' + esc(f.id) + '"><b>' + idLine + conf + '</b><span>' + esc(maskText) + extra + '</span></div>';
-    }).join("");
+      row.children[0].textContent = idLine + conf;
+      row.children[1].textContent = maskText + extra;
+      // Reuse each tracked face's row to avoid rebuilding the admin UI on every camera frame.
+      list.appendChild(row);
+    }
+    for (const [key, row] of faceStatusRows) {
+      if (seen.has(key)) continue;
+      row.remove(); faceStatusRows.delete(key);
+    }
   }
   function refreshBar() {
     if (demoMode) { setState("demo", "FACE ID DISABLED IN DEMO MODE"); return; }
