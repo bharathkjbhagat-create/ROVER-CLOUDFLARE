@@ -135,24 +135,47 @@ test("liveness: a still face, rigid photo motion and landmark jitter are NOT liv
   const jitter = run(60, () => landmarks(200, 200, 60).map(([x, y]) => [x + (rnd() - 0.5) * 0.3, y + (rnd() - 0.5) * 0.3]));
   assert.equal(jitter.lv.verified(6000), false);
 });
-test("liveness: one blink alone is insufficient and expires", () => {
-  const seq = i => landmarks(200, 200, 60, { eye: (i >= 12 && i < 15) ? 0.3 : 1 });
-  const { lv, t } = run(30, seq);
-  assert.ok(lv.evidence.blinks >= 1);
+test("liveness: one blink alone cannot complete the randomized challenge", () => {
+  const lv = new core.Liveness(() => 0); let t = 0;
+  const frame = opts => { lv.update(landmarks(200, 200, 60, opts), t); t += 100; };
+  for (let i = 0; i < 8; i++) frame({});
+  for (let i = 0; i < 3; i++) frame({ eye: 0.3 });
+  for (let i = 0; i < 4; i++) frame({});
+  assert.ok(lv.challengeIndex <= 1);
   assert.equal(lv.verified(t), false);
 });
-test("liveness: mouth movement alone is insufficient", () => {
-  const { lv, t } = run(30, i => landmarks(200, 200, 60, { mouth: (i >= 10 && i < 16) ? 1 : 0 }));
-  assert.ok(lv.evidence.mouth >= 1); assert.equal(lv.verified(t), false);
+test("liveness: mouth movement alone cannot complete the randomized challenge", () => {
+  const lv = new core.Liveness(() => 0); let t = 0;
+  const frame = opts => { lv.update(landmarks(200, 200, 60, opts), t); t += 100; };
+  for (let i = 0; i < 8; i++) frame({});
+  for (let i = 0; i < 3; i++) frame({ mouth: 1 });
+  for (let i = 0; i < 4; i++) frame({});
+  assert.ok(lv.challengeIndex <= 1);
+  assert.equal(lv.verified(t), false);
 });
-test("liveness: separate recent blink and mouth cues are required", () => {
-  const { lv, t } = run(40, i => landmarks(200, 200, 60, {
-    eye: (i >= 8 && i < 11) ? 0.3 : 1,
-    mouth: (i >= 20 && i < 26) ? 1 : 0
-  }));
-  assert.ok(lv.evidence.blinks >= 1); assert.ok(lv.evidence.mouth >= 1);
+test("liveness: randomized three-step challenge requires the requested actions in order", () => {
+  const lv = new core.Liveness(() => 0);
+  let t = 0;
+  const frame = opts => { lv.update(landmarks(200, 200, 60, opts), t); t += 100; };
+  for (let i = 0; i < 8; i++) frame({});
+  for (const cue of lv.challenge) {
+    if (cue === "blink") {
+      for (let i = 0; i < 3; i++) frame({ eye: 0.3 });
+      for (let i = 0; i < 3; i++) frame({});
+    } else if (cue === "mouth") {
+      for (let i = 0; i < 3; i++) frame({ mouth: 1 });
+      for (let i = 0; i < 3; i++) frame({});
+    } else {
+      const yaw = cue === "turn_left" ? -0.25 : 0.25;
+      for (let i = 0; i < 3; i++) frame({ yaw });
+      for (let i = 0; i < 3; i++) frame({});
+    }
+  }
+  assert.equal(lv.challenge.length, 3);
+  assert.equal(lv.prompt(), null);
   assert.equal(lv.verified(t), true);
   assert.equal(lv.verified(t + 20000), false);
+  assert.notEqual(lv.prompt(), null);
 });
 
 /* ---------- face clarity ---------- */
