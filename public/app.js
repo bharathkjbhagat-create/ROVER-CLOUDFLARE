@@ -387,6 +387,7 @@ updateUI(message.telemetry);
 setText("conn",connectionText(message.telemetry));
 return;
 }
+if(message.type==="face_profiles_changed"){window.dispatchEvent(new CustomEvent("defenx-face-profiles-changed",{detail:{operation:message.operation}}));}
 if(message.type==="connected"){setText("conn","● ONLINE • REALTIME");}
 if(message.type==="command-error"){addLog("DENIED",message.error||"Command rejected");}
 }
