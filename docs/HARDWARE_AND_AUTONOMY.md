@@ -75,4 +75,4 @@ FSM states: BOOT, IDLE, MANUAL, RTB_PRECHECK, RTB_NAVIGATE, RTB_AVOID, RTB_VERIF
 * Server preflight sees telemetry up to 4 s old; the rover re-validates locally.
 * Phone device secret lives in browser storage if "Remember" is ticked.
 * Camera metadata upload: only camera up/down events; no frames.
-* TLS: `TLS_ROOT_CA nullptr` uses `setInsecure()` – bench only; pin your CA for field use.
+* TLS is fail-closed: firmware refuses HTTPS requests until `TLS_ROOT_CA` contains a valid CA PEM. Never use insecure TLS for field operation. For isolated LAN bench tests only, you may deliberately set `DEFENX_USE_TLS 0`; keep that build off the internet and do not treat it as production-ready.
