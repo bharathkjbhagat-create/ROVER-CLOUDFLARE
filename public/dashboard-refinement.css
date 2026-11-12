@@ -194,3 +194,70 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
 @media (prefers-reduced-motion: reduce) {
   .sidebar, .defenx-drawer-backdrop { transition: none !important; }
 }
+
+/* Equal-width dashboard card matrix.
+   Each paired row shares one grid track, so a taller card can never squeeze
+   its neighbour into a narrower column. Cards stretch to the same row height. */
+@media (min-width: 1100px) {
+  .dashboardGrid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "map camera"
+      "control device"
+      "fleet simulation" !important;
+    grid-auto-flow: row !important;
+    grid-auto-rows: minmax(0, auto) !important;
+    align-items: stretch !important;
+    column-gap: 16px !important;
+    row-gap: 16px !important;
+  }
+  .dashboardGrid > .rightStack { display: contents !important; }
+  .dashboardGrid > .mapCard,
+  .dashboardGrid > .cameraCard,
+  .dashboardGrid > .controlCard,
+  .dashboardGrid > .deviceCard,
+  .dashboardGrid > .fleetCard,
+  .dashboardGrid > .simLabCard {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+  .dashboardGrid > .mapCard { grid-area: map !important; }
+  .dashboardGrid > .cameraCard { grid-area: camera !important; }
+  .dashboardGrid > .controlCard { grid-area: control !important; }
+  .dashboardGrid > .deviceCard { grid-area: device !important; }
+  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid > .simLabCard { grid-area: simulation !important; }
+
+  .lowerGrid {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-auto-rows: minmax(0, auto) !important;
+    align-items: stretch !important;
+    gap: 16px !important;
+  }
+  .lowerGrid > .card {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+  .lowerGrid > .adminLogCard { grid-column: auto !important; }
+}
+
+@media (min-width: 651px) and (max-width: 1099px) {
+  .dashboardGrid,
+  .lowerGrid {
+    column-gap: 14px !important;
+    row-gap: 14px !important;
+  }
+  .dashboardGrid > *,
+  .lowerGrid > .card {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+}
