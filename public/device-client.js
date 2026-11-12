@@ -6,6 +6,7 @@
   const P = window.DefenxFleetProtocol, $ = id => document.getElementById(id);
   const QKEY = "defenx_device_queue_v1", HB = "/api/fleet/heartbeat";
   let timer = null, running = false, seq = 0, evCounter = 0, bootId = "", gps = null, watchId = null, backoff = 1500;
+  let tickBusy = false, tickAgain = false;
   let socket = null, socketReady = false, socketOpening = false, socketRetry = null, socketBackoff = 1000;
   const socketPending = new Map();
   let secret = "", deviceId = "", lastOk = 0, offlineSince = null, camOn = false, camStream = null, queue = [];
@@ -156,6 +157,8 @@
   }
   async function tick() {
     if (!running) return;
+    if (tickBusy) { tickAgain = true; return; }
+    tickBusy = true;
     try {
       seq++;
       const r = await post(HB, { ...snapshot(await battery()), seq, boot_id: bootId, pending_events: queue.length });
@@ -175,7 +178,9 @@
         setState(navigator.onLine ? "SERVER UNREACHABLE · RECONNECTING" : "NO NETWORK · RECONNECTING", "warn"); backoff = Math.min(backoff * (1.5 + Math.random() * 0.4), 10000);
       }
     }
-    if (running) timer = setTimeout(tick, socketReady ? 2000 : backoff);
+    tickBusy = false;
+    const runAgain = tickAgain; tickAgain = false;
+    if (running) timer = setTimeout(tick, runAgain ? 0 : (socketReady ? 2000 : backoff));
   }
   function startGps() {
     if (!navigator.geolocation) { log("Geolocation unavailable in this browser"); return; }
