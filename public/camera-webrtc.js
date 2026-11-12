@@ -133,6 +133,9 @@
         makeOffer(id, true).catch(() => {});
       } else if (pc.connectionState === "connected") {
         retryDelay = 1000;
+        status(localStream ? "LOCAL + REMOTE DEVICE LINK LIVE" : "REMOTE DEVICE LINK LIVE", true);
+      } else if (pc.connectionState === "failed") {
+        status("CAMERA LINK FAILED • NETWORK RELAY MAY BE REQUIRED");
       }
     };
     return entry;
