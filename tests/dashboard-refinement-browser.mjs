@@ -67,7 +67,17 @@ try {
             <div id="detectionEventList"></div>
           </section>
         </section>
+        <section class="card deviceCard">DEVICE</section>
+        <section class="card controlCard">CONTROL</section>
+        <section class="card fleetCard">FLEET</section>
+        <section class="card simLabCard">SIMULATION</section>
       </div>
+    </section>
+    <section class="lowerGrid">
+      <section class="card statusCard">STATUS</section>
+      <section class="card targetCard">TARGET</section>
+      <section class="card recentCard">RECENT</section>
+      <section class="card adminLogCard">AUDIT</section>
     </section>
     <section class="controlCard">
       <div class="returnBaseActions">
@@ -102,6 +112,30 @@ try {
   }, watchedButtonIds);
 
   await page.addStyleTag({ content: css });
+  const desktopGrid = await page.evaluate(() => {
+    const grid = document.querySelector(".dashboardGrid");
+    const lower = document.querySelector(".lowerGrid");
+    const widths = getComputedStyle(grid).gridTemplateColumns.split(" ").map(Number);
+    const lowerWidths = getComputedStyle(lower).gridTemplateColumns.split(" ").map(Number);
+    return {
+      columns: widths.length,
+      equalColumns: widths.length === 2 && Math.abs(widths[0] - widths[1]) < 1,
+      lowerColumns: lowerWidths.length,
+      lowerEqualColumns: lowerWidths.length === 2 && Math.abs(lowerWidths[0] - lowerWidths[1]) < 1,
+      mapArea: getComputedStyle(document.querySelector(".mapCard")).gridArea,
+      cameraArea: getComputedStyle(document.querySelector(".cameraCard")).gridArea,
+      fleetArea: getComputedStyle(document.querySelector(".fleetCard")).gridArea,
+      simulationArea: getComputedStyle(document.querySelector(".simLabCard")).gridArea
+    };
+  });
+  assert.equal(desktopGrid.columns, 2, "main dashboard must use two equal columns");
+  assert.equal(desktopGrid.equalColumns, true, "main dashboard columns must remain equal width");
+  assert.equal(desktopGrid.lowerColumns, 2, "lower dashboard must use two columns");
+  assert.equal(desktopGrid.lowerEqualColumns, true, "lower dashboard columns must remain equal width");
+  assert.match(desktopGrid.mapArea, /map/);
+  assert.match(desktopGrid.cameraArea, /camera/);
+  assert.match(desktopGrid.fleetArea, /fleet/);
+  assert.match(desktopGrid.simulationArea, /simulation/);
   await page.addScriptTag({ content: script });
 
   const menu = page.locator("#mobileMenuBtn");
