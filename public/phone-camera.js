@@ -148,9 +148,9 @@ function stop(){
  if(!active&&!pending)return;
  if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
  if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
- window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
  stopTracks(stream);stream=null;active=false;pending=false;
  restoreElement();
+ window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
  window.__defenxSetPhoneCameraActive?.(false);
  const scene=$("camera3DScene");if(scene)scene.style.display="";
  notice(null);
