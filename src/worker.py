@@ -1069,7 +1069,7 @@ class Default(WorkerEntrypoint):
                             if isinstance(urls, list):
                                 server["urls"] = [
                                     item for item in urls
-                                    if ":53" not in str(item).split("?")[0]
+                                    if not str(item).split("?")[0].endswith(":53")
                                 ]
                         return Response(
                             json.dumps({
