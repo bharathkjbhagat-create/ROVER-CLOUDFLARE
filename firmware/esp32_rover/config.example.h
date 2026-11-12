@@ -7,7 +7,7 @@
 #define DEFENX_USE_TLS   1            // 0 only for a LAN test server
 #define DEVICE_ID        "ROVER-01"
 #define DEVICE_SECRET    "paste-64-hex-chars-shown-once-in-dashboard"
-#define TLS_ROOT_CA      nullptr      // REQUIRED: set to your server CA PEM; nullptr makes HTTPS fail closed
+#define TLS_ROOT_CA      ""           // REQUIRED: set to your server CA PEM; empty makes HTTPS fail closed
 
 // Pins (ESP32 DevKit). Motor driver: L298N / TB6612. ENA/ENB must have pull-downs so motors are OFF while the ESP32 boots/resets.
 #define PIN_MOTOR_L_IN1 26
