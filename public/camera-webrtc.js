@@ -29,7 +29,8 @@
         return response.json();
       }).then(config => {
         if (Array.isArray(config?.iceServers) && config.iceServers.length) {
-          // This project stays on free STUN only; TURN relays are deliberately excluded.
+          // Strict free-only mode: accept STUN URLs only. Never use TURN relays,
+          // even if TURN credentials are later added to the server configuration.
           const combined = [...config.iceServers, ...fallbackIceServers];
           const seen = new Set();
           iceServers = combined.map(server => {
