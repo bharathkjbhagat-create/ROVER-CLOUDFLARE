@@ -467,18 +467,25 @@ class RealtimeHub(DurableObject):
             if not cookie:
                 ws.send(json.dumps({"type": "rtc_error", "error": "Authentication required"}))
                 return
-            try:
-                auth_request = js.Request.new(
-                    "https://defenx.internal/api/me",
-                    {"method": "GET", "headers": {"Cookie": cookie, "Accept": "application/json"}},
-                )
-                auth_response = await self.ctx.exports.Default.fetch(auth_request)
-                if int(auth_response.status) >= 400:
-                    ws.send(json.dumps({"type": "rtc_error", "error": "Authentication expired"}))
+            # Validate on join and refresh the session check at most every 30 seconds.
+            # ICE candidates can arrive in bursts; checking every candidate would add
+            # avoidable API latency and make camera startup noticeably slower.
+            checked_at = int(attachment.get("rtc_auth_checked_at") or 0)
+            if action == "rtc_join" or int(time.time()) - checked_at >= 30:
+                try:
+                    auth_request = js.Request.new(
+                        "https://defenx.internal/api/me",
+                        {"method": "GET", "headers": {"Cookie": cookie, "Accept": "application/json"}},
+                    )
+                    auth_response = await self.ctx.exports.Default.fetch(auth_request)
+                    if int(auth_response.status) >= 400:
+                        ws.send(json.dumps({"type": "rtc_error", "error": "Authentication expired"}))
+                        return
+                    attachment["rtc_auth_checked_at"] = int(time.time())
+                    ws.serializeAttachment(attachment)
+                except Exception:
+                    ws.send(json.dumps({"type": "rtc_error", "error": "Camera authorization unavailable"}))
                     return
-            except Exception:
-                ws.send(json.dumps({"type": "rtc_error", "error": "Camera authorization unavailable"}))
-                return
             self._handle_rtc_message(ws, data, attachment)
             return
         if action not in {"command", "mode"}:
