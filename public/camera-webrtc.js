@@ -11,10 +11,14 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
   let peerId = makePeerId();
-  const fallbackIceServers = [{ urls: "stun:stun.l.google.com:19302" }];
-  let iceServers = Array.isArray(window.DEFENX_RTC_ICE_SERVERS) && window.DEFENX_RTC_ICE_SERVERS.length
-    ? window.DEFENX_RTC_ICE_SERVERS
-    : fallbackIceServers;
+  // Free STUN-only configuration: try independent public STUN services.
+  // STUN does not relay media and does not create a TURN usage charge.
+  const fallbackIceServers = [
+    { urls: "stun:stun.cloudflare.com:3478" },
+    { urls: "stun:stun.l.google.com:19302" },
+    { urls: "stun:global.stun.twilio.com:3478" }
+  ];
+  let iceServers = fallbackIceServers.slice();
   let iceConfigPromise = null;
   async function loadIceServers() {
     if (!iceConfigPromise) {
@@ -27,7 +31,18 @@
         return response.json();
       }).then(config => {
         if (Array.isArray(config?.iceServers) && config.iceServers.length) {
-          iceServers = config.iceServers;
+          // Keep the independent free STUN fallbacks even if the server supplies
+          // only one STUN endpoint. Preserve any short-lived TURN credentials
+          // only if explicitly configured server-side by the project owner.
+          const combined = [...config.iceServers, ...fallbackIceServers];
+          const seen = new Set();
+          iceServers = combined.filter(server => {
+            const urls = Array.isArray(server.urls) ? server.urls : [server.urls];
+            const key = urls.filter(Boolean).sort().join("|");
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
         }
         return iceServers;
       }).catch(() => {
@@ -235,6 +250,17 @@
       event.track.addEventListener("unmute", () => setRemoteCameraActive(id, true));
       event.track.addEventListener("mute", () => setRemoteCameraActive(id, false));
       event.track.addEventListener("ended", () => removeRemoteVideo(id), { once: true });
+    };
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === "checking") {
+        status("CAMERA LINK • CHECKING FREE DIRECT ROUTE");
+      } else if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+        status(localStream ? "LOCAL + REMOTE CAMERA LIVE" : "REMOTE CAMERA LIVE", true);
+      } else if (pc.iceConnectionState === "disconnected") {
+        status("CAMERA LINK INTERRUPTED • RETRYING");
+      } else if (pc.iceConnectionState === "failed") {
+        status("DIRECT CAMERA LINK FAILED • FREE STUN RETRY");
+      }
     };
     pc.onconnectionstatechange = () => {
       if (pc.connectionState === "failed" && entry.restartAttempts < 2 && peerId < id) {
