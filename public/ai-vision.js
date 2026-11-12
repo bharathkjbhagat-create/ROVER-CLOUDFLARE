@@ -69,6 +69,9 @@
   /* ---------------- source handling ---------------- */
   function sourceReady(el) {
     if (!el) return false;
+    // A remote WebRTC stream is not a valid live AI source while its sender
+    // has paused/stopped the camera track.
+    if (el.dataset?.defenxRemoteCamera === "1" && el.dataset.defenxCameraActive !== "1") return false;
     if (el.tagName === "VIDEO") {
       const tracks = el.srcObject && typeof el.srcObject.getVideoTracks === "function" ? el.srcObject.getVideoTracks() : [];
       const liveTrack = tracks.some(track => track.readyState === "live" && track.enabled);
