@@ -348,7 +348,7 @@ class RealtimeHub(DurableObject):
                 "status": int(response.status), "body": response_body,
                 "signature": server_signature,
             }, separators=(",", ":")))
-            if int(response.status) == 200 and path in {"/api/fleet/heartbeat", "/api/fleet/events/upload"}:
+            if int(response.status) == 200 and path == "/api/fleet/events/upload":
                 self._broadcast_device_sync(device_id)
         except Exception:
             ws.send(json.dumps({"type": "device_error", "error": "Device synchronization temporarily unavailable"}))
