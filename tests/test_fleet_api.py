@@ -96,6 +96,19 @@ class FleetApiTests(unittest.TestCase):
         for body in ({"id": "x", "role": "rover"}, {"id": "GOOD-1", "role": "king"}, {"id": "bad id!", "role": "rover"}, {}):
             self.assertEqual(self.admin.post("/api/fleet/devices", json=body).status_code, 400, body)
 
+    def test_websocket_ticket_is_signed_short_lived_and_stored_only_by_hash(self):
+        secret = self.register("PHONE-01", "phone")
+        r, nonce = self.dev_post(secret, "PHONE-01", "/api/fleet/ws-ticket", {})
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        data = r.get_json()
+        self.assertEqual(data["transport"], "websocket")
+        self.assertGreaterEqual(data["expires_at"], int(time.time()))
+        self.assertEqual(r.headers["X-Server-Signature"],
+                         F.sign_response(secret, "PHONE-01", nonce, r.get_data()))
+        self.assertNotIn(data["ticket"], json.dumps(self.service.store._kv))
+        digest = __import__("hashlib").sha256(data["ticket"].encode("ascii")).hexdigest()
+        self.assertIn("ws_ticket:" + digest, self.service.store._kv)
+
     def test_valid_heartbeat_signed_response_and_replay_protection(self):
         secret = self.register("ROVER-01", "rover")
         r, nonce = self.hb(secret, "ROVER-01")

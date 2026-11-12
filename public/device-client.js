@@ -6,6 +6,9 @@
   const P = window.DefenxFleetProtocol, $ = id => document.getElementById(id);
   const QKEY = "defenx_device_queue_v1", HB = "/api/fleet/heartbeat";
   let timer = null, running = false, seq = 0, evCounter = 0, bootId = "", gps = null, watchId = null, backoff = 1500;
+  let tickBusy = false, tickAgain = false;
+  let socket = null, socketReady = false, socketOpening = false, socketRetry = null, socketBackoff = 1000;
+  const socketPending = new Map();
   let secret = "", deviceId = "", lastOk = 0, offlineSince = null, camOn = false, camStream = null, queue = [];
   const log = m => { const l = $("log"); l.textContent = new Date().toLocaleTimeString() + "  " + m + "\n" + l.textContent.slice(0, 3000); };
   const setState = (t, cls) => { const s = $("state"); s.textContent = t; s.className = "pill " + (cls || ""); };
@@ -17,7 +20,83 @@
   }
   const renderQ = () => { $("queued").textContent = String(queue.length); };
 
-  async function post(path, payload) {
+  function rejectSocketPending(error) {
+    for (const [nonce, pending] of socketPending) {
+      clearTimeout(pending.timer); pending.reject(error);
+      socketPending.delete(nonce);
+    }
+  }
+  async function postWebSocket(path, payload) {
+    if (!socketReady || !socket || socket.readyState !== WebSocket.OPEN) throw new Error("Device WebSocket is offline");
+    const body = P.enc.encode(JSON.stringify(payload));
+    const ts = String(Date.now() / 1000), n = P.nonce();
+    const signature = await P.signRequest(secret, "POST", path, deviceId, ts, n, body);
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => { socketPending.delete(n); reject(new Error("Device WebSocket request timed out")); }, 5000);
+      socketPending.set(n, { resolve, reject, timer });
+      try { socket.send(JSON.stringify({ type: "device_request", path, timestamp: ts, nonce: n, signature,
+        body: new TextDecoder().decode(body) })); }
+      catch (error) { clearTimeout(timer); socketPending.delete(n); reject(error); }
+    });
+  }
+  async function openSocket() {
+    if (!running || socketOpening || socketReady) return;
+    socketOpening = true;
+    try {
+      const issued = await post("/api/fleet/ws-ticket", {}, true);
+      if (!running) { socketOpening = false; return; }
+      if (issued.status !== 200 || !issued.data.ticket) throw new Error(issued.data.error || "WebSocket ticket unavailable");
+      const scheme = location.protocol === "https:" ? "wss:" : "ws:";
+      const ws = new WebSocket(scheme + "//" + location.host + "/api/ws?device_ticket=" + encodeURIComponent(issued.data.ticket));
+      socket = ws;
+      ws.onopen = () => { socketReady = true; socketBackoff = 1000; log("Persistent device sync connected"); setState("SYNCHRONIZING", "warn"); };
+      ws.onmessage = async event => {
+        let message;
+        try { message = JSON.parse(event.data); } catch (_) { return; }
+        if (message.type === "connected") {
+          if (running) { clearTimeout(timer); tick(); }
+          return;
+        }
+        if (message.type === "fleet_sync") {
+          if (running && socketReady) { clearTimeout(timer); tick(); }
+          return;
+        }
+        if (message.type !== "device_response") return;
+        const pending = socketPending.get(message.nonce);
+        if (!pending) return;
+        socketPending.delete(message.nonce); clearTimeout(pending.timer);
+        try {
+          const raw = P.enc.encode(String(message.body || ""));
+          const expected = await P.signResponse(secret, deviceId, message.nonce, raw);
+          if (!P.timingSafeEqualHex(expected, String(message.signature || ""))) throw new Error("server signature invalid");
+          pending.resolve({ status: Number(message.status), data: JSON.parse(new TextDecoder().decode(raw)) });
+        } catch (error) { pending.reject(error); }
+      };
+      ws.onclose = () => {
+        if (socket === ws) socket = null;
+        socketReady = false; socketOpening = false;
+        rejectSocketPending(new Error("Device WebSocket disconnected"));
+        if (running) {
+          setState("RECONNECTING · HTTPS FALLBACK", "warn");
+          socketRetry = setTimeout(openSocket, socketBackoff * (0.8 + Math.random() * 0.4));
+          socketBackoff = Math.min(socketBackoff * 1.8, 15000);
+        }
+      };
+      ws.onerror = () => { try { ws.close(); } catch (_) {} };
+    } catch (error) {
+      socketOpening = false;
+      if (running) {
+        socketRetry = setTimeout(openSocket, socketBackoff * (0.8 + Math.random() * 0.4));
+        socketBackoff = Math.min(socketBackoff * 1.8, 15000);
+      }
+    }
+  }
+
+  async function post(path, payload, forceHttp = false) {
+    if (!forceHttp && socketReady) {
+      try { return await postWebSocket(path, payload); }
+      catch (error) { if (socketReady) throw error; }
+    }
     const body = P.enc.encode(JSON.stringify(payload));
     const ts = String(Date.now() / 1000), n = P.nonce();
     const sig = await P.signRequest(secret, "POST", path, deviceId, ts, n, body);
@@ -78,6 +157,8 @@
   }
   async function tick() {
     if (!running) return;
+    if (tickBusy) { tickAgain = true; return; }
+    tickBusy = true;
     try {
       seq++;
       const r = await post(HB, { ...snapshot(await battery()), seq, boot_id: bootId, pending_events: queue.length });
@@ -86,7 +167,7 @@
       else {
         lastOk = Date.now(); backoff = 1500;
         if (offlineSince) { record("link_restored", "Reconnected after " + Math.round((Date.now() - offlineSince) / 1000) + "s", "info", null, true); offlineSince = null; log("Reconnected - syncing queued events"); }
-        setState("ONLINE", "ok"); renderPeers(r.data.peers || []);
+        setState(socketReady ? "ONLINE · WEBSOCKET" : "ONLINE · HTTPS FALLBACK", "ok"); renderPeers(r.data.peers || []);
         (r.data.commands || []).forEach(c => log("Command received (ignored by phone): " + c.command));
         await flush();
       }
@@ -94,10 +175,12 @@
       if (e.auth) { setState("AUTH ERROR", "bad"); log("Authentication problem: " + e.message); backoff = 15000; }
       else {
         if (!offlineSince) { offlineSince = Date.now(); record("link_lost", "Server unreachable; queueing events locally", "warn", null, true); }
-        setState(navigator.onLine ? "SERVER UNREACHABLE · RECONNECTING" : "NO NETWORK · RECONNECTING", "warn"); backoff = Math.min(backoff * 1.7, 10000);
+        setState(navigator.onLine ? "SERVER UNREACHABLE · RECONNECTING" : "NO NETWORK · RECONNECTING", "warn"); backoff = Math.min(backoff * (1.5 + Math.random() * 0.4), 10000);
       }
     }
-    if (running) timer = setTimeout(tick, backoff);
+    tickBusy = false;
+    const runAgain = tickAgain; tickAgain = false;
+    if (running) timer = setTimeout(tick, runAgain ? 0 : (socketReady ? 2000 : backoff));
   }
   function startGps() {
     if (!navigator.geolocation) { log("Geolocation unavailable in this browser"); return; }
@@ -118,9 +201,9 @@
     if (!/^[A-Za-z0-9][A-Za-z0-9_-]{2,31}$/.test(deviceId) || !/^[0-9a-f]{64}$/.test(secret)) { log("Enter the Device ID and the 64-character secret from the dashboard"); return; }
     try { (($("remember").checked ? localStorage : sessionStorage)).setItem("defenx_device_cfg", JSON.stringify({ deviceId, secret })); if (!$("remember").checked) localStorage.removeItem("defenx_device_cfg"); } catch (_) {}
     bootId = Array.from(crypto.getRandomValues(new Uint8Array(4))).map(b => b.toString(16).padStart(2, "0")).join(""); seq = 0; evCounter = 0;
-    loadQ(); renderQ(); running = true; setState("CONNECTING", "warn"); $("startBtn").disabled = true; $("stopBtn").disabled = false; startGps(); tick();
+    loadQ(); renderQ(); running = true; setState("CONNECTING", "warn"); $("startBtn").disabled = true; $("stopBtn").disabled = false; startGps(); openSocket(); tick();
   }
-  function stop() { running = false; clearTimeout(timer); if (watchId !== null) navigator.geolocation.clearWatch(watchId); setState("STOPPED"); $("startBtn").disabled = false; $("stopBtn").disabled = true; }
+  function stop() { running = false; clearTimeout(timer); clearTimeout(socketRetry); socketRetry = null; if (watchId !== null) navigator.geolocation.clearWatch(watchId); watchId = null; if (socket) { const ws = socket; socket = null; socketReady = false; ws.close(1000, "client stopped"); } rejectSocketPending(new Error("Device client stopped")); if (camStream) { camStream.getTracks().forEach(t => t.stop()); camStream = null; camOn = false; $("cam").textContent = "Camera status: off"; } setState("STOPPED"); $("startBtn").disabled = false; $("stopBtn").disabled = true; }
   window.addEventListener("online", () => { if (running) { clearTimeout(timer); backoff = 500; tick(); } });
   document.addEventListener("DOMContentLoaded", () => {
     try { const c = JSON.parse(sessionStorage.getItem("defenx_device_cfg") || localStorage.getItem("defenx_device_cfg") || "null"); if (c) { $("deviceId").value = c.deviceId; $("secret").value = c.secret; } } catch (_) {}

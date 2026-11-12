@@ -258,13 +258,15 @@
       ? "Stored encrypted in the administrator-only Cloudflare Durable Object. Photographs and face data are never shown to other users."
       : "Encrypted server storage unavailable. Face enrollment is disabled until AES-GCM storage is configured.";
     if (!enrolled.length) { box.innerHTML = '<div class="empty">No registered users enrolled.</div>'; return; }
-    box.innerHTML = enrolled.map(e => '<div class="faceEnrollRow" data-id="' + esc(e.id) + '"><img alt="" width="44" height="44"><b>' + esc(e.name) + '</b><button type="button" class="mini" data-del="' + esc(e.id) + '">REMOVE</button></div>').join("");
+    box.innerHTML = enrolled.map(e => '<div class="faceEnrollRow" data-id="' + esc(e.id) + '"><span class="faceThumbs" aria-label="Reference photographs"></span><b>' + esc(e.name) + '</b><button type="button" class="mini" data-del="' + esc(e.id) + '">REMOVE</button></div>').join("");
     for (const e of enrolled) {
-      const img = box.querySelector('[data-id="' + CSS.escape(e.id) + '"] img');
+      const thumbs = box.querySelector('[data-id="' + CSS.escape(e.id) + '"] .faceThumbs');
       try {
-        if (storageMode === "server") {
-          const r = await fetch("/api/face-enrollments/" + encodeURIComponent(e.id) + "/photo", { credentials: "same-origin", cache: "no-store" });
-          if (r.ok) { const u = URL.createObjectURL(await r.blob()); thumbUrls.push(u); img.src = u; }
+        const count = Math.min(3, Math.max(1, Number(e.photo_count) || 1));
+        for (let index = 0; index < count; index++) {
+          const suffix = index ? "/photo/" + index : "/photo";
+          const r = await fetch("/api/face-enrollments/" + encodeURIComponent(e.id) + suffix, { credentials: "same-origin", cache: "no-store" });
+          if (r.ok) { const u = URL.createObjectURL(await r.blob()), img = document.createElement("img"); img.alt = "Encrypted reference " + (index + 1); img.width = 44; img.height = 44; img.src = u; thumbUrls.push(u); thumbs.appendChild(img); }
         }
       } catch (_) {}
     }
@@ -286,45 +288,55 @@
       c.getContext("2d").drawImage(img, sx, sy, sw, sh, 0, 0, px, px);
       for (const q of [0.7, 0.55, 0.4]) {
         const url = c.toDataURL("image/jpeg", q);
-        if (url.length - 23 <= 22000) return url;
+        if (url.length - 23 <= 4000) return url;
       }
     }
     return null;
   }
   async function enrollFromPhoto(liveCanvas) {
-    const name = ($("faceEnrollName").value || "").trim(), file = liveCanvas ? null : $("faceEnrollFile").files[0];
+    const name = ($("faceEnrollName").value || "").trim();
+    const files = liveCanvas ? [] : Array.from($("faceEnrollFile").files || []);
     if (!name) return enrollMsg("Enter the person's name.", true);
-    if (!file && !liveCanvas) return enrollMsg("Choose a clear, front-facing photograph.", true);
+    if (!liveCanvas && !files.length) return enrollMsg("Choose 1-3 clear, front-facing photographs.", true);
+    if (files.length > 3) return enrollMsg("Choose no more than 3 reference photographs.", true);
     if (!$("faceEnrollConsent").checked) return enrollMsg("Documented consent from this person is required.", true);
     if (storageMode !== "server") return enrollMsg("Encrypted server storage is unavailable. No biometric data was saved.", true);
     const button = $(liveCanvas ? "faceEnrollLiveBtn" : "faceEnrollBtn"); button.disabled = true;
     try {
       enrollMsg("Loading face models…");
       await ensureModels();
-      let canvas = liveCanvas;
-      if (!canvas) {
-        const source = await loadImage(file);
-        const k = Math.min(1, 800 / Math.max(source.width, source.height));
-        canvas = document.createElement("canvas"); canvas.width = Math.round(source.width * k); canvas.height = Math.round(source.height * k);
-        canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+      const descriptors = [], photos = [], sources = liveCanvas ? [liveCanvas] : files;
+      for (let index = 0; index < sources.length; index++) {
+        const item = sources[index];
+        let canvas = item;
+        if (!liveCanvas) {
+          const source = await loadImage(item);
+          const k = Math.min(1, 800 / Math.max(source.width, source.height));
+          canvas = document.createElement("canvas"); canvas.width = Math.round(source.width * k); canvas.height = Math.round(source.height * k);
+          canvas.getContext("2d").drawImage(source, 0, 0, canvas.width, canvas.height);
+        }
+        enrollMsg("Analysing reference " + (index + 1) + " of " + sources.length + "…");
+        const found = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 })).withFaceLandmarks(true).withFaceDescriptors();
+        if (found.length !== 1) throw new Error(found.length ? "Each photograph must contain exactly one face." : "No clear face found. Use a well-lit, front-facing photograph.");
+        const face = found[0], points = face.landmarks.positions.map(p => [p.x, p.y]);
+        const pixels = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height);
+        const clarity = core.faceClarity({
+          bbox: [face.detection.box.x, face.detection.box.y, face.detection.box.width, face.detection.box.height],
+          score: face.detection.score, points
+        }, { data: pixels.data, width: pixels.width, height: pixels.height });
+        if (!clarity.clear) throw new Error("Photograph " + (index + 1) + " not suitable: " + clarity.reasons.join(", ") + ".");
+        const photo = thumbnail(canvas, face.detection.box);
+        if (!photo) throw new Error("Could not prepare reference photograph " + (index + 1) + ".");
+        descriptors.push(Array.from(face.descriptor)); photos.push(photo);
       }
-      enrollMsg("Analysing photograph…");
-      const found = await faceapi.detectAllFaces(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 })).withFaceLandmarks(true).withFaceDescriptors();
-      if (found.length !== 1) throw new Error(found.length ? "The photograph must contain exactly one face." : "No clear face found. Use a well-lit, front-facing photograph.");
-      const f = found[0], pts = f.landmarks.positions.map(p => [p.x, p.y]);
-      const clarity = core.faceClarity({ bbox: [f.detection.box.x, f.detection.box.y, f.detection.box.width, f.detection.box.height], score: f.detection.score, points: pts },
-        (() => { const d = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height); return { data: d.data, width: d.width, height: d.height }; })());
-      if (!clarity.clear) throw new Error("Photograph not suitable: " + clarity.reasons.join(", ") + ".");
-      const photo = thumbnail(canvas, f.detection.box);
-      if (!photo) throw new Error("Could not prepare the reference photograph.");
-      const descriptor = Array.from(f.descriptor);
-      if (storageMode === "server") {
-        const { response, data } = await fetchJson("/api/face-enrollments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, consent: true, descriptor, photo }) });
-        if (!response.ok || !data.ok) throw new Error(data.error || "Could not save the enrolment.");
-      }
+      const { response, data } = await fetchJson("/api/face-enrollments", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, consent: true, descriptors, photos })
+      });
+      if (!response.ok || !data.ok) throw new Error(data.error || "Could not save the enrolment.");
       $("faceEnrollName").value = ""; $("faceEnrollFile").value = ""; $("faceEnrollConsent").checked = false;
       await loadEnrollments(); refreshBar(); await renderEnrollList();
-      enrollMsg("Enrolled " + name + ". This is a reference photograph only; it does not trigger any alert.");
+      enrollMsg("Enrolled " + name + " with " + descriptors.length + " encrypted reference photograph(s).");
     } catch (error) { enrollMsg(error.message || "Enrolment failed.", true); }
     finally { button.disabled = false; }
   }

@@ -195,6 +195,9 @@ test("identity: enrolled user recognised, stranger unknown, borderline unverifie
   const alice2 = { id: "a2", name: "Alice", descriptor: near(alice.descriptor, 0.1) };
   const same = core.matchIdentity(near(alice.descriptor, 0.15), [alice, alice2, bob]);
   assert.equal(same.state, "RECOGNIZED"); assert.equal(same.name, "Alice");
+  const photoProfile = { id: "a", name: "Alice", descriptors: [alice.descriptor, alice2.descriptor] };
+  const multi = core.matchIdentity(near(alice2.descriptor, 0.04), [photoProfile, bob]);
+  assert.equal(multi.state, "RECOGNIZED"); assert.equal(multi.name, "Alice");
 });
 test("identity smoothing needs 3 agreeing frames", () => {
   const a = { state: "RECOGNIZED", name: "A", confidence: 0.8 }, u = { state: "UNKNOWN", name: null, confidence: 0.9 };

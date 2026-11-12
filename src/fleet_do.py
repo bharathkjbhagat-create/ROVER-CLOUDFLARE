@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import time
+import re
 
 CHUNK = 50
 CHUNKS = 20
@@ -106,6 +107,51 @@ class FleetDOLogic:
         table[nonce] = now + ttl
         await self.s.put(key, table)
         return {"ok": True, "claimed": True}
+
+    # one-time WebSocket device tickets ------------------------------------------
+    async def _op_ws_ticket_issue(self, r):
+        digest = str(r.get("ticket_hash") or "")
+        device = str(r.get("device_id") or "")
+        try:
+            expires = int(r.get("expires_at"))
+            version = int(r.get("key_version"))
+        except (TypeError, ValueError):
+            return {"ok": False, "error": "bad_request"}
+        if not re.fullmatch(r"[0-9a-f]{64}", digest) or not device or version < 1:
+            return {"ok": False, "error": "bad_request"}
+        now = int(self.clock())
+        if expires <= now or expires > now + 90:
+            return {"ok": False, "error": "bad_request"}
+        key = "fleet_ws_ticket:" + digest
+        by_device = "fleet_ws_ticket_device:" + device
+        previous = await self.s.get(by_device)
+        if isinstance(previous, str) and re.fullmatch(r"[0-9a-f]{64}", previous):
+            await self.s.delete("fleet_ws_ticket:" + previous)
+        await self.s.put(key, {"device_id": device, "key_version": version, "expires_at": expires})
+        await self.s.put(by_device, digest)
+        return {"ok": True}
+
+    async def _op_ws_ticket_consume(self, r):
+        digest = str(r.get("ticket_hash") or "")
+        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+            return {"ok": False, "error": "bad_request"}
+        key = "fleet_ws_ticket:" + digest
+        ticket = await self.s.get(key)
+        # Delete before returning any result: tickets are single-use even when
+        # expired, revoked, or presented with an obsolete device key.
+        await self.s.delete(key)
+        device_hint = str(ticket.get("device_id") or "") if isinstance(ticket, dict) else ""
+        by_device = "fleet_ws_ticket_device:" + device_hint
+        if device_hint and await self.s.get(by_device) == digest:
+            await self.s.delete(by_device)
+        if not isinstance(ticket, dict) or int(ticket.get("expires_at") or 0) <= int(self.clock()):
+            return {"ok": False, "error": "ticket_invalid"}
+        device = str(ticket.get("device_id") or "")
+        rec = await self._get("dev:" + device)
+        if (not isinstance(rec, dict) or rec.get("revoked") is True
+                or int(rec.get("key_version") or 0) != int(ticket.get("key_version") or -1)):
+            return {"ok": False, "error": "ticket_invalid"}
+        return {"ok": True, "device_id": device, "key_version": int(ticket["key_version"])}
 
     # command queue --------------------------------------------------------------
     async def _queue(self, device):

@@ -330,10 +330,16 @@
   function matchIdentity(descriptor, enrolled) {
     if (!enrolled || !enrolled.length) return { state: "UNKNOWN", name: null, distance: null, confidence: 0.6, reason: "no enrolled users" };
     const rows = enrolled.map(e => {
-      let s = 0;
-      for (let i = 0; i < descriptor.length; i++) { const d = descriptor[i] - e.descriptor[i]; s += d * d; }
-      return { e, d: Math.sqrt(s) };
-    }).sort((a, b) => a.d - b.d);
+      const samples = Array.isArray(e.descriptors) && e.descriptors.length ? e.descriptors : [e.descriptor];
+      let best = Infinity;
+      for (const sample of samples) {
+        if (!Array.isArray(sample) || sample.length !== descriptor.length) continue;
+        let sum = 0;
+        for (let i = 0; i < descriptor.length; i++) { const d = descriptor[i] - sample[i]; sum += d * d; }
+        best = Math.min(best, Math.sqrt(sum));
+      }
+      return { e, d: best };
+    }).filter(row => Number.isFinite(row.d)).sort((a, b) => a.d - b.d);
     const best = rows[0];
     const other = rows.find(r => r.e.name !== best.e.name); // runner-up must be a different person
     const margin = other ? other.d - best.d : 1;
