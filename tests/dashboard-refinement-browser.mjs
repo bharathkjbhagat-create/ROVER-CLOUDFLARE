@@ -68,7 +68,15 @@ try {
           </section>
         </section>
         <section class="card deviceCard">DEVICE</section>
-        <section class="card controlCard">CONTROL</section>
+        <section class="card controlCard">
+          <div class="returnBaseActions">
+            <button type="button" id="selectReturnBaseBtn">SELECT BASE</button>
+            <button type="button" id="returnToBaseBtn">RETURN TO BASE</button>
+            <button type="button" id="previewReturnRouteBtn" class="routePreviewBtn">ROAD ROUTE PREVIEW</button>
+            <button type="button" id="simulateObstacleRouteBtn" class="routePreviewBtn">BLOCKED ROUTE</button>
+            <button type="button" id="clearReturnRouteBtn" class="routePreviewBtn">CLEAR PREVIEW</button>
+          </div>
+        </section>
         <section class="card fleetCard">FLEET</section>
         <section class="card simLabCard">SIMULATION</section>
       </div>
@@ -78,15 +86,6 @@ try {
       <section class="card targetCard">TARGET</section>
       <section class="card recentCard">RECENT</section>
       <section class="card adminLogCard">AUDIT</section>
-    </section>
-    <section class="controlCard">
-      <div class="returnBaseActions">
-        <button type="button" id="selectReturnBaseBtn">SELECT BASE</button>
-        <button type="button" id="returnToBaseBtn">RETURN TO BASE</button>
-        <button type="button" id="previewReturnRouteBtn" class="routePreviewBtn">ROAD ROUTE PREVIEW</button>
-        <button type="button" id="simulateObstacleRouteBtn" class="routePreviewBtn">BLOCKED ROUTE</button>
-        <button type="button" id="clearReturnRouteBtn" class="routePreviewBtn">CLEAR PREVIEW</button>
-      </div>
     </section>
   </main>
 </div>
@@ -135,7 +134,16 @@ try {
   assert.match(desktopGrid.mapArea, /map/);
   assert.match(desktopGrid.cameraArea, /camera/);
   assert.match(desktopGrid.fleetArea, /fleet/);
+
   assert.match(desktopGrid.simulationArea, /simulation/);
+
+  await page.setViewportSize({ width: 768, height: 900 });
+  const tabletColumns = await page.locator(".dashboardGrid").evaluate(el =>
+    getComputedStyle(el).gridTemplateColumns.split(" ").map(Number)
+  );
+  assert.equal(tabletColumns.length, 2, "tablet dashboard must retain two columns");
+  assert.ok(Math.abs(tabletColumns[0] - tabletColumns[1]) < 1, "tablet dashboard columns must remain equal");
+  await page.setViewportSize({ width: 1365, height: 900 });
   await page.addScriptTag({ content: script });
 
   const menu = page.locator("#mobileMenuBtn");
