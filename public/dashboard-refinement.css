@@ -214,11 +214,11 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
   }
   .dashboardGrid > .rightStack { display: contents !important; }
   .dashboardGrid > .mapCard,
-  .dashboardGrid > .cameraCard,
-  .dashboardGrid > .controlCard,
-  .dashboardGrid > .deviceCard,
-  .dashboardGrid > .fleetCard,
-  .dashboardGrid > .simLabCard {
+  .dashboardGrid .cameraCard,
+  .dashboardGrid .controlCard,
+  .dashboardGrid .deviceCard,
+  .dashboardGrid .fleetCard,
+  .dashboardGrid .simLabCard {
     width: 100% !important;
     min-width: 0 !important;
     max-width: none !important;
@@ -226,11 +226,11 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
     align-self: stretch !important;
   }
   .dashboardGrid > .mapCard { grid-area: map !important; }
-  .dashboardGrid > .cameraCard { grid-area: camera !important; }
-  .dashboardGrid > .controlCard { grid-area: control !important; }
-  .dashboardGrid > .deviceCard { grid-area: device !important; }
-  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
-  .dashboardGrid > .simLabCard { grid-area: simulation !important; }
+  .dashboardGrid .cameraCard { grid-area: camera !important; }
+  .dashboardGrid .controlCard { grid-area: control !important; }
+  .dashboardGrid .deviceCard { grid-area: device !important; }
+  .dashboardGrid .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid .simLabCard { grid-area: simulation !important; }
 
   .lowerGrid {
     display: grid !important;
