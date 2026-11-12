@@ -394,7 +394,7 @@ class RealtimeHub(DurableObject):
             for socket in self.ctx.getWebSockets():
                 try:
                     info = socket.deserializeAttachment() or {}
-                    if socket != ws and info.get("rtc_room") == "defenx-global" and info.get("rtc_peer_id") == requested:
+                    if info.get("id") != attachment.get("id") and info.get("rtc_room") == "defenx-global" and info.get("rtc_peer_id") == requested:
                         ws.send(json.dumps({"type": "rtc_error", "error": "Camera peer ID already connected"}))
                         return
                 except Exception:
