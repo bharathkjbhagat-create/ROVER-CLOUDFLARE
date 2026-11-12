@@ -214,20 +214,52 @@
   }
 
   class Liveness {
-    constructor() { this.eyes = []; this.prev = null; this.nonRigidRun = 0; this.evidenceAt = 0; this.evidence = { blinks: 0, mouth: 0, nonRigid: 0 }; this.evidenceByTypeAt = { blinks: 0, mouth: 0, nonRigid: 0 }; this.closed = false; this.mouthOpen = false; }
+    constructor(random = Math.random) {
+      this.eyes = []; this.prev = null; this.nonRigidRun = 0; this.evidenceAt = 0;
+      this.evidence = { blinks: 0, mouth: 0, nonRigid: 0 };
+      this.evidenceByTypeAt = { blinks: 0, mouth: 0, nonRigid: 0 };
+      this.closed = false; this.mouthOpen = false; this.turnSide = null;
+      const cues = ["blink", "mouth", "turn_left", "turn_right"];
+      for (let i = cues.length - 1; i > 0; i--) {
+        const j = Math.floor(random() * (i + 1)); [cues[i], cues[j]] = [cues[j], cues[i]];
+      }
+      this.challenge = cues.slice(0, 3);
+      this.challengeIndex = 0; this.challengeAt = 0;
+    }
+    acceptCue(cue, now) {
+      if (this.challenge[this.challengeIndex] !== cue) return;
+      this.challengeIndex++;
+      if (this.challengeIndex === this.challenge.length) this.challengeAt = now;
+    }
+    prompt() { return this.challenge[this.challengeIndex] || null; }
     update(pts, now) {
       const e = eyeAspect(pts), m = mouthAspect(pts);
       this.eyes.push(e); if (this.eyes.length > 90) this.eyes.shift();
       const sorted = [...this.eyes].sort((x, y) => x - y);
-      const base = sorted[Math.floor(sorted.length * 0.75)] || e; // typical open-eye level
+      const base = sorted[Math.floor(sorted.length * 0.75)] || e;
       if (this.eyes.length >= 6 && base >= T.ear.minOpen) {
         const isClosed = e < base * T.ear.closedRatio;
-        if (this.closed && !isClosed) { this.evidence.blinks++; this.evidenceAt = now; this.evidenceByTypeAt.blinks = now; }
+        if (this.closed && !isClosed) {
+          this.evidence.blinks++; this.evidenceAt = now; this.evidenceByTypeAt.blinks = now;
+          this.acceptCue("blink", now);
+        }
         this.closed = isClosed;
       }
       const open = m > 0.35;
-      if (this.mouthOpen && !open) { this.evidence.mouth++; this.evidenceAt = now; this.evidenceByTypeAt.mouth = now; }
+      if (this.mouthOpen && !open) {
+        this.evidence.mouth++; this.evidenceAt = now; this.evidenceByTypeAt.mouth = now;
+        this.acceptCue("mouth", now);
+      }
       this.mouthOpen = open;
+      const eyeMidX = (pts[36][0] + pts[39][0] + pts[42][0] + pts[45][0]) / 4;
+      const eyeWidth = Math.max(1, Math.abs((pts[42][0] + pts[45][0] - pts[36][0] - pts[39][0]) / 2));
+      const yaw = (pts[30][0] - eyeMidX) / eyeWidth;
+      const side = yaw < -0.18 ? "left" : yaw > 0.18 ? "right" : null;
+      if (side) this.turnSide = side;
+      else if (this.turnSide) {
+        this.acceptCue("turn_" + this.turnSide, now);
+        this.turnSide = null;
+      }
       if (this.prev) {
         const r = shapeResidual(this.prev, pts);
         this.nonRigidRun = r >= T.nonRigid ? this.nonRigidRun + 1 : 0;
@@ -235,8 +267,8 @@
       }
       this.prev = pts;
     }
-    // Conservative multi-cue presence heuristic; this is not validated presentation-attack detection.
-    verified(now) { return Object.values(this.evidenceByTypeAt).filter(at => at > 0 && now - at <= T.livenessHoldMs).length >= 2; }
+    // Randomized active presence challenge; it is a heuristic, not validated PAD.
+    verified(now) { return this.challengeIndex === this.challenge.length && this.challengeAt > 0 && now - this.challengeAt <= T.livenessHoldMs; }
   }
 
   /* ---------------- face clarity & mask ---------------- */
