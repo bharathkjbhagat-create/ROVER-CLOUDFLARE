@@ -115,21 +115,19 @@
     const safeId = String(id).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
     let video = document.querySelector("[data-defenx-remote-camera='1'][data-defenx-peer-id='" + safeId + "']");
     if (!video) {
-      const current = $("roverRealCamera");
-      const canReuseEmptySource = !localStream && current && current.tagName === "VIDEO" &&
-        current.dataset.defenxLiveStream !== "1" && !current.srcObject && !current.currentSrc && !current.getAttribute("src");
-      video = canReuseEmptySource ? current : document.createElement("video");
+      // Always append a distinct stream element. Reusing the pre-existing empty
+      // placeholder would not trigger ai-vision.js's child-list observer.
+      video = document.createElement("video");
       video.dataset.defenxLiveStream = "1";
       video.dataset.defenxRemoteCamera = "1";
       video.dataset.defenxPeerId = safeId;
-      if (canReuseEmptySource) video.dataset.defenxRemoteReused = "1";
       video.autoplay = true;
       video.muted = true;
       video.playsInline = true;
       video.setAttribute("playsinline", "");
       video.setAttribute("aria-label", "Live camera from another authenticated DEFENX device");
       video.title = "Live camera from another DEFENX device";
-      if (!canReuseEmptySource) viewport.appendChild(video);
+      viewport.appendChild(video);
     }
     video.srcObject = stream;
     const tracks = typeof stream?.getVideoTracks === "function" ? stream.getVideoTracks() : [];
@@ -141,14 +139,18 @@
       if (video.id === "roverRealCamera") video.id = "defenxRemoteCamera-" + safeId;
       updateRemoteLayout(video);
     }
-    updateRemoteCameraActiveFlag();
+    video.style.visibility = video.dataset.defenxCameraActive === "1" ? "visible" : "hidden";
+    const remoteActive = updateRemoteCameraActiveFlag();
     const scene = $("camera3DScene");
-    if (scene && !localStream) scene.style.display = "none";
+    if (scene && !localStream && remoteActive) scene.style.display = "none";
     const placeholder = $("camPlaceholder");
-    if (placeholder) placeholder.hidden = true;
+    if (placeholder && remoteActive) placeholder.hidden = true;
     const badge = document.querySelector("#liveCamera .liveBadge");
-    if (badge) { badge.innerHTML = "<i></i> REMOTE LIVE"; badge.classList.remove("mvOff"); }
-    status("REMOTE DEVICE CAMERA • LIVE", true);
+    if (badge) {
+      badge.innerHTML = remoteActive ? "<i></i> REMOTE LIVE" : "<i></i> CONNECTING";
+      badge.classList.toggle("mvOff", !remoteActive);
+    }
+    status(remoteActive ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", !remoteActive);
     const play = video.play();
     if (play && play.catch) play.catch(() => status("REMOTE CAMERA READY • TAP VIDEO TO PLAY", true));
   }
@@ -171,6 +173,7 @@
       video.dataset.defenxCameraActive = active ? "1" : "0";
       video.style.visibility = active ? "visible" : "hidden";
       if (active) {
+        if (!localStream) promoteRemoteVideo(video);
         updateRemoteLayout(video);
         const play = video.play();
         if (play && play.catch) play.catch(() => {});
