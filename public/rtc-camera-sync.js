@@ -5,9 +5,11 @@
   "use strict";
   const peers = new Map();
   const knownPeers = new Set();
+  const remoteCameraActive = new Map();
   const queuedIce = new Map();
   const creatingPeers = new Map();
   const pendingSignals = [];
+  const offersInFlight = new Set();
   let localStream = null;
   let remoteVideo = null;
   const fallbackRtcConfig = {
@@ -96,6 +98,8 @@
       peers.set(id, connection);
       if (localStream) {
         localStream.getTracks().forEach(track => connection.addTrack(track, localStream));
+      } else {
+        connection.addTransceiver("video", { direction: "recvonly" });
       }
       connection.onicecandidate = event => {
         if (event.candidate) send(id, { type: "ice", candidate: event.candidate });
@@ -119,16 +123,23 @@
     try { return await creation; }
     finally { creatingPeers.delete(id); }
   }
+  function shouldInitiate(id) {
+    const selfId = String(window.__defenxRtcPeerId || "");
+    return !!selfId && !!id && selfId.localeCompare(id) < 0;
+  }
   async function offerTo(id) {
-    if (!localStream) return;
+    if (!id || !shouldInitiate(id) || offersInFlight.has(id)) return;
     const pc = await makePeer(id);
     if (!pc || pc.signalingState !== "stable") return;
+    offersInFlight.add(id);
     try {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       send(id, { type: "offer", sdp: pc.localDescription });
     } catch (_) {
       closePeer(id);
+    } finally {
+      offersInFlight.delete(id);
     }
   }
   async function applySignal(message) {
@@ -177,20 +188,29 @@
   });
   window.addEventListener("defenx-rtc-message", event => {
     const message = event.detail || {};
-    if (message.type === "rtc_peers") {
+    if (message.type === "rtc_connected") {
+      window.__defenxRtcPeerId = String(message.peer_id || "");
+    } else if (message.type === "rtc_peers") {
       knownPeers.clear();
       (message.peer_ids || []).forEach(id => {
         const peerId = String(id);
         if (peerId) knownPeers.add(peerId);
-        if (localStream) offerTo(peerId);
       });
     } else if (message.type === "rtc_peer_joined") {
       const peerId = String(message.peer_id || "");
       if (peerId) knownPeers.add(peerId);
-      if (localStream) offerTo(peerId);
+      if (localStream || remoteCameraActive.get(peerId)) offerTo(peerId);
+    } else if (message.type === "rtc_camera_state") {
+      const peerId = String(message.from || "");
+      if (peerId) {
+        knownPeers.add(peerId);
+        remoteCameraActive.set(peerId, message.active === true);
+        if (shouldInitiate(peerId) && (localStream || message.active === true)) offerTo(peerId);
+      }
     } else if (message.type === "rtc_peer_left") {
       const peerId = String(message.peer_id || "");
       knownPeers.delete(peerId);
+      remoteCameraActive.delete(peerId);
       closePeer(peerId);
     } else if (message.type === "rtc_signal") {
       applySignal(message);
@@ -202,11 +222,20 @@
   window.DefenxRtcCamera = {
     setLocalStream(stream) {
       localStream = stream || null;
-      if (localStream) {
-        for (const id of peers.keys()) closePeer(id);
-        for (const id of knownPeers) offerTo(id);
-      } else {
-        for (const id of peers.keys()) closePeer(id);
+      const videoTrack = localStream?.getVideoTracks?.()[0] || null;
+      for (const id of knownPeers) {
+        send(id, { type: "camera-state", active: !!videoTrack });
+        const pc = peers.get(id);
+        if (pc) {
+          const videoTransceiver = pc.getTransceivers().find(t => t.receiver?.track?.kind === "video");
+          if (videoTransceiver) {
+            videoTransceiver.sender.replaceTrack(videoTrack).catch(() => {});
+            videoTransceiver.direction = videoTrack ? "sendrecv" : "recvonly";
+          } else if (videoTrack) {
+            pc.addTrack(videoTrack, localStream);
+          }
+        }
+        if (shouldInitiate(id) && (videoTrack || remoteCameraActive.get(id))) offerTo(id);
       }
     }
   };
