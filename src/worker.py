@@ -365,6 +365,82 @@ class RealtimeHub(DurableObject):
             except Exception:
                 pass
 
+    def _rtc_broadcast(self, payload, exclude_peer=None, target_peer=None):
+        message = json.dumps(payload, separators=(",", ":"))
+        for socket in self.ctx.getWebSockets():
+            try:
+                info = socket.deserializeAttachment() or {}
+                peer_id = str(info.get("rtc_peer_id") or "")
+                if info.get("rtc_room") != "defenx-global" or not peer_id:
+                    continue
+                if exclude_peer and peer_id == exclude_peer:
+                    continue
+                if target_peer and peer_id != target_peer:
+                    continue
+                socket.send(message)
+            except Exception:
+                pass
+
+    def _handle_rtc_message(self, ws, data, attachment):
+        action = str(data.get("type") or "").lower()
+        peer_id = str(attachment.get("rtc_peer_id") or "")
+        if action == "rtc_join":
+            requested = str(data.get("peer_id") or "")
+            if len(requested) < 16 or len(requested) > 64 or not all(
+                ch.isalnum() or ch in "_-" for ch in requested
+            ):
+                ws.send(json.dumps({"type": "rtc_error", "error": "Invalid camera peer ID"}))
+                return
+            attachment["rtc_peer_id"] = requested
+            attachment["rtc_room"] = "defenx-global"
+            attachment["rtc_camera"] = False
+            ws.serializeAttachment(attachment)
+            peers = []
+            for socket in self.ctx.getWebSockets():
+                try:
+                    info = socket.deserializeAttachment() or {}
+                    other_id = str(info.get("rtc_peer_id") or "")
+                    if info.get("rtc_room") == "defenx-global" and other_id and other_id != requested:
+                        peers.append({"id": other_id, "camera": bool(info.get("rtc_camera"))})
+                except Exception:
+                    pass
+            ws.send(json.dumps({"type": "rtc_peer_list", "peers": peers}, separators=(",", ":")))
+            self._rtc_broadcast(
+                {"type": "rtc_peer_joined", "peer": {"id": requested, "camera": False}},
+                exclude_peer=requested,
+            )
+            return
+
+        if not peer_id or attachment.get("rtc_room") != "defenx-global":
+            ws.send(json.dumps({"type": "rtc_error", "error": "Join camera room first"}))
+            return
+
+        if action == "rtc_camera":
+            active = bool(data.get("active"))
+            attachment["rtc_camera"] = active
+            ws.serializeAttachment(attachment)
+            self._rtc_broadcast({
+                "type": "rtc_camera",
+                "peer_id": peer_id,
+                "active": active,
+            }, exclude_peer=peer_id)
+            return
+
+        if action == "rtc_signal":
+            target = str(data.get("target") or "")
+            signal = data.get("signal")
+            if (not target or target == peer_id or not isinstance(signal, dict)
+                    or str(signal.get("type") or "") not in {"offer", "answer", "ice"}
+                    or len(json.dumps(signal, separators=(",", ":"))) > 64000):
+                ws.send(json.dumps({"type": "rtc_error", "error": "Invalid camera signaling message"}))
+                return
+            self._rtc_broadcast({
+                "type": "rtc_signal",
+                "from": peer_id,
+                "signal": signal,
+            }, target_peer=target)
+            return
+
     async def webSocketMessage(self, ws, message):
         attachment = ws.deserializeAttachment() or {}
         if attachment.get("kind") == "device":
@@ -386,6 +462,24 @@ class RealtimeHub(DurableObject):
         action = str(data.get("type") or "").lower()
         if action == "ping":
             ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
+            return
+        if action in {"rtc_join", "rtc_camera", "rtc_signal"}:
+            if not cookie:
+                ws.send(json.dumps({"type": "rtc_error", "error": "Authentication required"}))
+                return
+            try:
+                auth_request = js.Request.new(
+                    "https://defenx.internal/api/me",
+                    {"method": "GET", "headers": {"Cookie": cookie, "Accept": "application/json"}},
+                )
+                auth_response = await self.ctx.exports.Default.fetch(auth_request)
+                if int(auth_response.status) >= 400:
+                    ws.send(json.dumps({"type": "rtc_error", "error": "Authentication expired"}))
+                    return
+            except Exception:
+                ws.send(json.dumps({"type": "rtc_error", "error": "Camera authorization unavailable"}))
+                return
+            self._handle_rtc_message(ws, data, attachment)
             return
         if action not in {"command", "mode"}:
             return
@@ -467,6 +561,9 @@ class RealtimeHub(DurableObject):
     async def webSocketClose(self, ws, code, reason, wasClean):
         attachment = ws.deserializeAttachment() or {}
         session_id = attachment.get("id")
+        peer_id = str(attachment.get("rtc_peer_id") or "")
+        if peer_id:
+            self._rtc_broadcast({"type": "rtc_peer_left", "peer_id": peer_id}, exclude_peer=peer_id)
         if session_id:
             self.sessions.pop(session_id, None)
         try:
