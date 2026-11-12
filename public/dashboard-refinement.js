@@ -1,69 +1,167 @@
-/* DEFENX dashboard interaction refinement. Does not replace or remove existing controls. */
-(function(){
+/* DEFENX dashboard interaction refinement.
+ * Keeps existing controls in the DOM and preserves their IDs and delegated events.
+ */
+(function () {
   "use strict";
-  function init(){
-    const body=document.body;
-    const menu=document.getElementById("mobileMenuBtn");
-    const sidebar=document.querySelector(".sidebar");
-    if(!menu||!sidebar)return;
-    let backdrop=document.querySelector(".defenx-drawer-backdrop");
-    if(!backdrop){backdrop=document.createElement("div");backdrop.className="defenx-drawer-backdrop";backdrop.setAttribute("aria-hidden","true");document.body.appendChild(backdrop);}
-    function setOpen(open){
-      body.classList.toggle("defenx-drawer-open",!!open);
-      menu.setAttribute("aria-expanded",String(!!open));
-      menu.setAttribute("aria-label",open?"Close navigation":"Open navigation");
-      backdrop.setAttribute("aria-hidden",String(!open));
+
+  function init() {
+    const body = document.body;
+    const menu = document.getElementById("mobileMenuBtn");
+    const sidebar = document.getElementById("commandSidebar") || document.querySelector(".sidebar");
+    if (!body || !menu || !sidebar || menu.dataset.defenxDrawerBound === "1") return;
+    menu.dataset.defenxDrawerBound = "1";
+
+    if (!sidebar.id) sidebar.id = "commandSidebar";
+    menu.setAttribute("aria-controls", sidebar.id);
+
+    let backdrop = document.querySelector(".defenx-drawer-backdrop");
+    if (!backdrop) {
+      backdrop = document.createElement("div");
+      backdrop.className = "defenx-drawer-backdrop";
+      backdrop.setAttribute("aria-hidden", "true");
+      body.appendChild(backdrop);
     }
-    function toggleFromMenu(event){
-      event.preventDefault();event.stopPropagation();event.stopImmediatePropagation();
+
+    const focusableSelector = [
+      "a[href]",
+      "button:not([disabled])",
+      "input:not([disabled])",
+      "select:not([disabled])",
+      "textarea:not([disabled])",
+      "summary",
+      "[tabindex]:not([tabindex='-1'])"
+    ].join(",");
+
+    function focusableItems() {
+      return Array.from(sidebar.querySelectorAll(focusableSelector)).filter((item) =>
+        !item.hidden && item.getAttribute("aria-hidden") !== "true"
+      );
+    }
+
+    function setOpen(open, restoreFocus = true) {
+      const wasOpen = body.classList.contains("defenx-drawer-open");
+      const shouldOpen = Boolean(open);
+      body.classList.toggle("defenx-drawer-open", shouldOpen);
+      menu.setAttribute("aria-expanded", String(shouldOpen));
+      menu.setAttribute("aria-label", shouldOpen ? "Close navigation" : "Open navigation");
+      sidebar.setAttribute("aria-hidden", String(!shouldOpen));
+      backdrop.setAttribute("aria-hidden", String(!shouldOpen));
+
+      if (shouldOpen) {
+        sidebar.removeAttribute("inert");
+        if (!wasOpen) {
+          const first = focusableItems()[0];
+          if (first) first.focus({ preventScroll: true });
+        }
+      } else {
+        if (restoreFocus && (wasOpen || sidebar.contains(document.activeElement))) {
+          menu.focus({ preventScroll: true });
+        }
+        sidebar.setAttribute("inert", "");
+      }
+    }
+
+    menu.addEventListener("click", (event) => {
+      event.preventDefault();
       setOpen(!body.classList.contains("defenx-drawer-open"));
-    }
-    menu.addEventListener("click",toggleFromMenu,true);
-    backdrop.addEventListener("click",()=>setOpen(false));
-    document.addEventListener("keydown",e=>{if(e.key==="Escape")setOpen(false);});
-    sidebar.addEventListener("click",e=>{if(e.target.closest(".navItem"))setOpen(false);});
-    window.addEventListener("resize",()=>{if(window.innerWidth>900)setOpen(false);},{passive:true});
+    });
+    backdrop.addEventListener("click", () => setOpen(false));
 
-    const mapHeader=document.querySelector(".mapHeader");
-    const mapControls=mapHeader?.querySelector(".mapControls");
-    if(mapHeader&&mapControls&&!mapHeader.querySelector(".inlineFold")){
-      const fold=document.createElement("details");fold.className="inlineFold";
-      const summary=document.createElement("summary");summary.textContent="MAP OPTIONS";
-      fold.appendChild(summary);fold.appendChild(mapControls);mapHeader.appendChild(fold);
-    }
-
-    const returnActions=document.querySelector(".returnBaseActions");
-    if(returnActions&&!returnActions.querySelector(".controlSubFold")){
-      const extras=[...returnActions.querySelectorAll("#previewReturnRouteBtn,#simulateObstacleRouteBtn,#clearReturnRouteBtn")];
-      if(extras.length){
-        const fold=document.createElement("details");fold.className="controlSubFold";
-        const summary=document.createElement("summary");summary.textContent="ADVANCED ROUTE TOOLS";
-        fold.appendChild(summary);extras.forEach(el=>fold.appendChild(el));returnActions.appendChild(fold);
+    document.addEventListener("keydown", (event) => {
+      if (!body.classList.contains("defenx-drawer-open")) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setOpen(false);
+        return;
       }
+      if (event.key !== "Tab") return;
+
+      const items = focusableItems();
+      if (!items.length) {
+        event.preventDefault();
+        menu.focus({ preventScroll: true });
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus({ preventScroll: true });
+      } else if (!event.shiftKey && (document.activeElement === last || !sidebar.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus({ preventScroll: true });
+      }
+    });
+
+    sidebar.addEventListener("click", (event) => {
+      if (event.target.closest(".navItem, .sideLogout")) setOpen(false);
+    });
+
+    const mapHeader = document.querySelector(".mapHeader");
+    const mapControls = mapHeader && mapHeader.querySelector(".mapControls");
+    if (mapHeader && mapControls && !mapHeader.querySelector(".inlineFold")) {
+      const fold = document.createElement("details");
+      fold.className = "inlineFold";
+      const summary = document.createElement("summary");
+      summary.textContent = "MAP OPTIONS";
+      fold.appendChild(summary);
+      fold.appendChild(mapControls);
+      mapHeader.appendChild(fold);
     }
 
-    const detectionActions=document.querySelector("#detectionEventsPanel .detectionEventsActions");
-    if(detectionActions&&!detectionActions.parentElement.classList.contains("detectionSettingsFold")){
-      const fold=document.createElement("details");fold.className="detectionSettingsFold";
-      const summary=document.createElement("summary");summary.textContent="ALERT SETTINGS & FILTERS";
-      fold.appendChild(summary);detectionActions.parentElement.insertBefore(fold,detectionActions);fold.appendChild(detectionActions);
-    }
-
-    const camera=document.querySelector("#liveCamera");
-    if(camera&&!camera.querySelector(".visionToolsFold")){
-      const ai=camera.querySelector("#aiVisionBar"),face=camera.querySelector("#faceScanBar");
-      if(ai||face){
-        const fold=document.createElement("details");fold.className="controlSubFold visionToolsFold";
-        const summary=document.createElement("summary");summary.textContent="AI VISION & FACE SECURITY CONTROLS";
+    const returnActions = document.querySelector(".returnBaseActions");
+    if (returnActions && !returnActions.querySelector(".advancedRouteFold")) {
+      const extras = Array.from(returnActions.querySelectorAll(
+        "#previewReturnRouteBtn, #simulateObstacleRouteBtn, #clearReturnRouteBtn"
+      ));
+      if (extras.length) {
+        const fold = document.createElement("details");
+        fold.className = "controlSubFold advancedRouteFold";
+        const summary = document.createElement("summary");
+        summary.textContent = "ADVANCED ROUTE TOOLS";
         fold.appendChild(summary);
-        if(ai)fold.appendChild(ai);if(face)fold.appendChild(face);
-        const detection=camera.querySelector("#detectionEventsPanel");
-        if(detection)fold.appendChild(detection);
-        camera.appendChild(fold);
+        extras.forEach((element) => fold.appendChild(element));
+        returnActions.appendChild(fold);
       }
     }
-    setOpen(false);
+
+    const detectionActions = document.querySelector(
+      "#detectionEventsPanel .detectionEventsActions"
+    );
+    if (detectionActions && !detectionActions.parentElement.querySelector(".detectionSettingsFold")) {
+      const fold = document.createElement("details");
+      fold.className = "detectionSettingsFold";
+      const summary = document.createElement("summary");
+      summary.textContent = "ALERT SETTINGS & FILTERS";
+      fold.appendChild(summary);
+      detectionActions.parentElement.insertBefore(fold, detectionActions);
+      fold.appendChild(detectionActions);
+    }
+
+    const camera = document.getElementById("liveCamera");
+    if (camera && !camera.querySelector(".visionToolsFold")) {
+      const ai = camera.querySelector("#aiVisionBar");
+      const face = camera.querySelector("#faceScanBar");
+      if (ai || face) {
+        const fold = document.createElement("details");
+        fold.className = "controlSubFold visionToolsFold";
+        const summary = document.createElement("summary");
+        summary.textContent = "AI VISION & FACE SECURITY CONTROLS";
+        fold.appendChild(summary);
+
+        const insertionPoint = ai || face;
+        camera.insertBefore(fold, insertionPoint);
+        if (ai) fold.appendChild(ai);
+        if (face) fold.appendChild(face);
+      }
+    }
+
+    setOpen(false, false);
   }
-  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",init,{once:true});
-  else init();
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init, { once: true });
+  } else {
+    init();
+  }
 })();
