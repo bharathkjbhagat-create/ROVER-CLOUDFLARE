@@ -458,8 +458,8 @@ function updateUI(input){
 const rawInput=input&&typeof input==="object"?input:{};
 const incomingVersion=String(rawInput.sync_version||"");
 const currentVersion=String(window.ROVER_SYNC_VERSION||"");
-const incomingStamp=Number((/^live-(\\d{13})-/.exec(incomingVersion)||[])[1]);
-const currentStamp=Number((/^live-(\\d{13})-/.exec(currentVersion)||[])[1]);
+const incomingStamp=incomingVersion.startsWith("live-")?Number(incomingVersion.slice(5,18)):NaN;
+const currentStamp=currentVersion.startsWith("live-")?Number(currentVersion.slice(5,18)):NaN;
 const staleVersion=incomingVersion&&currentVersion&&(
 Number.isFinite(incomingStamp)&&Number.isFinite(currentStamp)
 ? incomingStamp<currentStamp
