@@ -199,6 +199,32 @@ class VisionBackendTests(unittest.TestCase):
         self.assertEqual(self.client.get("/api/face-enrollments").get_json()["enrollments"], [])
         self.assertEqual(self.client.get(f"/api/face-enrollments/{ident}/photo").status_code, 404)
 
+    def test_multiple_face_references_round_trip_encrypted_and_individually_retrievable(self):
+        second = [value + 0.01 for value in DESCRIPTOR]
+        third = [value - 0.01 for value in DESCRIPTOR]
+        r = self.enroll(descriptors=[DESCRIPTOR, second, third],
+                        photos=["data:image/jpeg;base64," + JPEG] * 3)
+        self.assertEqual(r.status_code, 200, r.get_data(as_text=True))
+        ident = r.get_json()["id"]
+        items = self.client.get("/api/face-enrollments").get_json()["enrollments"]
+        self.assertEqual(items[0]["photo_count"], 3)
+        self.assertEqual(len(items[0]["descriptors"]), 3)
+        self.assertEqual(items[0]["descriptor"], DESCRIPTOR)
+        stored = rover_app._LOCAL_FACE_ENROLLMENTS[ident]
+        self.assertTrue(stored["blob"].startswith("a256gcm.v1."))
+        self.assertNotIn(JPEG[:40], stored["blob"])
+        for index in range(3):
+            suffix = "/photo" if index == 0 else "/photo/" + str(index)
+            photo = self.client.get(f"/api/face-enrollments/{ident}" + suffix)
+            self.assertEqual(photo.status_code, 200)
+            self.assertEqual(photo.data[:3], b"\\xff\\xd8\\xff")
+
+    def test_multiple_face_references_require_matching_one_to_three_photos_and_descriptors(self):
+        r = self.enroll(descriptors=[DESCRIPTOR, DESCRIPTOR], photos=["data:image/jpeg;base64," + JPEG])
+        self.assertEqual(r.status_code, 400)
+        r = self.enroll(descriptors=[DESCRIPTOR] * 4, photos=["data:image/jpeg;base64," + JPEG] * 4)
+        self.assertEqual(r.status_code, 400)
+
     def test_legacy_plaintext_records_are_encrypted_before_source_rows_are_deleted(self):
         ident = str(uuid.uuid4())
         self.db.faces.append({
