@@ -296,7 +296,7 @@
     } else if (message.type === "rtc_peer_left") {
       closePeer(message.peer_id);
     } else if (message.type === "rtc_camera") {
-      if (!message.active) removeRemoteVideo(message.peer_id);
+      setRemoteCameraActive(message.peer_id, !!message.active);
     } else if (message.type === "rtc_signal") {
       handleSignal(message.from, message.signal).catch(() => status("CAMERA CONNECTION RETRYING"));
     } else if (message.type === "rtc_error") {
