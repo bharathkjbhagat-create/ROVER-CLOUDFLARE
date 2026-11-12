@@ -94,6 +94,7 @@ async function start(){
   originalSource=old||null;videoNode=created;
   if(old)old.replaceWith(created);else viewport.insertBefore(created,viewport.firstChild);
   stream=acquired;active=true;
+  window.DefenxRtcCamera?.setLocalStream(acquired);
   const scene=$("camera3DScene");if(scene)scene.style.display="none";
   window.__defenxSetPhoneCameraActive?.(true);
   setButton();
@@ -126,6 +127,7 @@ async function start(){
    else created.remove();
   }
   stream=null;active=false;videoNode=null;originalSource=null;
+  window.DefenxRtcCamera?.setLocalStream(null);
   window.__defenxSetPhoneCameraActive?.(false);
   const message=error?.name==="NotAllowedError"?"ALLOW CAMERA PERMISSION IN CHROME":
    error?.name==="NotFoundError"?"NO PHONE CAMERA FOUND":
@@ -144,6 +146,7 @@ function stop(){
  if(frameTimer){clearTimeout(frameTimer);frameTimer=null;}
  if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
  stopTracks(stream);stream=null;active=false;pending=false;
+ window.DefenxRtcCamera?.setLocalStream(null);
  restoreElement();
  window.__defenxSetPhoneCameraActive?.(false);
  const scene=$("camera3DScene");if(scene)scene.style.display="";
