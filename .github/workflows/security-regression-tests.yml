@@ -34,6 +34,7 @@ jobs:
       - name: Validate JavaScript
         run: |
           node --check public/app.js
+          node --check public/camera-webrtc.js
           node --check public/dashboard-refinement.js
       - name: Validate browser AI vision JavaScript
         run: node --check public/ai-vision.js
