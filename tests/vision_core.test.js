@@ -135,16 +135,24 @@ test("liveness: a still face, rigid photo motion and landmark jitter are NOT liv
   const jitter = run(60, () => landmarks(200, 200, 60).map(([x, y]) => [x + (rnd() - 0.5) * 0.3, y + (rnd() - 0.5) * 0.3]));
   assert.equal(jitter.lv.verified(6000), false);
 });
-test("liveness: a blink is live evidence and expires after the hold time", () => {
+test("liveness: one blink alone is insufficient and expires", () => {
   const seq = i => landmarks(200, 200, 60, { eye: (i >= 12 && i < 15) ? 0.3 : 1 });
   const { lv, t } = run(30, seq);
   assert.ok(lv.evidence.blinks >= 1);
+  assert.equal(lv.verified(t), false);
+});
+test("liveness: mouth movement alone is insufficient", () => {
+  const { lv, t } = run(30, i => landmarks(200, 200, 60, { mouth: (i >= 10 && i < 16) ? 1 : 0 }));
+  assert.ok(lv.evidence.mouth >= 1); assert.equal(lv.verified(t), false);
+});
+test("liveness: separate recent blink and mouth cues are required", () => {
+  const { lv, t } = run(40, i => landmarks(200, 200, 60, {
+    eye: (i >= 8 && i < 11) ? 0.3 : 1,
+    mouth: (i >= 20 && i < 26) ? 1 : 0
+  }));
+  assert.ok(lv.evidence.blinks >= 1); assert.ok(lv.evidence.mouth >= 1);
   assert.equal(lv.verified(t), true);
   assert.equal(lv.verified(t + 20000), false);
-});
-test("liveness: speaking (mouth open/close) counts", () => {
-  const { lv, t } = run(30, i => landmarks(200, 200, 60, { mouth: (i >= 10 && i < 16) ? 1 : 0 }));
-  assert.ok(lv.evidence.mouth >= 1); assert.equal(lv.verified(t), true);
 });
 
 /* ---------- face clarity ---------- */
