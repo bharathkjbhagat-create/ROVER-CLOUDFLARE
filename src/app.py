@@ -2037,12 +2037,21 @@ def face_enrollments_list():
             enrollment_id = str(row.get("id") or "")
             payload_raw = decrypt_biometric_bytes(key, row.get("blob"), _face_aad(enrollment_id))
             payload = json.loads(payload_raw.decode("utf-8"))
-            descriptor = _valid_descriptor(payload.get("descriptor"))
+            raw_descriptors = payload.get("descriptors")
+            if not isinstance(raw_descriptors, list):
+                raw_descriptors = [payload.get("descriptor")]
+            descriptors = [_valid_descriptor(item) for item in raw_descriptors]
+            raw_photos = payload.get("photos")
+            if not isinstance(raw_photos, list):
+                raw_photos = [payload.get("photo")]
+            photos = [_valid_jpeg_b64(item) for item in raw_photos]
             name = " ".join(str(payload.get("name") or "").split())[:80]
-            if descriptor is None or not name or _valid_jpeg_b64(payload.get("photo")) is None:
+            if (not name or not 1 <= len(descriptors) <= 3 or len(descriptors) != len(photos)
+                    or any(item is None for item in descriptors + photos)):
                 raise BiometricCryptoError("biometric_record_invalid")
             items.append({
-                "id": enrollment_id, "name": name, "descriptor": descriptor,
+                "id": enrollment_id, "name": name, "descriptor": descriptors[0],
+                "descriptors": descriptors, "photo_count": len(photos),
                 "created_at": row.get("created_at"),
             })
         return _biometric_json({"ok": True, "storage": "durable-object-encrypted", "enrollments": items})
@@ -2064,17 +2073,24 @@ def face_enrollments_create():
         return _biometric_json({"ok": False, "error": "A name is required"}, 400)
     if data.get("consent") is not True:
         return _biometric_json({"ok": False, "error": "Documented consent from the person is required"}, 400)
-    descriptor = _valid_descriptor(data.get("descriptor"))
-    if descriptor is None:
-        return _biometric_json({"ok": False, "error": "A valid 128-value face descriptor is required"}, 400)
-    photo = _valid_jpeg_b64(data.get("photo"))
-    if photo is None:
-        return _biometric_json({"ok": False, "error": "A JPEG reference photograph (max 24 KB encoded) is required"}, 400)
+    raw_descriptors = data.get("descriptors")
+    if not isinstance(raw_descriptors, list):
+        raw_descriptors = [data.get("descriptor")]
+    raw_photos = data.get("photos")
+    if not isinstance(raw_photos, list):
+        raw_photos = [data.get("photo")]
+    descriptors = [_valid_descriptor(item) for item in raw_descriptors]
+    photos = [_valid_jpeg_b64(item) for item in raw_photos]
+    if (not 1 <= len(descriptors) <= 3 or len(descriptors) != len(photos)
+            or any(item is None for item in descriptors + photos)):
+        return _biometric_json({"ok": False, "error": "Provide matching sets of 1-3 valid face descriptors and JPEG reference photographs"}, 400)
+    descriptor, photo = descriptors[0], photos[0]
     enrollment_id = str(uuid.uuid4())
     actor = current_user()
     try:
         payload = json.dumps(
-            {"name": name, "descriptor": descriptor, "photo": photo},
+            {"name": name, "descriptor": descriptor, "photo": photo,
+             "descriptors": descriptors, "photos": photos},
             separators=(",", ":"),
         ).encode("utf-8")
         blob = encrypt_biometric_bytes(key, payload, _face_aad(enrollment_id))
@@ -2099,8 +2115,9 @@ def face_enrollments_create():
 
 
 @app.get("/api/face-enrollments/<enrollment_id>/photo")
+@app.get("/api/face-enrollments/<enrollment_id>/photo/<int:photo_index>")
 @require_admin
-def face_enrollment_photo(enrollment_id):
+def face_enrollment_photo(enrollment_id, photo_index=0):
     try:
         uuid.UUID(str(enrollment_id))
     except ValueError:
@@ -2112,7 +2129,12 @@ def face_enrollment_photo(enrollment_id):
         row = _face_store({"op": "get", "id": enrollment_id})["enrollment"]
         payload_raw = decrypt_biometric_bytes(key, row.get("blob"), _face_aad(enrollment_id))
         payload = json.loads(payload_raw.decode("utf-8"))
-        photo = _valid_jpeg_b64(payload.get("photo"))
+        photos = payload.get("photos")
+        if not isinstance(photos, list):
+            photos = [payload.get("photo")]
+        if photo_index < 0 or photo_index >= len(photos):
+            return _biometric_json({"ok": False, "error": "Not found"}, 404)
+        photo = _valid_jpeg_b64(photos[photo_index])
         if photo is None:
             raise BiometricCryptoError("biometric_photo_invalid")
         photo_raw = base64.b64decode(photo, validate=True)
