@@ -82,15 +82,27 @@ try {
 </div>
 </body></html>`);
 
-  await page.addStyleTag({ content: css });
-  await page.addScriptTag({ content: script });
-  await page.evaluate(() => {
+  const watchedButtonIds = [
+    "mapFollowBtn", "previewReturnRouteBtn", "simulateObstacleRouteBtn",
+    "clearReturnRouteBtn", "aiVisionToggle", "faceScanToggle",
+    "detectionAlertToggle", "detectionClearBtn"
+  ];
+  // Bind representative pre-existing direct and delegated handlers BEFORE the
+  // refinement moves any of these elements, then prove both still fire.
+  await page.evaluate(ids => {
+    window.__directButtonClicks = [];
     window.__bubbledButtonClicks = [];
+    for (const id of ids) {
+      document.getElementById(id)?.addEventListener("click", () => window.__directButtonClicks.push(id));
+    }
     document.addEventListener("click", event => {
       const button = event.target.closest("button[id]");
       if (button) window.__bubbledButtonClicks.push(button.id);
     });
-  });
+  }, watchedButtonIds);
+
+  await page.addStyleTag({ content: css });
+  await page.addScriptTag({ content: script });
 
   const menu = page.locator("#mobileMenuBtn");
   const sidebar = page.locator("#commandSidebar");
@@ -180,12 +192,14 @@ try {
   ]) {
     await page.locator("#" + id).click();
   }
-  const bubbled = await page.evaluate(() => window.__bubbledButtonClicks);
-  for (const id of [
-    "mapFollowBtn", "previewReturnRouteBtn", "simulateObstacleRouteBtn",
-    "clearReturnRouteBtn", "aiVisionToggle", "faceScanToggle",
-    "detectionAlertToggle", "detectionClearBtn"
-  ]) assert.ok(bubbled.includes(id), id + " must remain in the document click path after relocation");
+  const [direct, bubbled] = await page.evaluate(() => [
+    window.__directButtonClicks,
+    window.__bubbledButtonClicks
+  ]);
+  for (const id of watchedButtonIds) {
+    assert.ok(direct.includes(id), id + " must retain its direct handler after relocation");
+    assert.ok(bubbled.includes(id), id + " must remain in the document click path after relocation");
+  }
 
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(await sidebar.evaluate(el => getComputedStyle(el).display), "flex");
