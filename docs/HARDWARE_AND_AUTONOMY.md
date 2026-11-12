@@ -3,8 +3,8 @@
 ## Architecture
 ```
 Dashboard (browser) --cookie session--> /api/fleet/*  (Flask on Cloudflare Python Worker)
-Phone (device-client.html) --HMAC-signed HTTPS--> /api/fleet/heartbeat | events/upload | commands/ack
-ESP32 rover (firmware)     --HMAC-signed HTTPS--> same endpoints, replies are HMAC-signed too
+Phone (device-client.html) --single-use ticket + signed WebSocket--> heartbeat | events/upload | commands/ack; signed HTTPS fallback
+ESP32 rover (firmware)     --HMAC-signed HTTPS polling--> same endpoints, replies are HMAC-signed too
 Persistence: Durable Object RealtimeHub.fleet_op -> src/fleet_do.py (registry, status, nonces, command queue, event ring)
 Autonomy: firmware/rover_core/nav_core.h  (runs ON the rover; no cloud dependency)
 ```
@@ -14,7 +14,7 @@ Autonomy: firmware/rover_core/nav_core.h  (runs ON the rover; no cloud dependenc
 * Devices cannot command each other: there is no device→command endpoint. Commands come only from logged-in operators, pass `FleetService.preflight` (battery, fresh GPS, obstacle data, e-stop, RTB state, base saved, rover role) and are repeated by the device's own safety checks. `RETURN_TO_BASE`, `RESET_ESTOP`, base saving and device management are admin-only.
 * Movement commands expire after 1.5 s (rover stops itself); STOP/E-STOP supersede queued motion and are accepted even if the rover is offline (delivered on reconnect).
 * Offline events: rover journals events + GPS track to flash; uploaded in batches; a record leaves the queue only after the server returns it in `stored_ids`, server dedupes by `(device, event id)`.
-* Transport is HTTPS request/response at ~1 Hz (not device-side WebSockets). Dashboard refreshes by polling every 1.5 s. See "Known limitations".
+* The browser phone client uses a persistent, ticket-authenticated WebSocket for signed heartbeat/event/ack requests and receives peer-change notifications. It falls back to signed HTTPS when disconnected. The ESP32 firmware still uses signed HTTPS polling. The dashboard operator session continues to use its existing WebSocket.
 
 ## Deploy
 1. `npx wrangler secret put FLEET_MASTER_SECRET` (≥32 random chars), keep existing secrets. Optional vars: `FLEET_PRIMARY_ROVER`, `DEVICE_OFFLINE_AFTER_SECONDS`.
@@ -54,7 +54,8 @@ FSM states: BOOT, IDLE, MANUAL, RTB_PRECHECK, RTB_NAVIGATE, RTB_AVOID, RTB_VERIF
 | nav_core.h state machine | Passes C++ simulation incl. 300 random worlds; simulation uses idealised sensors |
 | ESP32 sketch | **Not compiled or flashed**; expect to fix compile/pin issues |
 | GPS, ultrasonic, compass, motors, battery, camera, real RTB | **Not tested - no hardware** |
-| Two physical phones | **Not tested** (software processes only) |
+| Browser device-client WebSocket flow | **Automated code checks pending; no live Worker socket test yet** |
+| Phone + ESP32 physical sync | **Not tested** (no physical devices; ESP32 remains signed HTTPS polling) |
 | Face recognition accuracy / anti-spoof | **Not validated with real people/attacks** |
 
 ### Physical test checklist (must be done on real equipment)
@@ -70,7 +71,7 @@ FSM states: BOOT, IDLE, MANUAL, RTB_PRECHECK, RTB_NAVIGATE, RTB_AVOID, RTB_VERIF
 10. Face recognition: enrol ≥3 people, test lighting/angles, printed photo + screen replay attacks; record FAR/FRR before trusting it.
 
 ## Known limitations
-* No device-side WebSocket; ~1 s signed HTTPS polling.
+* ESP32 firmware uses signed HTTPS polling; the browser phone client supports signed WebSocket requests with HTTPS fallback. ESP32 WebSocket firmware support remains outstanding.
 * Per-instance rate limiter (add Cloudflare WAF rate-limit rules for production).
 * Server preflight sees telemetry up to 4 s old; the rover re-validates locally.
 * Phone device secret lives in browser storage if "Remember" is ticked.
