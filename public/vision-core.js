@@ -215,63 +215,37 @@
 
   class Liveness {
     constructor(random = Math.random) {
-      this.eyes = []; this.prev = null; this.nonRigidRun = 0; this.evidenceAt = 0;
-      this.evidence = { blinks: 0, mouth: 0, nonRigid: 0 };
-      this.evidenceByTypeAt = { blinks: 0, mouth: 0, nonRigid: 0 };
-      this.closed = false; this.mouthOpen = false; this.turnSide = null;
+      this.eyes = []; this.closed = false; this.mouthOpen = false; this.turn = null;
       const cues = ["blink", "mouth", "turn_left", "turn_right"];
-      for (let i = cues.length - 1; i > 0; i--) {
-        const j = Math.floor(random() * (i + 1)); [cues[i], cues[j]] = [cues[j], cues[i]];
-      }
-      this.challenge = cues.slice(0, 3);
-      this.challengeIndex = 0; this.challengeAt = 0;
+      for (let i = cues.length - 1; i > 0; i--) { const j = Math.floor(random() * (i + 1)); [cues[i], cues[j]] = [cues[j], cues[i]]; }
+      this.challenge = cues.slice(0, 3); this.challengeIndex = 0; this.challengeAt = 0;
     }
-    acceptCue(cue, now) {
+    accept(cue, now) {
       if (this.challenge[this.challengeIndex] !== cue) return;
-      this.challengeIndex++;
-      if (this.challengeIndex === this.challenge.length) this.challengeAt = now;
+      if (++this.challengeIndex === this.challenge.length) this.challengeAt = now;
     }
     prompt() { return this.challenge[this.challengeIndex] || null; }
     update(pts, now) {
       const e = eyeAspect(pts), m = mouthAspect(pts);
       this.eyes.push(e); if (this.eyes.length > 90) this.eyes.shift();
-      const sorted = [...this.eyes].sort((x, y) => x - y);
-      const base = sorted[Math.floor(sorted.length * 0.75)] || e;
+      const sorted = [...this.eyes].sort((a, b) => a - b), base = sorted[Math.floor(sorted.length * 0.75)] || e;
       if (this.eyes.length >= 6 && base >= T.ear.minOpen) {
-        const isClosed = e < base * T.ear.closedRatio;
-        if (this.closed && !isClosed) {
-          this.evidence.blinks++; this.evidenceAt = now; this.evidenceByTypeAt.blinks = now;
-          this.acceptCue("blink", now);
-        }
-        this.closed = isClosed;
+        const closed = e < base * T.ear.closedRatio;
+        if (this.closed && !closed) this.accept("blink", now);
+        this.closed = closed;
       }
-      const open = m > 0.35;
-      if (this.mouthOpen && !open) {
-        this.evidence.mouth++; this.evidenceAt = now; this.evidenceByTypeAt.mouth = now;
-        this.acceptCue("mouth", now);
-      }
-      this.mouthOpen = open;
-      const eyeMidX = (pts[36][0] + pts[39][0] + pts[42][0] + pts[45][0]) / 4;
-      const eyeWidth = Math.max(1, Math.abs((pts[42][0] + pts[45][0] - pts[36][0] - pts[39][0]) / 2));
-      const yaw = (pts[30][0] - eyeMidX) / eyeWidth;
-      const side = yaw < -0.18 ? "left" : yaw > 0.18 ? "right" : null;
-      if (side) this.turnSide = side;
-      else if (this.turnSide) {
-        this.acceptCue("turn_" + this.turnSide, now);
-        this.turnSide = null;
-      }
-      if (this.prev) {
-        const r = shapeResidual(this.prev, pts);
-        this.nonRigidRun = r >= T.nonRigid ? this.nonRigidRun + 1 : 0;
-        if (this.nonRigidRun >= 3) { this.evidence.nonRigid++; this.evidenceAt = now; this.evidenceByTypeAt.nonRigid = now; this.nonRigidRun = 0; }
-      }
-      this.prev = pts;
+      const mouth = m > 0.35;
+      if (this.mouthOpen && !mouth) this.accept("mouth", now);
+      this.mouthOpen = mouth;
+      const mid = (pts[36][0] + pts[39][0] + pts[42][0] + pts[45][0]) / 4;
+      const width = Math.max(1, Math.abs((pts[42][0] + pts[45][0] - pts[36][0] - pts[39][0]) / 2));
+      const yaw = (pts[30][0] - mid) / width, side = yaw < -0.18 ? "left" : yaw > 0.18 ? "right" : null;
+      if (side) this.turn = side;
+      else if (this.turn) { this.accept("turn_" + this.turn, now); this.turn = null; }
     }
-    // Randomized active presence challenge; it is a heuristic, not validated PAD.
     verified(now) { return this.challengeIndex === this.challenge.length && this.challengeAt > 0 && now - this.challengeAt <= T.livenessHoldMs; }
   }
 
-  /* ---------------- face clarity & mask ---------------- */
   function faceClarity(face, img) {
     const reasons = [];
     const [, , w, h] = face.bbox;
@@ -359,7 +333,6 @@
     return { state: "UNCLEAR", confidence: 0.3, features };
   }
 
-  /* ---------------- identity ---------------- */
   function matchIdentity(descriptor, enrolled) {
     if (!enrolled || !enrolled.length) return { state: "UNKNOWN", name: null, distance: null, confidence: 0.6, reason: "no enrolled users" };
     const rows = enrolled.map(e => {
@@ -393,7 +366,6 @@
     return Object.assign({}, rows[rows.length - 1], { confidence: rows.reduce((s, r) => s + r.confidence, 0) / rows.length });
   }
 
-  /* ---------------- combined face status ---------------- */
   function resolveFace({ clarity, mask, identity, live }) {
     if (!clarity.clear) return { identity: STATUS.NOT_CLEAR, mask: STATUS.NOT_CLEAR, name: null, alerts: [], reasons: clarity.reasons };
     const maskStatus = mask.state === "MASK" ? STATUS.MASK : mask.state === "NO_MASK" ? STATUS.NO_MASK : STATUS.NOT_CLEAR;
@@ -409,7 +381,6 @@
     return { identity: idStatus, mask: maskStatus, name, alerts, reasons: [] };
   }
 
-  /* ---------------- alert de-duplication ---------------- */
   class AlertGate {
     constructor(clearAfterMs = 6000) { this.active = new Map(); this.clearAfter = clearAfterMs; }
     // True only for the first time a (category, track) episode is seen.
