@@ -419,6 +419,7 @@ ws.onopen=()=>{
 window.roverReconnectAttempts=0;
 healthy=true;
 setText("conn","● ONLINE • REALTIME");
+window.dispatchEvent(new CustomEvent("defenx-realtime-ready"));
 try{ws.send(JSON.stringify({type:"ping",t:Date.now()}))}catch(_){ }
 if(window.roverReconnectTimer){clearTimeout(window.roverReconnectTimer);window.roverReconnectTimer=null}
 clearHeartbeat();
