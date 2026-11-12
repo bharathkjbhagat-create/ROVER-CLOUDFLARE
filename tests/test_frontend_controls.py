@@ -153,6 +153,8 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('if (lastSentCameraState !== cameraActive)', self.camera_webrtc)
         self.assertNotIn('if (localStream) send({ type: "rtc_camera", active: true });', self.camera_webrtc)
         self.assertIn('status(remoteActive ? "LOCAL + REMOTE CAMERA LIVE" : "PHONE CAMERA LIVE");', self.camera_webrtc)
+        self.assertIn('pc.connectionState === "failed"', self.camera_webrtc)
+        self.assertIn('setRemoteCameraActive(id, false);', self.camera_webrtc)
         self.assertIn('if(phoneCameraActive||window.__defenxRemoteCameraActive)return;', self.js)
         self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
         self.assertIn('async function loadIceServers()', self.camera_webrtc)
