@@ -4,6 +4,7 @@
 (() => {
   "use strict";
   const peers = new Map();
+  const knownPeers = new Set();
   const queuedIce = new Map();
   let localStream = null;
   let remoteVideo = null;
@@ -135,11 +136,20 @@
   window.addEventListener("defenx-rtc-message", event => {
     const message = event.detail || {};
     if (message.type === "rtc_peers") {
-      (message.peer_ids || []).forEach(id => { if (localStream) offerTo(String(id)); });
+      knownPeers.clear();
+      (message.peer_ids || []).forEach(id => {
+        const peerId = String(id);
+        if (peerId) knownPeers.add(peerId);
+        if (localStream) offerTo(peerId);
+      });
     } else if (message.type === "rtc_peer_joined") {
-      if (localStream) offerTo(String(message.peer_id || ""));
+      const peerId = String(message.peer_id || "");
+      if (peerId) knownPeers.add(peerId);
+      if (localStream) offerTo(peerId);
     } else if (message.type === "rtc_peer_left") {
-      closePeer(String(message.peer_id || ""));
+      const peerId = String(message.peer_id || "");
+      knownPeers.delete(peerId);
+      closePeer(peerId);
     } else if (message.type === "rtc_signal") {
       applySignal(message);
     } else if (message.type === "rtc_signal_error") {
@@ -152,13 +162,7 @@
       localStream = stream || null;
       if (localStream) {
         for (const id of peers.keys()) closePeer(id);
-        // A new camera source creates fresh peer connections with the current peers.
-        const ws = socket();
-        if (ws && ws.readyState === WebSocket.OPEN) {
-          // Server sends the current peer list on connection; ask it to re-announce
-          // peers by reconnecting only when needed is avoided to preserve state sync.
-          window.dispatchEvent(new CustomEvent("defenx-rtc-publish-started"));
-        }
+        for (const id of knownPeers) offerTo(id);
       } else {
         for (const id of peers.keys()) closePeer(id);
       }
