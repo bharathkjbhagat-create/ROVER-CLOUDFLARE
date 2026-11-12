@@ -507,6 +507,47 @@ class DurableObjectLogicTests(unittest.TestCase):
         hist = loop.run_until_complete(logic.handle({"op": "gps_history", "device": "D-1"}))["items"]
         self.assertEqual(len(hist), 100)
 
+    def test_device_websocket_tickets_are_single_use_and_bound_to_key_version(self):
+        clock = Clock()
+        logic = FleetDOLogic(FakeStorage(), clock=clock)
+        loop = asyncio.new_event_loop()
+        svc = F.FleetService(SyncStoreAdapter(clock), MASTER, clock=clock)
+        device, _ = svc.register_device("PHONE-01", "Phone", "phone", "admin")
+        digest = "a" * 64
+        issued = loop.run_until_complete(logic.handle({
+            "op": "ws_ticket_issue", "ticket_hash": digest, "device_id": device["id"],
+            "key_version": device["key_version"], "expires_at": int(clock()) + 60,
+        }))
+        self.assertTrue(issued["ok"])
+        first = loop.run_until_complete(logic.handle({"op": "ws_ticket_consume", "ticket_hash": digest}))
+        second = loop.run_until_complete(logic.handle({"op": "ws_ticket_consume", "ticket_hash": digest}))
+        self.assertTrue(first["ok"])
+        self.assertEqual(first["device_id"], "PHONE-01")
+        self.assertFalse(second["ok"])
+
+    def test_device_websocket_ticket_expires_and_rejects_rotated_key(self):
+        clock = Clock()
+        storage = FakeStorage()
+        logic = FleetDOLogic(storage, clock=clock)
+        loop = asyncio.new_event_loop()
+        awaitable = loop.run_until_complete
+        awaitable(logic.handle({"op": "put", "key": "dev:PHONE-01", "value": {
+            "id": "PHONE-01", "key_version": 2, "revoked": False,
+        }}))
+        digest = "b" * 64
+        awaitable(logic.handle({"op": "ws_ticket_issue", "ticket_hash": digest,
+                                "device_id": "PHONE-01", "key_version": 1,
+                                "expires_at": int(clock()) + 60}))
+        result = awaitable(logic.handle({"op": "ws_ticket_consume", "ticket_hash": digest}))
+        self.assertFalse(result["ok"])
+        expired = "c" * 64
+        awaitable(logic.handle({"op": "ws_ticket_issue", "ticket_hash": expired,
+                                "device_id": "PHONE-01", "key_version": 2,
+                                "expires_at": int(clock()) + 60}))
+        clock.t += 61
+        result = awaitable(logic.handle({"op": "ws_ticket_consume", "ticket_hash": expired}))
+        self.assertFalse(result["ok"])
+
     def test_unknown_and_private_ops_rejected(self):
         logic = FleetDOLogic(FakeStorage())
         loop = asyncio.new_event_loop()
