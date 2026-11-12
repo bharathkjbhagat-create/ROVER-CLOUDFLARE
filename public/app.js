@@ -370,6 +370,10 @@ return window.roverWS?.readyState===WebSocket.OPEN?"● ONLINE • REALTIME":"�
 }
 function applyRemoteState(message){
 if(!message)return;
+if(String(message.type||"").startsWith("rtc_")){
+window.dispatchEvent(new CustomEvent("defenx-rtc-message",{detail:message}));
+return;
+}
 if(message.type==="camera-command"&&message.command){
 const c=String(message.command).toUpperCase();
 setText("cmd",c);
