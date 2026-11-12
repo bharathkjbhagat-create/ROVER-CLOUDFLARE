@@ -55,6 +55,7 @@
   const peerRows = new Map();
   function renderPeers(peers) {
     const box = $("peers");
+    if (peers.length && peerRows.size === 0) box.textContent = "";
     const seen = new Set();
     for (const p of peers) {
       const id = String(p.id);
