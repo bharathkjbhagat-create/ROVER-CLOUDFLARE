@@ -303,7 +303,29 @@ class RealtimeHub(DurableObject):
         if attachment.get("kind") == "device":
             server.send(json.dumps({"type": "connected", "realtime": True, "device_id": attachment["device_id"]}))
         else:
-            server.send(json.dumps({"type": "connected", "realtime": True}))
+            server.send(json.dumps({
+                "type": "connected", "realtime": True, "peer_id": session_id
+            }, separators=(",", ":")))
+            # Tell the new operator about existing operator peers and notify those
+            # peers about this connection. Device-ticket sockets are excluded.
+            peers = []
+            for peer in self.ctx.getWebSockets():
+                if peer is server:
+                    continue
+                try:
+                    peer_info = peer.deserializeAttachment() or {}
+                    if peer_info.get("kind") == "operator":
+                        peer_id = str(peer_info.get("id") or "")
+                        if peer_id:
+                            peers.append(peer_id)
+                            peer.send(json.dumps({
+                                "type": "rtc_peer_joined", "peer_id": session_id
+                            }, separators=(",", ":")))
+                except Exception:
+                    pass
+            server.send(json.dumps({
+                "type": "rtc_peers", "peer_ids": peers
+            }, separators=(",", ":")))
             state = await self.get_state()
             if state:
                 server.send(json.dumps({
@@ -387,6 +409,46 @@ class RealtimeHub(DurableObject):
         if action == "ping":
             ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
             return
+        if action in {"rtc_signal", "rtc_camera_state"}:
+            # Authenticated operator-to-operator WebRTC signaling only.
+            # Media stays peer-to-peer; the Durable Object relays small SDP/ICE
+            # control messages and never receives or stores camera frames.
+            sender_id = str(attachment.get("id") or "")
+            target_id = str(data.get("to") or "")
+            if not sender_id or not target_id or sender_id == target_id:
+                return
+            target = self.sessions.get(target_id)
+            if target is None:
+                ws.send(json.dumps({
+                    "type": "rtc_signal_error", "to": target_id,
+                    "error": "Peer is no longer connected"
+                }))
+                return
+            try:
+                target_info = target.deserializeAttachment() or {}
+                if target_info.get("kind") != "operator":
+                    return
+                if action == "rtc_signal":
+                    signal = data.get("signal")
+                    if not isinstance(signal, dict) or signal.get("type") not in {"offer", "answer", "ice"}:
+                        return
+                    encoded = json.dumps(signal, separators=(",", ":"))
+                    if len(encoded.encode("utf-8")) > 196608:
+                        return
+                    target.send(json.dumps({
+                        "type": "rtc_signal", "from": sender_id, "signal": signal
+                    }, separators=(",", ":")))
+                else:
+                    state = data.get("active") is True
+                    target.send(json.dumps({
+                        "type": "rtc_camera_state", "from": sender_id, "active": state
+                    }, separators=(",", ":")))
+            except Exception:
+                ws.send(json.dumps({
+                    "type": "rtc_signal_error", "to": target_id,
+                    "error": "Unable to relay camera signaling"
+                }))
+            return
         if action not in {"command", "mode"}:
             return
         if not cookie:
@@ -469,6 +531,17 @@ class RealtimeHub(DurableObject):
         session_id = attachment.get("id")
         if session_id:
             self.sessions.pop(session_id, None)
+            if attachment.get("kind") == "operator":
+                payload = json.dumps({
+                    "type": "rtc_peer_left", "peer_id": str(session_id)
+                }, separators=(",", ":"))
+                for peer in self.ctx.getWebSockets():
+                    try:
+                        peer_info = peer.deserializeAttachment() or {}
+                        if peer_info.get("kind") == "operator":
+                            peer.send(payload)
+                    except Exception:
+                        pass
         try:
             ws.close(code, reason)
         except Exception:
