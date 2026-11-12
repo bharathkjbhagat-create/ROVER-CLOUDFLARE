@@ -106,23 +106,30 @@
   }
 
   function restoreFallbackCamera() {
-    if (localStream || document.querySelector("[data-defenx-remote-camera='1']")) return;
+    if (localStream) return;
+    const remoteVideos = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"));
+    const hasActiveRemoteVideo = remoteVideos.some(video => video.dataset.defenxCameraActive === "1");
+    const hasActiveRemoteSignal = Array.from(remoteCameraStates.values()).some(Boolean);
+    if (hasActiveRemoteVideo || hasActiveRemoteSignal) return;
+
     const current = $("roverRealCamera");
-    if (current && current.dataset.defenxRemoteReused === "1") {
-      current.pause();
-      current.srcObject = null;
-      delete current.dataset.defenxRemoteCamera;
-      delete current.dataset.defenxPeerId;
-      delete current.dataset.defenxRemoteReused;
-      delete current.dataset.defenxLiveStream;
-      current.style.display = "none";
-      return;
+    if (current && current.dataset.defenxRemoteCamera === "1") {
+      current.id = "defenxRemoteCamera-" + (current.dataset.defenxPeerId || "paused");
+      current.style.visibility = "hidden";
+      updateRemoteLayout(current);
     }
-    if (current && current.dataset.defenxRemoteCamera === "1") current.remove();
     if (fallbackCameraNode && fallbackCameraNode.isConnected) {
       fallbackCameraNode.id = "roverRealCamera";
       fallbackCameraNode.style.display = "";
+      const viewport = $("cameraViewport");
+      if (viewport && fallbackCameraNode.parentElement === viewport) {
+        // Reinsert to notify the live-camera and AI source observers of the hand-off.
+        viewport.appendChild(fallbackCameraNode);
+      }
       fallbackCameraNode = null;
+    } else if (!$("roverRealCamera")) {
+      const scene = $("camera3DScene");
+      if (scene) scene.style.display = "";
     }
   }
 
@@ -197,6 +204,13 @@
       }
     }
     const remoteActive = updateRemoteCameraActiveFlag();
+    if (!localStream && remoteActive) {
+      const activeVideo = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"))
+        .find(node => node.dataset.defenxCameraActive === "1");
+      if (activeVideo) promoteRemoteVideo(activeVideo);
+    } else if (!localStream && !remoteActive) {
+      restoreFallbackCamera();
+    }
     if (active) {
       if (video) {
         const placeholder = $("camPlaceholder");
@@ -241,6 +255,7 @@
       if (scene && !$("roverRealCamera")?.dataset?.defenxLiveStream) scene.style.display = "";
       status("REMOTE CAMERA OFFLINE");
     } else if (!localStream && !remoteActive) {
+      restoreFallbackCamera();
       const badge = document.querySelector("#liveCamera .liveBadge");
       if (badge) { badge.innerHTML = "<i></i> PAUSED"; badge.classList.add("mvOff"); }
       status("REMOTE DEVICE CAMERA • PAUSED");
@@ -367,9 +382,15 @@
     } else if (activeRemoteVideos.length) {
       promoteRemoteVideo(activeRemoteVideos[0]);
       remoteVideos.filter(video => video !== activeRemoteVideos[0]).forEach(updateRemoteLayout);
+    } else if (updateRemoteCameraActiveFlag()) {
+      remoteVideos.forEach(video => { video.style.visibility = "hidden"; });
+      status("REMOTE DEVICE CAMERA • CONNECTING");
     } else if (remoteVideos.length) {
       remoteVideos.forEach(video => { video.style.visibility = "hidden"; });
+      restoreFallbackCamera();
       status("REMOTE DEVICE CAMERA • PAUSED");
+    } else {
+      restoreFallbackCamera();
     }
     updateRemoteCameraActiveFlag();
   }
