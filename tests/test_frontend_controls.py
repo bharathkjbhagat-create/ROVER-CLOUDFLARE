@@ -111,7 +111,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('id="phoneCameraBtn"', self.html)
         self.assertIn('src="/phone-camera.js?v=20261107-07"', self.html)
         self.assertIn('href="/phone-camera.css?v=20261107-01"', self.html)
-        self.assertIn("if(phoneCameraActive)return;", self.js)
+        self.assertIn("if(phoneCameraActive||window.__defenxRemoteCameraActive)return;", self.js)
         self.assertIn("!phoneCameraActive", self.js)
 
     def test_live_phone_camera_streams_to_other_authenticated_dashboards(self):
@@ -126,8 +126,11 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('type: "rtc_signal"', self.camera_webrtc)
         self.assertIn('type: "rtc_join"', self.camera_webrtc)
         self.assertIn('data-defenx-remote-camera', self.camera_webrtc)
-        self.assertIn('video.id = videoId', self.camera_webrtc)
-        self.assertIn('if (!localStream && !$("roverRealCamera") && remoteVideos[0]) remoteVideos[0].id = "roverRealCamera";', self.camera_webrtc)
+        self.assertIn('video.dataset.defenxPeerId = safeId;', self.camera_webrtc)
+        self.assertIn('function promoteRemoteVideo(video)', self.camera_webrtc)
+        self.assertIn('video.id = "roverRealCamera";', self.camera_webrtc)
+        self.assertIn('promoteRemoteVideo(video);', self.camera_webrtc)
+        self.assertIn('window.__defenxRemoteCameraActive = true;', self.camera_webrtc)
         self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
 
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
