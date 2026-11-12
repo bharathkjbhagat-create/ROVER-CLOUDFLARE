@@ -8,9 +8,24 @@
   const queuedIce = new Map();
   let localStream = null;
   let remoteVideo = null;
-  const rtcConfig = {
+  const fallbackRtcConfig = {
     iceServers: [{ urls: ["stun:stun.l.google.com:19302"] }]
   };
+  // Fetch short-lived TURN credentials from the authenticated Worker endpoint.
+  // If TURN is not configured, keep the free STUN fallback.
+  const rtcConfigPromise = fetch("/api/rtc/ice-config", {
+    credentials: "same-origin",
+    headers: { "Accept": "application/json" },
+    cache: "no-store"
+  }).then(response => {
+    if (!response.ok) throw new Error("ICE config unavailable");
+    return response.json();
+  }).then(config => {
+    if (!config || !Array.isArray(config.iceServers) || !config.iceServers.length) {
+      return fallbackRtcConfig;
+    }
+    return { iceServers: config.iceServers };
+  }).catch(() => fallbackRtcConfig);
   const socket = () => window.roverWS;
   const send = (to, signal) => {
     const ws = socket();
@@ -59,11 +74,15 @@
     queuedIce.delete(id);
     if (!peers.size) hideRemote();
   }
-  function makePeer(id) {
+  async function makePeer(id) {
     if (!id || id === window.__defenxRtcPeerId) return null;
     let pc = peers.get(id);
     if (pc) return pc;
-    pc = new RTCPeerConnection(rtcConfig);
+    const config = await rtcConfigPromise;
+    // A peer may have appeared while the ICE configuration was loading.
+    pc = peers.get(id);
+    if (pc) return pc;
+    pc = new RTCPeerConnection(config);
     peers.set(id, pc);
     if (localStream) {
       localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
@@ -89,7 +108,7 @@
   }
   async function offerTo(id) {
     if (!localStream) return;
-    const pc = makePeer(id);
+    const pc = await makePeer(id);
     if (!pc || pc.signalingState !== "stable") return;
     try {
       const offer = await pc.createOffer();
@@ -103,7 +122,7 @@
     const id = String(message.from || "");
     const signal = message.signal || {};
     if (!id) return;
-    const pc = makePeer(id);
+    const pc = await makePeer(id);
     if (!pc) return;
     try {
       if (signal.type === "offer") {
@@ -133,6 +152,9 @@
       closePeer(id);
     }
   }
+  window.addEventListener("defenx-realtime-ready", () => {
+    if (localStream) for (const id of knownPeers) offerTo(id);
+  });
   window.addEventListener("defenx-rtc-message", event => {
     const message = event.detail || {};
     if (message.type === "rtc_peers") {
