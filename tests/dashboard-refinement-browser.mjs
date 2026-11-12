@@ -112,37 +112,52 @@ try {
 
   await page.addStyleTag({ content: css });
   const desktopGrid = await page.evaluate(() => {
-    const grid = document.querySelector(".dashboardGrid");
-    const lower = document.querySelector(".lowerGrid");
-    const widths = getComputedStyle(grid).gridTemplateColumns.split(" ").map(Number);
-    const lowerWidths = getComputedStyle(lower).gridTemplateColumns.split(" ").map(Number);
+    const rect = selector => {
+      const r = document.querySelector(selector).getBoundingClientRect();
+      return { width: r.width, height: r.height, left: r.left, top: r.top };
+    };
+    const map = rect(".mapCard");
+    const camera = rect(".cameraCard");
+    const control = rect(".controlCard");
+    const device = rect(".deviceCard");
+    const fleet = rect(".fleetCard");
+    const simulation = rect(".simLabCard");
+    const status = rect(".statusCard");
+    const target = rect(".targetCard");
     return {
-      columns: widths.length,
-      equalColumns: widths.length === 2 && Math.abs(widths[0] - widths[1]) < 1,
-      lowerColumns: lowerWidths.length,
-      lowerEqualColumns: lowerWidths.length === 2 && Math.abs(lowerWidths[0] - lowerWidths[1]) < 1,
+      mapCameraEqual: Math.abs(map.width - camera.width) < 1,
+      controlDeviceEqual: Math.abs(control.width - device.width) < 1,
+      fleetSimulationEqual: Math.abs(fleet.width - simulation.width) < 1,
+      lowerCardsEqual: Math.abs(status.width - target.width) < 1,
+      firstRowEqualHeight: Math.abs(map.height - camera.height) < 1,
+      secondRowEqualHeight: Math.abs(control.height - device.height) < 1,
+      thirdRowEqualHeight: Math.abs(fleet.height - simulation.height) < 1,
       mapArea: getComputedStyle(document.querySelector(".mapCard")).gridArea,
       cameraArea: getComputedStyle(document.querySelector(".cameraCard")).gridArea,
       fleetArea: getComputedStyle(document.querySelector(".fleetCard")).gridArea,
       simulationArea: getComputedStyle(document.querySelector(".simLabCard")).gridArea
     };
   });
-  assert.equal(desktopGrid.columns, 2, "main dashboard must use two equal columns");
-  assert.equal(desktopGrid.equalColumns, true, "main dashboard columns must remain equal width");
-  assert.equal(desktopGrid.lowerColumns, 2, "lower dashboard must use two columns");
-  assert.equal(desktopGrid.lowerEqualColumns, true, "lower dashboard columns must remain equal width");
+  assert.equal(desktopGrid.mapCameraEqual, true, "map and camera cards must have equal width");
+  assert.equal(desktopGrid.controlDeviceEqual, true, "control and device cards must have equal width");
+  assert.equal(desktopGrid.fleetSimulationEqual, true, "fleet and simulation cards must have equal width");
+  assert.equal(desktopGrid.lowerCardsEqual, true, "lower dashboard cards must have equal width");
+  assert.equal(desktopGrid.firstRowEqualHeight, true, "map and camera row must stretch to equal height");
+  assert.equal(desktopGrid.secondRowEqualHeight, true, "control and device row must stretch to equal height");
+  assert.equal(desktopGrid.thirdRowEqualHeight, true, "fleet and simulation row must stretch to equal height");
   assert.match(desktopGrid.mapArea, /map/);
   assert.match(desktopGrid.cameraArea, /camera/);
   assert.match(desktopGrid.fleetArea, /fleet/);
-
   assert.match(desktopGrid.simulationArea, /simulation/);
 
   await page.setViewportSize({ width: 768, height: 900 });
-  const tabletColumns = await page.locator(".dashboardGrid").evaluate(el =>
-    getComputedStyle(el).gridTemplateColumns.split(" ").map(Number)
-  );
-  assert.equal(tabletColumns.length, 2, "tablet dashboard must retain two columns");
-  assert.ok(Math.abs(tabletColumns[0] - tabletColumns[1]) < 1, "tablet dashboard columns must remain equal");
+  const tabletWidths = await page.evaluate(() => {
+    const map = document.querySelector(".mapCard").getBoundingClientRect().width;
+    const camera = document.querySelector(".cameraCard").getBoundingClientRect().width;
+    return { map, camera };
+  });
+  assert.ok(tabletWidths.map > 0 && Math.abs(tabletWidths.map - tabletWidths.camera) < 1,
+    "tablet dashboard cards must remain equal width");
   await page.setViewportSize({ width: 1365, height: 900 });
   await page.addScriptTag({ content: script });
 
