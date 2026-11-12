@@ -44,7 +44,7 @@
     socketOpening = true;
     try {
       const issued = await post("/api/fleet/ws-ticket", {}, true);
-      if (!running) return;
+      if (!running) { socketOpening = false; return; }
       if (issued.status !== 200 || !issued.data.ticket) throw new Error(issued.data.error || "WebSocket ticket unavailable");
       const scheme = location.protocol === "https:" ? "wss:" : "ws:";
       const ws = new WebSocket(scheme + "//" + location.host + "/api/ws?device_ticket=" + encodeURIComponent(issued.data.ticket));
