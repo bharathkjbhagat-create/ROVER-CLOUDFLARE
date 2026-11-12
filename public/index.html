@@ -4,7 +4,7 @@
 <body>
 <header class="topbar">
   <div class="brandCluster">
-    <div class="brandWords"><div class="brandName defenxBrandName">DEFENX</div><div class="brandSub">DEFENX - Intelligence in Motion.</div><button id="mobileMenuBtn" class="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="mobileNavPanel" aria-label="Open navigation"><span></span><span></span><span></span></button></div>
+    <div class="brandWords"><div class="brandName defenxBrandName">DEFENX</div><div class="brandSub">DEFENX - Intelligence in Motion.</div><button id="mobileMenuBtn" class="mobileMenuBtn" type="button" aria-expanded="false" aria-controls="commandSidebar" aria-label="Open navigation"><span></span><span></span><span></span></button></div>
   </div>
   <div class="topStatus">
     <div class="statusBlock"><span class="statusDot"></span><div><b>ROVER LINK STATUS</b><small id="connStatus">● CHECKING</small></div></div>
@@ -21,37 +21,11 @@
     <button type="button" id="logoutBtn" class="topLogout">⏻</button>
   </div>
 </header>
-<div id="mobileNavPanel" class="mobileNavPanel" aria-hidden="true"><nav class="mobileNavGrid"></nav></div>
-<script>
-(function(){
-  function bindRoverMobileMenu(){
-    var btn=document.getElementById("mobileMenuBtn");
-    var panel=document.getElementById("mobileNavPanel");
-    if(!btn||!panel||btn.dataset.menuClickBound==="1") return;
-    btn.dataset.menuClickBound="1";
-    btn.addEventListener("click",function(ev){
-      ev.preventDefault();
-      ev.stopPropagation();
-      var open=!panel.classList.contains("open");
-      panel.classList.toggle("open",open);
-      panel.setAttribute("aria-hidden",String(!open));
-      btn.setAttribute("aria-expanded",String(open));
-    });
-    document.addEventListener("click",function(ev){
-      if(!panel.classList.contains("open")) return;
-      if(panel.contains(ev.target)||btn.contains(ev.target)) return;
-      panel.classList.remove("open");
-      panel.setAttribute("aria-hidden","true");
-      btn.setAttribute("aria-expanded","false");
-    });
-  }
-  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded",bindRoverMobileMenu);
-  else bindRoverMobileMenu();
-})();
-</script>
+<div id="mobileNavPanel" class="mobileNavPanel" aria-hidden="true"></div>
+
 
 <div class="appShell">
-  <aside class="sidebar">
+  <aside id="commandSidebar" class="sidebar" aria-hidden="true" inert>
     <div class="sideTitle">COMMAND CENTRE</div>
     <nav class="sideNav">
       <button type="button" class="navItem active" data-scroll="dashboardTop"><span>⌂</span>Dashboard</button>
