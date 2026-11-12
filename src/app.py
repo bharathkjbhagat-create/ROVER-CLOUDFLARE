@@ -2351,6 +2351,28 @@ def _finite_number(value, default=None, minimum=None, maximum=None):
         return default
     return n
 
+@app.get("/api/rtc/ice-config")
+@require_login
+def rtc_ice_config():
+    """Return ICE servers with short-lived TURN credentials when configured."""
+    servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+    turn_urls = str(_config("RTC_TURN_URLS", "") or "").split(",")
+    turn_urls = [url.strip() for url in turn_urls if url.strip().startswith(("turn:", "turns:"))]
+    turn_secret = str(_config("RTC_TURN_SHARED_SECRET", "") or "")
+    if turn_urls and turn_secret:
+        expires = int(time.time()) + 3600
+        username = f"{expires}:defenx"
+        credential = base64.b64encode(
+            hmac.new(turn_secret.encode("utf-8"), username.encode("utf-8"), hashlib.sha1).digest()
+        ).decode("ascii")
+        servers.append({
+            "urls": turn_urls,
+            "username": username,
+            "credential": credential,
+        })
+    return jsonify({"ok": True, "iceServers": servers, "turnEnabled": len(servers) > 1})
+
+
 @app.get("/api/camera-config")
 @require_login
 def camera_config():
