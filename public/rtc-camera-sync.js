@@ -6,6 +6,8 @@
   const peers = new Map();
   const knownPeers = new Set();
   const queuedIce = new Map();
+  const creatingPeers = new Map();
+  const pendingSignals = [];
   let localStream = null;
   let remoteVideo = null;
   const fallbackRtcConfig = {
@@ -29,9 +31,16 @@
   const socket = () => window.roverWS;
   const send = (to, signal) => {
     const ws = socket();
-    if (!ws || ws.readyState !== WebSocket.OPEN) return false;
-    ws.send(JSON.stringify({ type: "rtc_signal", to, signal }));
-    return true;
+    const payload = { type: "rtc_signal", to, signal };
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      if (pendingSignals.length < 128) pendingSignals.push(payload);
+      return false;
+    }
+    try { ws.send(JSON.stringify(payload)); return true; }
+    catch (_) {
+      if (pendingSignals.length < 128) pendingSignals.push(payload);
+      return false;
+    }
   };
   function ensureRemoteVideo() {
     if (remoteVideo?.isConnected) return remoteVideo;
@@ -78,33 +87,37 @@
     if (!id || id === window.__defenxRtcPeerId) return null;
     let pc = peers.get(id);
     if (pc) return pc;
-    const config = await rtcConfigPromise;
-    // A peer may have appeared while the ICE configuration was loading.
-    pc = peers.get(id);
-    if (pc) return pc;
-    pc = new RTCPeerConnection(config);
-    peers.set(id, pc);
-    if (localStream) {
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
-    }
-    pc.onicecandidate = event => {
-      if (event.candidate) send(id, { type: "ice", candidate: event.candidate });
-    };
-    pc.ontrack = event => {
-      const stream = event.streams && event.streams[0];
-      if (stream) showRemote(stream);
-    };
-    pc.onconnectionstatechange = () => {
-      if (["failed", "closed"].includes(pc.connectionState)) closePeer(id);
-    };
-    pc.oniceconnectionstatechange = () => {
-      if (pc.iceConnectionState === "failed") {
-        // STUN-only connections can fail behind restrictive NATs; do not claim live.
-        const status = document.getElementById("cameraStatus");
-        if (status) status.textContent = "REMOTE CAMERA CONNECTION FAILED";
+    if (creatingPeers.has(id)) return creatingPeers.get(id);
+    const creation = (async () => {
+      const config = await rtcConfigPromise;
+      let existing = peers.get(id);
+      if (existing) return existing;
+      const connection = new RTCPeerConnection(config);
+      peers.set(id, connection);
+      if (localStream) {
+        localStream.getTracks().forEach(track => connection.addTrack(track, localStream));
       }
-    };
-    return pc;
+      connection.onicecandidate = event => {
+        if (event.candidate) send(id, { type: "ice", candidate: event.candidate });
+      };
+      connection.ontrack = event => {
+        const stream = event.streams && event.streams[0];
+        if (stream) showRemote(stream);
+      };
+      connection.onconnectionstatechange = () => {
+        if (["failed", "closed"].includes(connection.connectionState)) closePeer(id);
+      };
+      connection.oniceconnectionstatechange = () => {
+        if (connection.iceConnectionState === "failed") {
+          const status = document.getElementById("cameraStatus");
+          if (status) status.textContent = "REMOTE CAMERA CONNECTION FAILED";
+        }
+      };
+      return connection;
+    })();
+    creatingPeers.set(id, creation);
+    try { return await creation; }
+    finally { creatingPeers.delete(id); }
   }
   async function offerTo(id) {
     if (!localStream) return;
@@ -153,6 +166,13 @@
     }
   }
   window.addEventListener("defenx-realtime-ready", () => {
+    const ws = socket();
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      while (pendingSignals.length) {
+        try { ws.send(JSON.stringify(pendingSignals.shift())); }
+        catch (_) { break; }
+      }
+    }
     if (localStream) for (const id of knownPeers) offerTo(id);
   });
   window.addEventListener("defenx-rtc-message", event => {
