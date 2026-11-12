@@ -1,0 +1,38 @@
+/* DEFENX dashboard refinement — presentation-only overrides. Existing IDs and actions stay intact. */
+.appShell{display:block!important;grid-template-columns:none!important}
+.dashboard{width:100%!important;max-width:1680px!important;margin:0 auto!important;padding:18px clamp(12px,2vw,30px) 28px!important;min-width:0!important}
+.sidebar{position:fixed!important;inset:0 auto 0 0!important;width:min(292px,86vw)!important;height:100dvh!important;z-index:3200!important;display:flex!important;flex-direction:column!important;gap:14px!important;padding:22px 16px!important;overflow-y:auto!important;overflow-x:hidden!important;background:linear-gradient(180deg,#0b1b27 0%,#07131d 100%)!important;border-right:1px solid rgba(91,157,181,.25)!important;box-shadow:18px 0 55px rgba(0,0,0,.42)!important;transform:translateX(-105%)!important;transition:transform .26s cubic-bezier(.2,.75,.25,1)!important;visibility:hidden!important}
+body.defenx-drawer-open .sidebar{transform:translateX(0)!important;visibility:visible!important}
+.sidebar .sideTitle{font-size:10px!important;padding:5px 10px 8px!important;letter-spacing:2px!important}
+.sidebar .sideNav{display:grid!important;grid-template-columns:1fr!important;gap:5px!important}
+.sidebar .navItem{width:100%!important;min-width:0!important;height:44px!important;justify-content:flex-start!important;flex-direction:row!important;gap:12px!important;padding:0 12px!important;font-size:12px!important}
+.sidebar .navItem span{font-size:19px!important;width:22px!important}
+.sidebar .sidePromo{display:grid!important;margin-top:auto!important}
+.sidebar .sideLogout{display:flex!important;align-items:center!important;justify-content:center!important;gap:9px!important;min-height:42px!important}
+.sidebar .sideLogout span{font-size:12px!important}
+.defenx-drawer-backdrop{position:fixed;inset:0;z-index:3100;background:rgba(1,7,12,.62);backdrop-filter:blur(3px);opacity:0;visibility:hidden;transition:opacity .22s ease,visibility .22s ease}
+body.defenx-drawer-open .defenx-drawer-backdrop{opacity:1;visibility:visible}
+.mobileNavPanel{display:none!important}
+.mobileMenuBtn{display:inline-flex!important;align-items:center;justify-content:center;flex-direction:column;gap:4px;width:38px;height:38px;margin-left:10px;border:1px solid rgba(100,180,204,.3)!important;border-radius:10px!important;background:#102535!important;vertical-align:middle}
+.mobileMenuBtn span{display:block;width:17px;height:2px;border-radius:2px;background:#d8f2fa}
+.topbar{z-index:1000!important}
+.dashboardGrid{gap:16px!important}
+.dashboardGrid>.mapCard,.dashboardGrid .cameraCard,.dashboardGrid .deviceCard,.dashboardGrid .controlCard,.lowerGrid>.card{border-radius:15px!important}
+.inlineFold{margin-left:auto;position:relative;min-width:0}
+.inlineFold>summary,.controlSubFold>summary,.detectionSettingsFold>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding:7px 11px;border:1px solid rgba(100,180,204,.24);border-radius:9px;background:rgba(12,34,48,.8);color:#c6e2ec;font-size:10px;font-weight:850;letter-spacing:.07em;white-space:nowrap}
+.inlineFold>summary::-webkit-details-marker,.controlSubFold>summary::-webkit-details-marker,.detectionSettingsFold>summary::-webkit-details-marker{display:none}
+.inlineFold>summary:after,.controlSubFold>summary:after,.detectionSettingsFold>summary:after{content:"⌄";font-size:14px;color:#66d8c0}
+.inlineFold[open]>summary:after,.controlSubFold[open]>summary:after,.detectionSettingsFold[open]>summary:after{content:"⌃"}
+.inlineFold[open]>.mapControls{position:absolute;right:0;top:42px;z-index:30;min-width:min(470px,calc(100vw - 34px));padding:12px;border:1px solid rgba(100,180,204,.28);border-radius:12px;background:#091823;box-shadow:0 16px 40px rgba(0,0,0,.42);display:grid!important;gap:9px}
+.inlineFold .mapControls{display:none}
+.inlineFold[open] .mapControls{display:grid!important}
+.controlSubFold{margin:8px 12px 10px}
+.controlSubFold>summary{justify-content:flex-start}
+.controlSubFold .routePreviewBtn{margin-top:8px}
+.detectionSettingsFold{margin:8px 0}
+.detectionSettingsFold .detectionEventsActions{display:flex;flex-wrap:wrap;gap:7px;padding:10px 0 2px}
+.cameraCard .faceScanBar,.cameraCard .aiVisionBar{margin-top:8px}
+@media(min-width:651px){.dashboard{padding-top:20px!important}.missionBar{margin-bottom:15px!important}.dashboardGrid{grid-template-columns:minmax(0,1.55fr) minmax(330px,.85fr)!important}.dashboardGrid>.rightStack{gap:14px!important}}
+@media(max-width:900px){.appShell{grid-template-columns:1fr!important}.dashboard{padding:12px!important}.sidebar{width:min(310px,88vw)!important}}
+@media(max-width:650px){.topbar{position:sticky!important;top:0!important}.mobileMenuBtn{display:inline-flex!important}.dashboard{padding:10px 11px 22px!important}.missionBar{gap:8px!important}.missionLive{flex-shrink:0}.inlineFold[open]>.mapControls{right:-6px;min-width:min(340px,calc(100vw - 28px))}.mapHeader{flex-wrap:wrap!important}.inlineFold{margin-left:auto}.controlSubFold{margin-left:10px;margin-right:10px}.sidebar{padding:18px 14px!important}}
+@media(prefers-reduced-motion:reduce){.sidebar,.defenx-drawer-backdrop{transition:none!important}}
