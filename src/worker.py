@@ -363,60 +363,6 @@ class RealtimeHub(DurableObject):
             except Exception:
                 pass
 
-        if upgrade != "websocket":
-            return Response("Expected WebSocket", status=426)
-
-        cookie = str(request.headers.get("Cookie") or "")
-        if not cookie:
-            return Response("Authentication required", status=401)
-
-        # Validate the signed Flask session before exposing live telemetry.
-        try:
-            # Avoid an internal Worker-to-Worker fetch for the initial handshake.
-            # Validate the session locally; this prevents recursive routing and
-            # makes the WebSocket endpoint independent of internal host aliases.
-            from app import app
-            raw_cookie = cookie
-            session_cookie = None
-            for part in raw_cookie.split(";"):
-                name, sep, value = part.strip().partition("=")
-                if name == app.config.get("SESSION_COOKIE_NAME", "session") and sep:
-                    session_cookie = value
-                    break
-            if not session_cookie:
-                return Response("Authentication required", status=401)
-            serializer = app.session_interface.get_signing_serializer(app)
-            if serializer is None:
-                return Response("Authentication service unavailable", status=503)
-            try:
-                serializer.loads(session_cookie, max_age=int(app.permanent_session_lifetime.total_seconds()))
-            except Exception:
-                return Response("Authentication required", status=401)
-            session_hash = hashlib.sha256(session_cookie.encode("utf-8")).hexdigest()
-            if await self.is_session_revoked(session_hash):
-                return Response("Authentication required", status=401)
-        except Exception:
-            return Response("Authentication service unavailable", status=503)
-
-        client, server = WebSocketPair.new().object_values()
-        self.ctx.acceptWebSocket(server)
-
-        session_id = str(uuid.uuid4())
-        server.serializeAttachment({"id": session_id, "cookie": cookie})
-        self.sessions[session_id] = server
-
-        server.send(json.dumps({"type": "connected", "realtime": True}))
-
-        state = await self.get_state()
-        if state:
-            server.send(json.dumps({
-                "type": "state",
-                "telemetry": state,
-                "source": "initial"
-            }, separators=(",", ":")))
-
-        return Response(None, status=101, web_socket=client)
-
     async def webSocketMessage(self, ws, message):
         attachment = ws.deserializeAttachment() or {}
         if attachment.get("kind") == "device":
