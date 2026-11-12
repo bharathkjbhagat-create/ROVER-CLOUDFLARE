@@ -134,7 +134,7 @@ static bool serverOk = false; static uint32_t lastServerOkMs = 0, lastInternetPr
 
 static WebSocketsClient deviceSocket;
 static bool deviceSocketConnected = false, wsResponseReady = false;
-static String wsPendingNonce, wsResponseBody;
+static String wsPendingNonce, wsResponseBody, wsPendingPath;
 static int wsResponseStatus = 0;
 static uint32_t wsPendingAt = 0, wsReconnectAt = 0, wsRetryMs = 2000;
 
@@ -149,7 +149,7 @@ static bool sendWsRequest(const char *path, const String &body) {
   frame["nonce"] = nonce; frame["signature"] = hmacHex(DEVICE_SECRET, canonical); frame["body"] = body;
   String message; serializeJson(frame, message);
   if (!deviceSocket.sendTXT(message)) return false;
-  wsPendingNonce = nonce; wsPendingAt = millis();
+  wsPendingNonce = nonce; wsPendingPath = path; wsPendingAt = millis();
   return true;
 }
 
@@ -161,7 +161,7 @@ static void onDeviceSocketEvent(WStype_t type, uint8_t *payload, size_t length) 
   if (type == WStype_DISCONNECTED) {
     deviceSocketConnected = false; wsReconnectAt = millis() + wsRetryMs;
     wsRetryMs = wsRetryMs < 15000 ? wsRetryMs * 2 : 30000;
-    wsPendingNonce = ""; wsResponseReady = false;
+    wsPendingNonce = ""; wsPendingPath = ""; wsResponseReady = false;
     return;
   }
   if (type != WStype_TEXT || !payload || !length || length > 32768) return;
@@ -172,7 +172,7 @@ static void onDeviceSocketEvent(WStype_t type, uint8_t *payload, size_t length) 
   String body = frame["body"] | "";
   String got = frame["signature"] | "";
   String expected = hmacHex(DEVICE_SECRET, String("RESP\n") + DEVICE_ID + "\n" + nonce + "\n" + sha256Hex(body));
-  if (!constTimeEq(expected, got)) { wsPendingNonce = ""; serverOk = false; return; }
+  if (!constTimeEq(expected, got)) { wsPendingNonce = ""; wsPendingPath = ""; serverOk = false; return; }
   wsResponseStatus = frame["status"] | 0; wsResponseBody = body;
   wsResponseReady = true; wsPendingNonce = "";
 }
@@ -259,21 +259,41 @@ static void sendHeartbeat(Fsm fsm) {
 }
 
 // Upload queued events (<=20) and drop only those the server confirms.
+static void reconcileJournal(const String &resp) {
+  JsonDocument r; if (deserializeJson(r, resp)) return;
+  JsonArray stored = r["stored_ids"].as<JsonArray>();
+  File in = LittleFS.open(JOURNAL, FILE_READ), out = LittleFS.open("/events.tmp", FILE_WRITE);
+  if (!in || !out) { if (in) in.close(); if (out) out.close(); LittleFS.remove("/events.tmp"); return; }
+  int left = 0;
+  while (in.available()) {
+    String line = in.readStringUntil('\n'); if (line.length() < 3) continue;
+    JsonDocument e; if (deserializeJson(e, line)) continue;
+    bool confirmed = false;
+    for (JsonVariant id : stored) if (e["id"] == id) { confirmed = true; break; }
+    if (!confirmed) { out.print(line); out.print('\n'); left++; }
+  }
+  in.close(); out.flush(); out.close();
+  LittleFS.remove("/events.bak");
+  if (!LittleFS.rename(JOURNAL, "/events.bak")) { LittleFS.remove("/events.tmp"); return; }
+  if (!LittleFS.rename("/events.tmp", JOURNAL)) {
+    LittleFS.rename("/events.bak", JOURNAL); LittleFS.remove("/events.tmp"); return;
+  }
+  LittleFS.remove("/events.bak");
+  pendingEvents = left;
+}
+
 static void syncJournal() {
-  if (!serverOk || pendingEvents <= 0) return;
+  if (!serverOk || pendingEvents <= 0 || wsPendingNonce.length()) return;
   File f = LittleFS.open(JOURNAL, FILE_READ); if (!f) return;
   JsonDocument batch; JsonArray arr = batch["events"].to<JsonArray>(); int n = 0;
   while (f.available() && n < 20) { String line = f.readStringUntil('\n'); JsonDocument e; if (!deserializeJson(e, line)) { arr.add(e); n++; } }
   f.close(); if (!n) { pendingEvents = 0; return; }
   String body, resp; serializeJson(batch, body);
-  if (signedPost("/api/fleet/events/upload", body, resp) != 200) return;
-  JsonDocument r; if (deserializeJson(r, resp)) return;
-  JsonArray stored = r["stored_ids"].as<JsonArray>();
-  File in = LittleFS.open(JOURNAL, FILE_READ), out = LittleFS.open("/events.tmp", FILE_WRITE); int left = 0;
-  while (in.available()) { String line = in.readStringUntil('\n'); if (line.length() < 3) continue; JsonDocument e; if (deserializeJson(e, line)) continue;
-    bool confirmed = false; for (JsonVariant s : stored) if (e["id"] == s) { confirmed = true; break; }
-    if (!confirmed) { out.print(line); out.print('\n'); left++; } }
-  in.close(); out.close(); LittleFS.remove(JOURNAL); LittleFS.rename("/events.tmp", JOURNAL); pendingEvents = left;
+  if (deviceSocketConnected) {
+    sendWsRequest("/api/fleet/events/upload", body);
+    return;
+  }
+  if (signedPost("/api/fleet/events/upload", body, resp) == 200) reconcileJournal(resp);
 }
 static void drainCoreEvents(bool offline) {
   Event e;
@@ -328,15 +348,19 @@ void loop() {
   deviceSocket.loop();
   if (wsResponseReady) {
     wsResponseReady = false;
+    const String response = wsResponseBody, path = wsPendingPath;
+    wsResponseBody = ""; wsPendingPath = "";
     if (wsResponseStatus == 200) {
       serverOk = true; lastServerOkMs = millis();
-      const String response = wsResponseBody; wsResponseBody = "";
-      processHeartbeatResponse(response);
+      if (path == "/api/fleet/heartbeat") processHeartbeatResponse(response);
+      else if (path == "/api/fleet/events/upload") reconcileJournal(response);
     } else {
-      serverOk = false; wsResponseBody = "";
+      serverOk = false;
     }
   }
-  if (wsPendingNonce.length() && (uint32_t)(millis() - wsPendingAt) > 8000) { wsPendingNonce = ""; serverOk = false; }
+  if (wsPendingNonce.length() && (uint32_t)(millis() - wsPendingAt) > 8000) {
+    wsPendingNonce = ""; wsPendingPath = ""; serverOk = false;
+  }
   connectDeviceSocket();
   while (gpsSerial.available()) gpsParser.encode(gpsSerial.read());
   uint32_t now = millis();
