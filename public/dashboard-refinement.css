@@ -54,7 +54,7 @@
   overflow-y: auto !important;
   overflow-x: hidden !important;
   transform: translateX(-105%) !important;
-  transition: transform .26s cubic-bezier(.2, .75, .25, 1), visibility .26s ease !important;
+  transition: transform .26s cubic-bezier(.2, .75, .25, 1) !important;
   visibility: hidden !important;
 }
 body.defenx-drawer-open { overflow: hidden !important; }
@@ -92,7 +92,7 @@ body.defenx-drawer-open .sidebar {
   backdrop-filter: blur(3px);
   opacity: 0;
   visibility: hidden;
-  transition: opacity .22s ease, visibility .22s ease;
+  transition: opacity .22s ease;
 }
 body.defenx-drawer-open .defenx-drawer-backdrop {
   opacity: 1;
