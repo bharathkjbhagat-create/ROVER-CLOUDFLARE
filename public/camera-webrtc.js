@@ -56,6 +56,8 @@
   }
 
   let socket = null;
+  let roomJoined = false;
+  let lastSentCameraState = null;
   let retryTimer = null;
   let heartbeatTimer = null;
   let pongTimer = null;
@@ -219,7 +221,9 @@
         if (badge) { badge.innerHTML = "<i></i> REMOTE LIVE"; badge.classList.remove("mvOff"); }
       }
       status(video ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", !!video);
-    } else if (!localStream && !remoteActive) {
+    } else if (localStream) {
+      status(remoteActive ? "LOCAL + REMOTE CAMERA LIVE" : "PHONE CAMERA LIVE");
+    } else if (!remoteActive) {
       status("REMOTE DEVICE CAMERA • PAUSED");
       const badge = document.querySelector("#liveCamera .liveBadge");
       if (badge) { badge.innerHTML = "<i></i> PAUSED"; badge.classList.add("mvOff"); }
@@ -369,7 +373,11 @@
       const track = localStream && localStream.getVideoTracks()[0] || null;
       entry.transceiver.sender.replaceTrack(track).catch(() => {});
     }
-    send({ type: "rtc_camera", active: !!localStream });
+    const cameraActive = !!localStream;
+    if (roomJoined && lastSentCameraState !== cameraActive) {
+      send({ type: "rtc_camera", active: cameraActive });
+      lastSentCameraState = cameraActive;
+    }
     const remoteVideos = Array.from(document.querySelectorAll("[data-defenx-remote-camera='1']"));
     const activeRemoteVideos = remoteVideos.filter(video => video.dataset.defenxCameraActive === "1");
     if (localStream) {
@@ -403,6 +411,7 @@
       return;
     }
     if (message.type === "rtc_peer_list") {
+      roomJoined = true;
       remoteCameraStates.clear();
       (message.peers || []).forEach(peer => {
         if (!peer || !peer.id || peer.id === peerId) return;
@@ -411,6 +420,11 @@
         else createPeer(peer.id).catch(() => {});
       });
       updateRemoteCameraActiveFlag();
+      const cameraActive = !!localStream;
+      if (lastSentCameraState !== cameraActive) {
+        send({ type: "rtc_camera", active: cameraActive });
+        lastSentCameraState = cameraActive;
+      }
     } else if (message.type === "rtc_peer_joined") {
       const peer = message.peer || {};
       if (!peer.id || peer.id === peerId) return;
@@ -438,8 +452,9 @@
     socket = ws;
     ws.onopen = () => {
       retryDelay = 1000;
+      roomJoined = false;
+      lastSentCameraState = null;
       send({ type: "rtc_join", peer_id: peerId });
-      if (localStream) send({ type: "rtc_camera", active: true });
       status(localStream ? "LOCAL CAMERA • CONNECTING TO DEVICES" : "CAMERA SYNC CONNECTED");
       clearInterval(heartbeatTimer);
       heartbeatTimer = setInterval(() => {
@@ -461,6 +476,8 @@
       heartbeatTimer = null;
       pongTimer = null;
       if (socket === ws) socket = null;
+      roomJoined = false;
+      lastSentCameraState = null;
       remoteCameraStates.clear();
       for (const id of Array.from(peers.keys())) closePeer(id);
       updateRemoteCameraActiveFlag();
