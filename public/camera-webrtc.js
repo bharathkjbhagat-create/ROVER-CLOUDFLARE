@@ -181,6 +181,12 @@
     }
     const remoteActive = updateRemoteCameraActiveFlag();
     if (active) {
+      if (video) {
+        const placeholder = $("camPlaceholder");
+        if (placeholder) placeholder.hidden = true;
+        const badge = document.querySelector("#liveCamera .liveBadge");
+        if (badge) { badge.innerHTML = "<i></i> REMOTE LIVE"; badge.classList.remove("mvOff"); }
+      }
       status(video ? "REMOTE DEVICE CAMERA • LIVE" : "REMOTE DEVICE CAMERA • CONNECTING", true);
     } else if (!localStream && !remoteActive) {
       status("REMOTE DEVICE CAMERA • PAUSED");
@@ -226,10 +232,11 @@
 
   function closePeer(id) {
     const peer = peers.get(id);
-    if (!peer) return;
-    peers.delete(id);
+    if (peer) {
+      peers.delete(id);
+      try { peer.pc.close(); } catch (_) {}
+    }
     remoteCameraStates.delete(id);
-    try { peer.pc.close(); } catch (_) {}
     removeRemoteVideo(id);
   }
 
