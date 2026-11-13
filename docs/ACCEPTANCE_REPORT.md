@@ -66,3 +66,13 @@ The GitHub main branch was not touched.
 - The browser phone device client obtains a short-lived single-use ticket and sends HMAC-signed heartbeat, event and command-ack requests over WebSocket. The ticket is bound to the current device key; reconnect uses jitter and falls back to signed HTTPS. ESP32 firmware remains on HTTPS polling.
 - Added backend tests for multi-photo encryption/retrieval/validation, matching tests for multi-descriptor profiles, and Durable Object ticket lifecycle/API tests. CI passed on this branch: 159 Python tests, frontend performance, and the production browser audit.
 - Real phone-camera matching, spoof testing with people and screens, phone-to-rover hardware synchronization, and production WebSocket runtime behavior still require device/runtime verification.
+
+
+## Update 2026-11-13 — browser-local YOLOX-Nano integration
+
+- Replaced the COCO-SSD object detector in the authenticated browser AI scheduler with YOLOX-Nano via ONNX Runtime Web (WASM). The existing camera-source validation, single sequential AI scheduler, face-recognition pipeline, decision logic, overlay, detection counts, alert deduplication and backend alert transport remain the integration points.
+- Added a browser runtime that prepares 416×416 letterboxed BGR/NCHW input, validates the downloaded ONNX model by pinned SHA-256 before session creation, verifies the model input/output contract and output dimensions, decodes COCO predictions, applies class-aware non-maximum suppression, and maps boxes back to source-camera pixels.
+- The model is downloaded from its Apache-2.0 model repository on first use and cached in browser Cache Storage where available. ONNX Runtime Web is version-pinned and MIT-licensed. Camera frames and tensors are processed in the browser; model/wasm downloads require network access on first use unless a valid local cache already exists.
+- Added decoder/NMS/geometry/model-contract unit tests, updated smoke and browser-integration harnesses, added frontend performance budgeting and CI syntax/test checks, and documented model/runtime notices.
+- **Validation boundary:** this source update does not establish real-world detection accuracy, FPS, battery/thermal performance, Android/iOS compatibility, CORS behaviour for a particular rover stream, or phone-to-laptop real-device synchronisation. The browser integration test stubs only the detector adapter boundary; it exercises the existing AI scheduler/face/alert wiring, not neural inference. CI must pass, followed by real-device checks on the actual phone and laptop before production deployment.
+- This change is isolated on `feat/defenx-yolox-ondevice-20261113`; `main` and the deployed Worker are unchanged.
