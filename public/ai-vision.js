@@ -39,6 +39,7 @@
   let objMs = 0, objectModelFailed = false, cache = { now: -1, value: null }, faceFails = 0, faceBroken = false;
   const stats = window.DEFENX_VISION_STATS = { objectMs: 0, faceMs: 0, descriptorMs: 0, cycles: 0, skippedFrames: 0 };
   const face = () => window.DEFENX_FACE;
+  const opencv = () => window.DEFENX_OPENCV;
 
   const setText = (id, value) => { const e = document.getElementById(id); if (e) e.textContent = String(value); };
   function setState(state, message) {
@@ -103,6 +104,12 @@
     if (work.width !== w || work.height !== h) { work.width = w; work.height = h; }
     workCtx.drawImage(source, 0, 0, w, h);
     const id = workCtx.getImageData(0, 0, w, h);
+    // OpenCV is an optional local preprocessing/motion layer. Never let it block
+    // or disable the existing object and face models when its runtime is unavailable.
+    const cvVision = opencv();
+    if (cvVision) {
+      try { cvVision.process(id, now); } catch (_) {}
+    }
     cache = { now, value: { img: { data: id.data, width: w, height: h }, scale } };
     return cache.value;
   }
@@ -329,6 +336,10 @@
 
   async function startDetection() {
     failures = 0;
+    // Load OpenCV in the background: the current detector and face pipeline remain
+    // available even on slower phones or when the optional OpenCV CDN is offline.
+    const cvVision = opencv();
+    if (cvVision) cvVision.load().catch(() => null);
     if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
     try {
       checkReadable(source);
@@ -384,7 +395,12 @@
     if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
-  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); });
+  window.addEventListener("pagehide", () => {
+    running = false;
+    if (timer) clearTimeout(timer);
+    const cvVision = opencv();
+    if (cvVision) cvVision.reset();
+  });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
