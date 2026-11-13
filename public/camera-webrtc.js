@@ -29,17 +29,38 @@
         return response.json();
       }).then(config => {
         if (Array.isArray(config?.iceServers) && config.iceServers.length) {
-          // Strict free-only mode: accept STUN URLs only. Never use TURN relays,
-          // even if TURN credentials are later added to the server configuration.
+          // TURN is used only when the authenticated server explicitly enables it.
+          // Cloudflare issues short-lived credentials; never accept unauthenticated
+          // relay URLs or expose a long-lived TURN key to this browser.
           const combined = [...config.iceServers, ...fallbackIceServers];
           const seen = new Set();
+          const turnEnabled = config.turnEnabled === true;
           iceServers = combined.map(server => {
-            const urls = (Array.isArray(server.urls) ? server.urls : [server.urls])
-              .filter(url => typeof url === "string" && url.trim().toLowerCase().startsWith("stun:"));
-            return urls.length ? { urls } : null;
+            if (!server || typeof server !== "object") return null;
+            const sourceUrls = Array.isArray(server.urls) ? server.urls : [server.urls];
+            const urls = sourceUrls.filter(url =>
+              typeof url === "string" && /^(stun|stuns|turn|turns):/i.test(url.trim())
+            );
+            const hasCredentials = typeof server.username === "string" && server.username.length > 0
+              && typeof server.credential === "string" && server.credential.length > 0;
+            const safeUrls = urls.filter(url => {
+              const isRelay = /^turns?:/i.test(url.trim());
+              return !isRelay || (turnEnabled && hasCredentials);
+            });
+            if (!safeUrls.length) return null;
+            const entry = { urls: safeUrls };
+            if (turnEnabled && hasCredentials && safeUrls.some(url => /^turns?:/i.test(url.trim()))) {
+              entry.username = server.username;
+              entry.credential = server.credential;
+            }
+            return entry;
           }).filter(server => {
             if (!server) return false;
-            const key = server.urls.slice().sort().join("|");
+            const key = JSON.stringify([
+              server.urls.slice().sort(),
+              server.username || "",
+              server.credential || ""
+            ]);
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
@@ -292,6 +313,8 @@
       if (peers.has(id)) return peers.get(id);
       const pc = new RTCPeerConnection({
         iceServers,
+        iceTransportPolicy: "all",
+        iceCandidatePoolSize: 4,
         bundlePolicy: "max-bundle",
         rtcpMuxPolicy: "require"
       });
