@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 const runtimePath = fileURLToPath(new URL("../public/yolox-browser.js", import.meta.url));
 const runtime = await readFile(runtimePath);
 const server = createServer((req, res) => {
+  if (req.url === "/favicon.ico") {
+    res.writeHead(204).end();
+    return;
+  }
   if (req.url === "/yolox-browser.js") {
     res.writeHead(200, { "content-type": "application/javascript; charset=utf-8", "cache-control": "no-store" });
     res.end(runtime);
