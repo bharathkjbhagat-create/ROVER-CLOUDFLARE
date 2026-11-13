@@ -35,6 +35,12 @@ jobs:
           node --check public/ai-vision.js
       - name: Run OpenCV and existing vision logic tests
         run: node --test tests/opencv_vision.test.js tests/vision_core.test.js
+      - name: Install Chromium for browser-level camera validation
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Test official OpenCV.js WebAssembly with a synthetic live camera
+        run: node tests/opencv_browser.mjs
       - name: Run dashboard control regression tests
         run: python -m unittest discover -s tests -p "test_frontend_controls.py" -v
       - name: Enforce frontend size budgets
