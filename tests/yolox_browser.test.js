@@ -61,6 +61,19 @@ test("keeps the highest overlapping detection per class but preserves a differen
   assert.deepEqual(found.map(item => item.class).sort(), ["car", "person"]);
 });
 
+test("decodes all three YOLOX stride grids (8, 16 and 32)", () => {
+  const data = output();
+  detection(data, 1325, { cx: 208, cy: 208, width: 100, height: 100, objectness: 0.95, classId: 0, classScore: 0.95 });
+  detection(data, 2704, { cx: 80, cy: 80, width: 32, height: 48, objectness: 0.95, classId: 2, classScore: 0.9 });
+  detection(data, 3380, { cx: 96, cy: 96, width: 64, height: 96, objectness: 0.95, classId: 5, classScore: 0.9 });
+  const found = yolox.postprocess(data, META, 0.4, 0.45, 20);
+  assert.equal(found.length, 3);
+  const byClass = Object.fromEntries(found.map(item => [item.class, item]));
+  assert.ok(Math.abs(byClass.car.bbox[0] - (64 / 0.65)) < 1e-4);
+  assert.ok(Math.abs(byClass.bus.bbox[0] - (64 / 0.65)) < 1e-4);
+  assert.ok(Math.abs(byClass.person.bbox[0] - (158 / 0.65)) < 1e-4);
+});
+
 test("applies objectness times class confidence and the confidence threshold", () => {
   const data = output();
   detection(data, 1325, { cx: 200, cy: 200, width: 80, height: 80, objectness: 0.7, classId: 2, classScore: 0.4 });
