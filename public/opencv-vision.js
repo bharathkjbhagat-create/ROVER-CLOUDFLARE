@@ -59,6 +59,18 @@
     return validRuntime(candidate) ? candidate : null;
   }
 
+  // OpenCV.js downloads its JavaScript before its WebAssembly runtime is ready.
+  // The script load event alone is therefore not a reliable readiness signal.
+  async function waitForRuntime(timeoutMs) {
+    const started = Date.now();
+    while (Date.now() - started < timeoutMs) {
+      const runtime = await currentRuntime();
+      if (runtime) return runtime;
+      await new Promise(resolve => (root.setTimeout || setTimeout)(resolve, 50));
+    }
+    throw new Error("OpenCV.js WebAssembly runtime initialisation timed out");
+  }
+
   function load() {
     if (state.cv) return Promise.resolve(state.cv);
     if (state.loadPromise) return state.loadPromise;
@@ -103,8 +115,7 @@
           script.dataset.defenxOpenCv = "1";
           script.onload = async () => {
             try {
-              const runtime = await currentRuntime();
-              if (!runtime) throw new Error("OpenCV.js runtime did not initialise");
+              const runtime = await waitForRuntime(40000);
               finish(null, runtime);
             } catch (error) {
               finish(error);
