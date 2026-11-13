@@ -45,9 +45,9 @@ jobs:
         run: node --test tests/opencv_vision.test.js tests/vision_core.test.js tests/yolo_vision.test.js
       - name: Install Chromium for browser-level camera validation
         run: |
-          npm install --no-save playwright @techstark/opencv-js@4.12.0-release.1
+          npm install --no-save playwright @techstark/opencv-js@5.0.0-release.1
           npx playwright install --with-deps chromium
-      - name: Test pinned OpenCV.js WebAssembly with a synthetic live camera
+      - name: Test pinned OpenCV.js 5.0 WebAssembly with a synthetic live camera
         run: node tests/opencv_browser.mjs
       - name: Run dashboard control regression tests
         run: python -m unittest discover -s tests -p "test_frontend_controls.py" -v
