@@ -70,6 +70,10 @@
   // while ICE configuration is loading; without this lock they can create
   // competing RTCPeerConnections for the same remote device.
   const peerCreations = new Map();
+  // Serialize SDP/ICE operations per peer. WebSocket messages can arrive while
+  // setRemoteDescription is still pending; concurrent handlers can otherwise
+  // apply ICE too early or race an answer against an offer.
+  const signalQueues = new Map();
   const remoteCameraStates = new Map();
   let fallbackCameraNode = null;
 
@@ -353,7 +357,17 @@
     }
   }
 
-  async function handleSignal(from, signal) {
+  function handleSignal(from, signal) {
+    if (!from || from === peerId || !signal || typeof signal !== "object") return Promise.resolve();
+    const previous = signalQueues.get(from) || Promise.resolve();
+    const next = previous.catch(() => {}).then(() => processSignal(from, signal));
+    signalQueues.set(from, next);
+    return next.finally(() => {
+      if (signalQueues.get(from) === next) signalQueues.delete(from);
+    });
+  }
+
+  async function processSignal(from, signal) {
     if (!from || from === peerId || !signal || typeof signal !== "object") return;
     const entry = await createPeer(from);
     const pc = entry.pc;
