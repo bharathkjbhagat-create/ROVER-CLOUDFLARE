@@ -13,6 +13,7 @@ BUDGETS = {
     "public/app.js": 93_000,  # map layers, rover tracking, route preview, camera flip (already compacted by build_assets.py; was 91_000)
     "public/style.css": 120_000,
     "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering
+    "public/yolox-browser.js": 15_000,  # verified YOLOX-Nano preprocessing, inference and NMS
     "public/vision-core.js": 22_000,
     "public/face-recognition.js": 24_000,
     "public/detection-events.js": 16_000,
