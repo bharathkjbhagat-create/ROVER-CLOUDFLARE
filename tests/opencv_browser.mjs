@@ -47,21 +47,30 @@ try {
   await page.addScriptTag({ url: origin + "/opencv-vision.js" });
 
   const camera = await page.evaluate(async () => {
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false
-    });
+    const stream = await Promise.race([
+      navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Synthetic camera permission/device timed out")), 15000))
+    ]);
     const video = document.createElement("video");
     video.muted = true;
     video.playsInline = true;
     video.srcObject = stream;
     document.body.appendChild(video);
-    await video.play();
-    await new Promise((resolve, reject) => {
-      if (video.videoWidth && video.videoHeight) return resolve();
-      video.addEventListener("loadedmetadata", resolve, { once: true });
-      video.addEventListener("error", reject, { once: true });
-    });
+    await Promise.race([
+      video.play(),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Synthetic camera video playback timed out")), 15000))
+    ]);
+    await Promise.race([
+      new Promise((resolve, reject) => {
+        if (video.videoWidth && video.videoHeight) return resolve();
+        video.addEventListener("loadedmetadata", resolve, { once: true });
+        video.addEventListener("error", reject, { once: true });
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Synthetic camera metadata timed out")), 15000))
+    ]);
     window.__defenxTestStream = stream;
     return { width: video.videoWidth, height: video.videoHeight, track: stream.getVideoTracks()[0]?.readyState };
   });
