@@ -62,6 +62,8 @@
   const zeroCounts = () => ({ human: 0, vehicle: 0, object: 0, unverified: 0, photo: 0, confidence: 0 });
   function clearAll() {
     objTracker = new core.Tracker(); screens = [];
+    const cvVision = opencv();
+    if (cvVision) cvVision.reset();
     if (face()) face().reset();
     clearOverlay(); publish(zeroCounts());
   }
