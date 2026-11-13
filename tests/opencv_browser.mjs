@@ -1,14 +1,25 @@
 import { chromium } from "playwright";
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const root = process.cwd();
 const opencvPath = resolve(root, "public/opencv-vision.js");
+const opencvDist = resolve(root, "node_modules/@techstark/opencv-js/dist");
 const server = createServer((req, res) => {
   if (req.url === "/") {
     res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
     res.end("<!doctype html><meta charset=utf-8><title>DEFENX OpenCV browser test</title><main>OpenCV test</main>");
+    return;
+  }
+  if (req.url && req.url.startsWith("/vendor/")) {
+    const name = req.url.slice("/vendor/".length).split("?")[0];
+    if (!name || name.includes("/") || name.includes("..")) { res.writeHead(400); res.end("Invalid vendor path"); return; }
+    readFile(resolve(opencvDist, name)).then(body => {
+      const type = name.endsWith(".wasm") ? "application/wasm" : "text/javascript; charset=utf-8";
+      res.writeHead(200, { "content-type": type, "cache-control": "public, max-age=3600" });
+      res.end(body);
+    }).catch(() => { res.writeHead(404); res.end("Pinned OpenCV asset not found: " + name); });
     return;
   }
   if (req.url === "/opencv-vision.js") {
@@ -52,6 +63,7 @@ try {
 
   stage = "load local OpenCV test page";
   await page.goto(origin, { waitUntil: "domcontentloaded" });
+  await page.evaluate(url => { window.DEFENX_OPENCV_URL = url; }, origin + "/vendor/opencv.js");
   await page.addScriptTag({ url: origin + "/opencv-vision.js" });
 
   stage = "acquire synthetic live camera";
@@ -88,7 +100,7 @@ try {
   }
   console.log("PASS: Chromium acquired a live synthetic camera stream.");
 
-  stage = "load official OpenCV.js WebAssembly runtime";
+  stage = "load pinned OpenCV.js 4.12 WebAssembly runtime";
   const runtime = await page.evaluate(async () => {
     const cv = await window.DEFENX_OPENCV.load();
     return {
@@ -101,7 +113,7 @@ try {
   if (!runtime.loaded || !runtime.hasMat || !runtime.hasWasm || runtime.state !== "ready") {
     throw new Error("Official OpenCV.js WebAssembly runtime failed to initialise: " + JSON.stringify(runtime));
   }
-  console.log("PASS: official OpenCV.js runtime and WebAssembly initialised in Chromium.");
+  console.log("PASS: pinned OpenCV.js 4.12 runtime and WebAssembly initialised in Chromium.");
 
   stage = "run OpenCV motion detection";
   const metrics = await page.evaluate(() => {
@@ -127,7 +139,7 @@ try {
   });
   if (!metrics.baseline || metrics.changedBaseline || !metrics.moving ||
       !(metrics.motionPercent > 0) || metrics.processed !== 2 || metrics.errors !== 0) {
-    throw new Error("Real OpenCV.js frame processing did not produce the expected motion result: " + JSON.stringify(metrics));
+    throw new Error("Pinned OpenCV.js frame processing did not produce the expected motion result: " + JSON.stringify(metrics));
   }
   console.log("PASS: real OpenCV.js processed image frames and detected controlled motion: " + JSON.stringify(metrics));
 
