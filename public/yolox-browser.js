@@ -32,6 +32,20 @@
     "mouse", "remote", "keyboard", "cell phone", "microwave", "oven", "toaster", "sink",
     "refrigerator", "book", "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
   ];
+  // The official YOLOX ONNX export emits raw (tx,ty,tw,th) values in grid units.
+  // Anchor order matches YOLOX demo_postprocess: stride 8, then 16, then 32;
+  // within each stride, rows are y-major and columns are x-major.
+  const ANCHORS = (() => {
+    const rows = [];
+    for (const stride of [8, 16, 32]) {
+      const gridSize = INPUT_SIZE / stride;
+      for (let gy = 0; gy < gridSize; gy += 1) {
+        for (let gx = 0; gx < gridSize; gx += 1) rows.push({ gx, gy, stride });
+      }
+    }
+    if (rows.length !== OUTPUT_ROWS) throw new Error("YOLOX anchor-grid contract mismatch");
+    return rows;
+  })();
 
   let session = null;
   let sessionPromise = null;
@@ -86,8 +100,14 @@
       const score = objectness * classScore;
       if (classId < 0 || score < threshold) continue;
 
-      const cx = output[offset], cy = output[offset + 1];
-      const width = output[offset + 2], height = output[offset + 3];
+      const anchor = ANCHORS[row];
+      const tx = output[offset], ty = output[offset + 1];
+      const tw = output[offset + 2], th = output[offset + 3];
+      if (![tx, ty, tw, th].every(Number.isFinite)) continue;
+      const cx = (tx + anchor.gx) * anchor.stride;
+      const cy = (ty + anchor.gy) * anchor.stride;
+      const width = Math.exp(tw) * anchor.stride;
+      const height = Math.exp(th) * anchor.stride;
       if (![cx, cy, width, height].every(Number.isFinite) || width <= 0 || height <= 0) continue;
       const x1 = Math.max(0, Math.min(meta.width, (cx - width / 2 - meta.padX) / meta.ratio));
       const y1 = Math.max(0, Math.min(meta.height, (cy - height / 2 - meta.padY) / meta.ratio));
@@ -137,14 +157,16 @@
     const ratio = Math.min(INPUT_SIZE / width, INPUT_SIZE / height);
     const resizedWidth = Math.max(1, Math.floor(width * ratio));
     const resizedHeight = Math.max(1, Math.floor(height * ratio));
-    const padX = Math.floor((INPUT_SIZE - resizedWidth) / 2);
-    const padY = Math.floor((INPUT_SIZE - resizedHeight) / 2);
+    // Match the official YOLOX preprocessing: image at top-left; pad only
+    // on the right/bottom with gray 114 (do not center the image).
+    const padX = 0;
+    const padY = 0;
 
     inputContext.fillStyle = "rgb(114,114,114)";
     inputContext.fillRect(0, 0, INPUT_SIZE, INPUT_SIZE);
     inputContext.imageSmoothingEnabled = true;
     inputContext.imageSmoothingQuality = "high";
-    inputContext.drawImage(source, 0, 0, width, height, padX, padY, resizedWidth, resizedHeight);
+    inputContext.drawImage(source, 0, 0, width, height, 0, 0, resizedWidth, resizedHeight);
 
     const pixels = inputContext.getImageData(0, 0, INPUT_SIZE, INPUT_SIZE).data;
     const plane = INPUT_SIZE * INPUT_SIZE;
