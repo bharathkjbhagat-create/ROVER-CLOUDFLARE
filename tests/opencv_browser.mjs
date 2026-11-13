@@ -59,7 +59,11 @@ try {
   const page = await context.newPage();
   page.setDefaultTimeout(120000);
   const errors = [];
-  page.on("pageerror", error => errors.push(error.message));
+  const failedRequests = [];
+  page.on("pageerror", error => errors.push("pageerror: " + error.message));
+  page.on("console", message => { if (message.type() === "error") errors.push("console: " + message.text()); });
+  page.on("requestfailed", request => failedRequests.push(request.url() + " :: " + (request.failure()?.errorText || "request failed")));
+  page.on("response", response => { if (response.url().includes("/vendor/")) console.log("OpenCV asset:", response.status(), response.url()); });
 
   stage = "load local OpenCV test page";
   await page.goto(origin, { waitUntil: "domcontentloaded" });
@@ -100,20 +104,23 @@ try {
   }
   console.log("PASS: Chromium acquired a live synthetic camera stream.");
 
-  stage = "load pinned OpenCV.js 4.12 WebAssembly runtime";
+  stage = "load pinned OpenCV.js 5.0 WebAssembly runtime";
   const runtime = await page.evaluate(async () => {
     const cv = await window.DEFENX_OPENCV.load();
     return {
       loaded: !!cv,
       state: window.DEFENX_OPENCV.getStatus().state,
       hasMat: !!(cv && cv.Mat),
-      hasWasm: typeof WebAssembly !== "undefined"
+      hasWasm: typeof WebAssembly !== "undefined",
+      error: window.DEFENX_OPENCV.getStatus().error,
+      browserErrors: errors.slice(),
+      failedRequests: failedRequests.slice()
     };
   });
   if (!runtime.loaded || !runtime.hasMat || !runtime.hasWasm || runtime.state !== "ready") {
-    throw new Error("Official OpenCV.js WebAssembly runtime failed to initialise: " + JSON.stringify(runtime));
+    throw new Error("Pinned OpenCV.js 5.0 WebAssembly runtime failed to initialise: " + JSON.stringify(runtime));
   }
-  console.log("PASS: pinned OpenCV.js 4.12 runtime and WebAssembly initialised in Chromium.");
+  console.log("PASS: pinned OpenCV.js 5.0 runtime and WebAssembly initialised in Chromium.");
 
   stage = "run OpenCV motion detection";
   const metrics = await page.evaluate(() => {
@@ -144,7 +151,7 @@ try {
   console.log("PASS: real OpenCV.js processed image frames and detected controlled motion: " + JSON.stringify(metrics));
 
   stage = "close browser and camera";
-  if (errors.length) throw new Error("Browser JavaScript errors: " + errors.join(" | "));
+  if (errors.length || failedRequests.length) throw new Error("Browser errors: " + errors.join(" | ") + " Failed requests: " + failedRequests.join(" | "));
   await page.evaluate(() => {
     for (const track of window.__defenxTestStream?.getTracks?.() || []) track.stop();
   });
