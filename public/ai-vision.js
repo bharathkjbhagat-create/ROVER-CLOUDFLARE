@@ -127,6 +127,19 @@
       document.head.appendChild(script);
     });
   }
+  async function loadCocoFallback() {
+    await loadScript(tfUrl, "tf");
+    await loadScript(modelUrl, "cocoSsd");
+    const tf = window.tf;
+    await tf.ready();
+    try { if (!(await tf.setBackend("webgl"))) await tf.setBackend("cpu"); } catch (_) { await tf.setBackend("cpu"); }
+    await tf.ready();
+    const fallback = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
+    model = { engine: "COCO-SSD", detect: fallback.detect.bind(fallback) };
+    window.DEFENX_OBJECT_DETECTOR = "COCO-SSD";
+    return model;
+  }
+
   async function ensureModel() {
     if (model) return model;
     if (!modelPromise) {
@@ -148,16 +161,7 @@
         }
         // Keep the existing detector as a resilience fallback if ONNX Runtime,
         // the model host, or WebAssembly is unavailable on a device.
-        await loadScript(tfUrl, "tf");
-        await loadScript(modelUrl, "cocoSsd");
-        const tf = window.tf;
-        await tf.ready();
-        try { if (!(await tf.setBackend("webgl"))) await tf.setBackend("cpu"); } catch (_) { await tf.setBackend("cpu"); }
-        await tf.ready();
-        const fallback = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
-        model = { engine: "COCO-SSD", detect: fallback.detect.bind(fallback) };
-        window.DEFENX_OBJECT_DETECTOR = "COCO-SSD";
-        return model;
+        return await loadCocoFallback();
       })();
     }
     try { return await modelPromise; } finally { modelPromise = null; }
@@ -188,7 +192,18 @@
 
   async function runObjects(now) {
     const started = performance.now(), generation = sourceGeneration, active = source;
-    const preds = await model.detect(active, 20, 0.4);
+    let preds;
+    try {
+      preds = await model.detect(active, 20, 0.4);
+    } catch (error) {
+      if (!model || model.engine !== "YOLOv8n") throw error;
+      // An inference-time WebAssembly/device failure also falls back once, rather
+      // than repeatedly stopping the whole AI scheduler on this device.
+      window.DEFENX_YOLO_RUNTIME_ERROR = String(error && error.message || error);
+      setState("loading", "YOLO INFERENCE UNAVAILABLE • SWITCHING TO COCO-SSD");
+      await loadCocoFallback();
+      preds = await model.detect(active, 20, 0.4);
+    }
     objMs = performance.now() - started; stats.objectMs = objMs;
     if (!running || paused || active !== source || generation !== sourceGeneration) return;
     const dims = sourceSize(active), frame = frameFor(now);
