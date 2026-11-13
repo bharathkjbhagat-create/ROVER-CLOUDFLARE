@@ -110,15 +110,15 @@ test("waits for the WebAssembly runtime after the OpenCV script load event", asy
   root.setTimeout = setTimeout;
   root.clearTimeout = clearTimeout;
   let appended = 0;
+  let resolveRuntime;
+  root.cv = new Promise(resolve => { resolveRuntime = resolve; });
   root.document = {
     head: {
       appendChild(script) {
         appended += 1;
         script.parentNode = { removeChild() {} };
-        setTimeout(() => {
-          root.cv = cv;
-          script.onload();
-        }, 120);
+        setTimeout(() => script.onload(), 10);
+        setTimeout(() => resolveRuntime(cv), 120);
       }
     },
     createElement() { return { dataset: {}, async: false, src: "", onload: null, onerror: null }; },
