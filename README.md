@@ -37,7 +37,9 @@ Do not merge authentication changes or deploy to production until the GitHub Act
 
 ## Browser AI Vision
 
-The authenticated dashboard can run local human and vehicle detection on a direct rover MJPEG/image or video stream. It loads TensorFlow.js 4.22.0 and COCO-SSD 2.2.3 only after a readable live stream is available, using the lightweight MobileNet V2 model. It draws detections in the browser and does not upload camera frames or send AI results to the backend. Cross-origin camera streams must allow CORS; embedded iframe feeds cannot be analysed by the browser detector. Demo/simulated camera scenes are never treated as real detections.
+The authenticated dashboard runs YOLOX-Nano object detection locally in the browser through ONNX Runtime Web. The 416×416 COCO model is downloaded on first use, SHA-256 verified, and cached in browser Cache Storage when available. Each browser performs inference on its own live authenticated rover camera stream; frames and model tensors are not uploaded to Cloudflare. The existing face-recognition pipeline continues to use the same live camera source and the existing alert/synchronisation transport is unchanged. Only configured alert metadata follows the existing backend path. The runtime uses the WebAssembly execution provider for broad desktop/mobile browser compatibility; inference cadence is intentionally conservative on phones. Cross-origin camera streams must allow CORS; embedded iframe feeds cannot be analysed. Demo/simulated camera scenes are never treated as real detections.
+
+YOLOX-Nano and its upstream COCO weights are Apache-2.0; ONNX Runtime Web is MIT. Model/runtime provenance and notices are documented in [docs/AI_MODEL_LICENCES.md](docs/AI_MODEL_LICENCES.md). This is an integration, not a claim of validated detection accuracy: real phone/laptop camera performance, thermal behaviour, and detection quality still require device testing.
 
 ## Biometric data protection
 

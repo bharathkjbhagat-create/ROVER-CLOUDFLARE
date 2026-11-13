@@ -50,7 +50,7 @@ try:
         try: urllib.request.urlopen(BASE + "/api/health", timeout=1); break
         except urllib.error.HTTPError: break
         except Exception: time.sleep(0.3)
-    BLOCK = ("leaflet", "tile.openstreetmap", "arcgisonline", "eox.at", "fonts.g", "face-api", "tf.min.js", "coco-ssd")
+    BLOCK = ("leaflet", "tile.openstreetmap", "arcgisonline", "eox.at", "fonts.g", "face-api", "tf.min.js", "coco-ssd", "onnxruntime-web", "huggingface.co/skillsafe-ai/yolox-nano")
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         for label, vp in (("mobile", {"width": 390, "height": 844}), ("desktop", {"width": 1280, "height": 900})):

@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-$(command -v python3 || command -v python)}"
 echo "== Python unit/regression tests =="; "$PY" -m unittest discover -s tests -p 'test_*.py'
-echo "== Existing smoke + vision tests =="; "$PY" tests/smoke.py; node tests/vision_core.test.js | tail -3
+echo "== Existing smoke + vision + YOLOX tests =="; "$PY" tests/smoke.py; node tests/vision_core.test.js | tail -3; node --test tests/yolox_browser.test.js
 echo "== Protocol cross-language test =="; node --test tests/fleet_protocol.test.js | grep -E "^# (pass|fail)"
 echo "== Simulation core + presentation-attack tests =="; node --test tests/sim_core.test.js tests/spoof_attacks.test.js | grep -E "^# (pass|fail)"
 echo "== Performance budgets =="; "$PY" scripts/check_performance_budget.py | tail -1

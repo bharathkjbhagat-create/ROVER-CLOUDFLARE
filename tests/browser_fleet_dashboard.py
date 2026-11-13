@@ -39,7 +39,7 @@ try:
     procs.append(subprocess.Popen([PY, str(ROOT / "tools/fleet_client.py"), "--lat", "13.0", "--lon", "77.6", "--battery", "71", "--interval", "1"], env=dict(os.environ, DEVICE_SECRET=sec["PHONE-01"], DEVICE_ID="PHONE-01", FLEET_URL=BASE), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
     time.sleep(2.5)
 
-    BLOCK = ("leaflet", "tile.openstreetmap", "arcgisonline", "eox.at", "fonts.g", "face-api", "tf.min.js", "coco-ssd")
+    BLOCK = ("leaflet", "tile.openstreetmap", "arcgisonline", "eox.at", "fonts.g", "face-api", "tf.min.js", "coco-ssd", "onnxruntime-web", "huggingface.co/skillsafe-ai/yolox-nano")
     with sync_playwright() as pw:
         browser = pw.chromium.launch()
         for label, vp in (("mobile", {"width": 390, "height": 844}), ("desktop", {"width": 1280, "height": 900})):  # desktop last: it kills the rover

@@ -56,7 +56,10 @@ jobs:
       - name: Validate browser AI vision JavaScript
         run: |
           node --check public/vision-core.js
+          node --check public/yolox-browser.js
           node --check public/ai-vision.js
+      - name: Run YOLOX decoder and NMS tests
+        run: node --test tests/yolox_browser.test.js
       - name: Run vision decision-logic unit tests
         run: node --test tests/vision_core.test.js
       - name: Validate face recognition JavaScript
@@ -78,6 +81,7 @@ jobs:
           test -f public/monitor.js
           test -f public/vision-core.js
           test -f public/ai-vision.js
+          test -f public/yolox-browser.js
           test -f public/face-recognition.js
           test -f public/detection-events.js
           test -f public/login.html

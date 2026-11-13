@@ -90,14 +90,18 @@ assert 'id="mapFollowBtn"' in (ROOT / "public" / "index.html").read_text(encodin
 assert 'data-mapmode="hybrid"' in (ROOT / "public" / "index.html").read_text(encoding="utf-8")
 
 ai_js = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
-assert "lite_mobilenet_v2" in ai_js
+yolox_js = (ROOT / "public" / "yolox-browser.js").read_text(encoding="utf-8")
+index_html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
+assert "YOLOX-Nano" in yolox_js and "MODEL_SHA256" in yolox_js
+assert "onnxruntime-web@" in yolox_js and 'executionProviders: ["wasm"]' in yolox_js
+assert "cocoSsd.load" not in ai_js and "model.detect(active, { maxDetections: 20" in ai_js
+assert '/yolox-browser.js?v=20261113-01' in index_html
 assert 'deviceTarget=String(input&&input.target_source||"")==="ROVER_DEVICE"' in app_js
-assert "cocoSsd.load" in ai_js
-assert '"person"' in ai_js
+assert '"person"' in yolox_js
 assert '"motorcycle"' in (ROOT / "public" / "vision-core.js").read_text(encoding="utf-8")
 assert "defenx-ai-detection" in ai_js
 assert "navigator.mediaDevices.getUserMedia" not in ai_js
-assert "const OBJECT_DELAY" in ai_js and "model.detect(active, 20, 0.4)" in ai_js
+assert "const OBJECT_DELAY" in ai_js and "model.detect(active, { maxDetections: 20, confidenceThreshold: 0.4" in ai_js
 face_js = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
 assert "faceapi.detectAllFaces" in face_js and "window.DEFENX_FACE = {" in face_js
 assert "function scheduleRender()" in phone_gps_js and "requestAnimationFrame" in phone_gps_js

@@ -1,5 +1,5 @@
 /* DEFENX on-device AI vision pipeline (orchestrator).
- * One sequential scheduler drives object detection (TensorFlow.js COCO-SSD) and
+ * One sequential scheduler drives object detection (YOLOX-Nano / ONNX Runtime Web) and
  * the face pipeline (face-recognition.js). Both read the SAME live camera element
  * and nothing else, so reference photographs can never enter this pipeline.
  * Frames stay in this browser; only alert metadata is sent to the backend.
@@ -28,8 +28,6 @@
   const context = canvas.getContext("2d");
   const work = document.createElement("canvas");
   const workCtx = work.getContext("2d", { willReadFrequently: true });
-  const tfUrl = "https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js";
-  const modelUrl = "https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js";
   const slow = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches;
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
@@ -107,29 +105,17 @@
     return cache.value;
   }
 
-  /* ---------------- COCO-SSD ---------------- */
-  function loadScript(url, globalName) {
-    if (window[globalName]) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.src = url; script.async = true; script.crossOrigin = "anonymous";
-      script.onload = () => window[globalName] ? resolve() : reject(new Error("AI library did not initialise"));
-      script.onerror = () => reject(new Error("Could not load " + globalName));
-      document.head.appendChild(script);
-    });
-  }
+  /* ---------------- YOLOX-Nano / ONNX Runtime Web ---------------- */
   async function ensureModel() {
     if (model) return model;
     if (!modelPromise) {
       modelPromise = (async () => {
-        setState("loading", "LOADING ON-DEVICE AI MODEL • FIRST USE");
-        await loadScript(tfUrl, "tf");
-        await loadScript(modelUrl, "cocoSsd");
-        const tf = window.tf;
-        await tf.ready();
-        try { if (!(await tf.setBackend("webgl"))) await tf.setBackend("cpu"); } catch (_) { await tf.setBackend("cpu"); }
-        await tf.ready();
-        model = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
+        setState("loading", "LOADING YOLOX-NANO • FIRST USE");
+        const detector = window.DEFENX_YOLOX;
+        if (!detector || typeof detector.load !== "function" || typeof detector.detect !== "function")
+          throw new Error("YOLOX browser runtime is unavailable");
+        await detector.load();
+        model = detector;
         return model;
       })();
     }
@@ -161,7 +147,7 @@
 
   async function runObjects(now) {
     const started = performance.now(), generation = sourceGeneration, active = source;
-    const preds = await model.detect(active, 20, 0.4);
+    const preds = await model.detect(active, { maxDetections: 20, confidenceThreshold: 0.4, nmsThreshold: 0.45 });
     objMs = performance.now() - started; stats.objectMs = objMs;
     if (!running || paused || active !== source || generation !== sourceGeneration) return;
     const dims = sourceSize(active), frame = frameFor(now);
@@ -281,7 +267,7 @@
   function refreshView(now) {
     const counts = render(now) || zeroCounts();
     publish(counts);
-    setState("active", objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts));
+    setState("active", objectModelFailed ? "FACE AI ONLY • YOLOX UNAVAILABLE" : describe(counts));
   }
 
   /* ---------------- scheduler: one task at a time, never blocks the stream ---------------- */
@@ -337,7 +323,7 @@
       try { await ensureModel(); objectModelFailed = false; }
       catch (error) {
         if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
-        objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
+        objectModelFailed = true; // keep the face pipeline running even if YOLOX cannot load
         if (!face()) throw error;
       }
       if (paused || !sourceReady(source)) return;
@@ -349,7 +335,7 @@
     } catch (error) {
       running = false;
       setState("error", /taint|cross.origin|securityerror/i.test(String(error && error.message || error))
-        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
+        ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "YOLOX MODEL COULD NOT LOAD • CHECK INTERNET");
     }
   }
   function onSourceReady() { if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); } }
