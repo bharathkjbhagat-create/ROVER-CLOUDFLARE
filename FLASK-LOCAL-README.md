@@ -40,3 +40,34 @@ offline event journal to this Flask server:
   normal rover event feed and never create a device.
 * The Flask app now serves every file in `public/` itself (whitelisted extensions, plain top-level names only), so no separate static server is needed.
 
+## Optional local YOLOv8n CPU vision
+
+Cloudflare still hosts the dashboard and signaling service. To use the verified
+local Python 3.11 + CPU PyTorch + YOLOv8n + OpenCV setup, run the loopback-only
+inference API on the same PC as the browser. It analyzes frames from the
+dashboard's current live camera stream; it does not open the webcam itself. The
+existing browser TensorFlow.js AI remains available.
+
+1. Keep `C:\DEFENX\venv` and the existing model file. Do not reinstall Python,
+   PyTorch, Ultralytics, or OpenCV. If Flask is missing from that venv, install
+   only Flask there: `C:\DEFENX\venv\Scripts\python.exe -m pip install Flask`.
+2. In Command Prompt, set the existing model path and start the API using that
+   venv (replace `<project-folder>` with the extracted project path):
+
+   ```cmd
+   set DEFENX_YOLO_MODEL=C:\DEFENX\yolov8n.pt
+   set DEFENX_AI_ALLOWED_ORIGINS=https://defenx.bindukjagadish.workers.dev
+   C:\DEFENX\venv\Scripts\python.exe <project-folder>\src\local_ai_api.py
+   ```
+
+   For a custom deployed domain, set its exact `https://` origin in
+   `DEFENX_AI_ALLOWED_ORIGINS`. The API binds only to `127.0.0.1:8765` and
+   needs no Cloudflare credentials.
+3. Sign in to the dashboard, open its live camera, and press **START LOCAL
+   YOLO**. The local row reports YOLOv8n CPU detections separately from the
+   existing browser AI counts. Press **STOP LOCAL YOLO** to stop frame transfer.
+
+The local inference process, camera permissions, browser loopback access, and
+physical rover are separate from Cloudflare deployment. API and mock-based
+software checks do not verify those user-specific components.
+

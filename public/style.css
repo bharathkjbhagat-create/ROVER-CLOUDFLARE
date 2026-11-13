@@ -1571,6 +1571,9 @@ body.light .deviceTag{color:#0a6f58}
 
 
 .aiVisionCanvas{position:absolute;inset:0;z-index:7;width:100%;height:100%;pointer-events:none}
+.localYoloCanvas{position:absolute;inset:0;z-index:8;width:100%;height:100%;pointer-events:none}
+.localYoloPanel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border-top:1px solid #244538;background:#081711;color:#b9cfbf;font-size:9px}
+.localYoloPanel>div{flex:1 1 200px;min-width:180px}.localYoloPanel>div b{display:block;color:#c5f5d9;letter-spacing:.5px}.localYoloPanel>div small{display:block;margin-top:3px;color:#9bb6a4;line-height:1.4}.localYoloPanel>span{white-space:nowrap}.localYoloPanel>span b{color:#effff3;font-size:11px;margin-left:3px}.localYoloPanel button{min-height:28px;padding:0 9px;border:1px solid #60a879;border-radius:6px;background:#102b1c;color:#c5f5d9;font-size:8px;font-weight:900;letter-spacing:.4px}.localYoloPanel button:disabled{opacity:.5;cursor:wait}
 .aiVisionBar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:9px 10px 8px;border-top:1px solid #193a4d;background:#07131d}
 .aiVisionLead{display:flex;align-items:center;gap:8px;min-width:0}.aiVisionLead b{display:block;color:#cce7ef;font-size:9px;letter-spacing:.7px}.aiVisionLead small{display:block;margin-top:3px;color:#86a5b2;font-size:8px;line-height:1.35}
 .aiVisionDot{width:8px;height:8px;flex:0 0 8px;border-radius:50%;background:#66808d}
