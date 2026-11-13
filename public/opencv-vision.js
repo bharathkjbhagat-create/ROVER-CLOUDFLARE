@@ -9,7 +9,7 @@
 })(typeof window !== "undefined" ? window : globalThis, function createDefenxOpenCV(root) {
   "use strict";
 
-  const SCRIPT_URL = root.DEFENX_OPENCV_URL || "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js";
+  const SCRIPT_URL = root.DEFENX_OPENCV_URL || "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@5.0.0-release.1/dist/opencv.js";
   const MIN_INTERVAL_MS = (root.navigator && (root.navigator.hardwareConcurrency || 4) <= 4) ? 850 : 450;
   const state = {
     status: "idle",
@@ -20,7 +20,8 @@
     previousWidth: 0,
     previousHeight: 0,
     lastFrameAt: 0,
-    processingError: false
+    processingError: false,
+    lastError: null
   };
   const stats = {
     processedFrames: 0,
@@ -134,7 +135,8 @@
         state.cv = cv;
         publish("ready", "READY • LOCAL MOTION ANALYSIS");
         return cv;
-      } catch (_) {
+      } catch (error) {
+        state.lastError = error && error.message ? error.message : String(error);
         publish("unavailable", "UNAVAILABLE • EXISTING AI CONTINUES");
         return null;
       } finally {
@@ -260,6 +262,7 @@
     return {
       state: state.status,
       message: state.message,
+      error: state.lastError,
       stats: Object.assign({}, stats)
     };
   }
