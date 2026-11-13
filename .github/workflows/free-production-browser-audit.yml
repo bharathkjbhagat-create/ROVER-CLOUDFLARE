@@ -24,7 +24,7 @@ jobs:
   browser-audit:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -38,6 +38,9 @@ jobs:
         run: |
           npm install --no-save playwright
           npx playwright install --with-deps chromium
+
+      - name: Run real YOLOX ONNX inference in Chromium/WASM
+        run: node tests/yolox-runtime-browser.mjs
 
       - name: Run dashboard refinement browser interaction tests
         if: github.event_name == 'pull_request'
