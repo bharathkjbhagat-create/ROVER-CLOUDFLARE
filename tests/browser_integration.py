@@ -3,7 +3,7 @@
 
 Runs the real dashboard in Chromium against a local server, with:
   * a SYNTHETIC camera (canvas stream with a drawn face) via getUserMedia override,
-  * STUBBED neural models (face-api / COCO-SSD) that return scripted detections.
+  * STUBBED neural models (face-api / YOLOX adapter) that return scripted detections.
 This verifies wiring, scheduling, status logic, alert de-duplication, enrollment and
 layout. It does NOT measure real neural-network accuracy: the CDN models are not
 reachable from the test sandbox, so that must be verified on a real device.
@@ -98,8 +98,6 @@ INIT = r"""
     }),
     detectSingleFace: () => chain(() => (window.__T.faces ? face(1) : undefined))
   };
-  window.tf = { ready: async () => {}, setBackend: async () => true };
-  window.cocoSsd = { load: async () => ({ detect: async () => (window.__T.dets || []).map(d => Object.assign({}, d)) }) };
   window.__rafGaps = []; let last = performance.now();
   (function loop(t) { window.__rafGaps.push(t - last); last = t; if (window.__rafGaps.length > 600) window.__rafGaps.shift(); requestAnimationFrame(loop); })(last);
 })();
@@ -118,9 +116,18 @@ def main():
 
         def route(r):
             url = r.request.url
-            if "face-api" in url or "tf.min.js" in url or "coco-ssd" in url:
+            if "face-api" in url:
                 return r.fulfill(status=200, content_type="application/javascript", body="/* stubbed in test */")
             if url.startswith(BASE):
+                # Stub only the YOLOX adapter boundary. The dashboard orchestrator,
+                # camera handling, tracker, verdict logic and alert pipeline remain real.
+                path = url[len(BASE):].split("?")[0].lstrip("/")
+                if path == "yolox-browser.js":
+                    stub = """window.DEFENX_YOLOX = {
+                      load: async function () { return this; },
+                      detect: async function () { return (window.__T.dets || []).map(function (d) { return Object.assign({}, d); }); }
+                    };"""
+                    return r.fulfill(status=200, content_type="application/javascript", body=stub)
                 # Production serves /public through Workers Assets; the local Flask server does not,
                 # so static files are served from disk here to mimic that.
                 path = url[len(BASE):].split("?")[0].lstrip("/")
