@@ -9,7 +9,7 @@
 })(typeof window !== "undefined" ? window : globalThis, function createDefenxOpenCV(root) {
   "use strict";
 
-  const SCRIPT_URL = root.DEFENX_OPENCV_URL || "https://docs.opencv.org/4.x/opencv.js";
+  const SCRIPT_URL = root.DEFENX_OPENCV_URL || "https://cdn.jsdelivr.net/npm/@techstark/opencv-js@4.12.0-release.1/dist/opencv.js";
   const MIN_INTERVAL_MS = (root.navigator && (root.navigator.hardwareConcurrency || 4) <= 4) ? 850 : 450;
   const state = {
     status: "idle",
