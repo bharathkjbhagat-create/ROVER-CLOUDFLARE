@@ -95,7 +95,7 @@ try {
 
     ctx.fillStyle = "#fff";
     ctx.fillRect(35, 25, 45, 45);
-    const changed = window.DEFENX_OPENCV.process(ctx.getImageData(0, 0, 160, 120), 1600);
+    const changed = window.DEFENX_OPENCV.process(ctx.getImageData(0, 0, 160, 120), 2500);
     return {
       baseline: baseline && baseline.baseline,
       changedBaseline: changed && changed.baseline,
