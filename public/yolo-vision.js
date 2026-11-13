@@ -102,6 +102,7 @@
         const ort = await loadRuntime();
         ort.env.wasm.numThreads = 1;
         ort.env.wasm.proxy = false;
+        ort.env.wasm.wasmPaths = "https://cdn.jsdelivr.net/npm/onnxruntime-web@1.22.0/dist/";
         const session = await ort.InferenceSession.create(MODEL_URL, {
           executionProviders: ["wasm"],
           graphOptimizationLevel: "all"
