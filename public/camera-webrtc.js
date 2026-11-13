@@ -66,6 +66,14 @@
   let localStream = null;
   let stopped = false;
   const peers = new Map();
+  // Share in-progress peer creation. Multiple room/signal events can arrive
+  // while ICE configuration is loading; without this lock they can create
+  // competing RTCPeerConnections for the same remote device.
+  const peerCreations = new Map();
+  // Serialize SDP/ICE operations per peer. WebSocket messages can arrive while
+  // setRemoteDescription is still pending; concurrent handlers can otherwise
+  // apply ICE too early or race an answer against an offer.
+  const signalQueues = new Map();
   const remoteCameraStates = new Map();
   let fallbackCameraNode = null;
 
@@ -278,50 +286,59 @@
 
   async function createPeer(id) {
     if (peers.has(id)) return peers.get(id);
-    await loadIceServers();
-    if (peers.has(id)) return peers.get(id);
-    const pc = new RTCPeerConnection({
-      iceServers,
-      bundlePolicy: "max-bundle",
-      rtcpMuxPolicy: "require"
-    });
-    const transceiver = pc.addTransceiver("video", { direction: "sendrecv" });
-    const entry = { pc, transceiver, pendingIce: [], restartAttempts: 0 };
-    peers.set(id, entry);
-
-    if (localStream) {
-      const track = localStream.getVideoTracks()[0];
-      if (track) transceiver.sender.replaceTrack(track).catch(() => {});
-    }
-    pc.onicecandidate = event => {
-      if (event.candidate) send({
-        type: "rtc_signal",
-        target: id,
-        signal: { type: "ice", candidate: event.candidate.toJSON() }
+    if (peerCreations.has(id)) return peerCreations.get(id);
+    const creation = (async () => {
+      await loadIceServers();
+      if (peers.has(id)) return peers.get(id);
+      const pc = new RTCPeerConnection({
+        iceServers,
+        bundlePolicy: "max-bundle",
+        rtcpMuxPolicy: "require"
       });
-    };
-    pc.ontrack = event => {
-      const stream = event.streams && event.streams[0]
-        ? event.streams[0] : new MediaStream([event.track]);
-      showRemoteVideo(id, stream);
-      event.track.addEventListener("unmute", () => setRemoteCameraActive(id, true));
-      event.track.addEventListener("mute", () => setRemoteCameraActive(id, false));
-      event.track.addEventListener("ended", () => removeRemoteVideo(id), { once: true });
-    };
-    pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed" && entry.restartAttempts < 2 && peerId < id) {
-        entry.restartAttempts++;
-        try { pc.restartIce(); } catch (_) {}
-        makeOffer(id, true).catch(() => {});
-      } else if (pc.connectionState === "connected") {
-        retryDelay = 1000;
-        status(localStream ? "LOCAL + REMOTE DEVICE LINK LIVE" : "REMOTE DEVICE LINK LIVE", true);
-      } else if (pc.connectionState === "failed") {
-        setRemoteCameraActive(id, false);
-        status("CAMERA LINK FAILED • CHECK NETWORK CONNECTION");
+      const transceiver = pc.addTransceiver("video", { direction: "sendrecv" });
+      const entry = { pc, transceiver, pendingIce: [], restartAttempts: 0 };
+      peers.set(id, entry);
+
+      if (localStream) {
+        const track = localStream.getVideoTracks()[0];
+        if (track) transceiver.sender.replaceTrack(track).catch(() => {});
       }
-    };
-    return entry;
+      pc.onicecandidate = event => {
+        if (event.candidate) send({
+          type: "rtc_signal",
+          target: id,
+          signal: { type: "ice", candidate: event.candidate.toJSON() }
+        });
+      };
+      pc.ontrack = event => {
+        const stream = event.streams && event.streams[0]
+          ? event.streams[0] : new MediaStream([event.track]);
+        showRemoteVideo(id, stream);
+        event.track.addEventListener("unmute", () => setRemoteCameraActive(id, true));
+        event.track.addEventListener("mute", () => setRemoteCameraActive(id, false));
+        event.track.addEventListener("ended", () => removeRemoteVideo(id), { once: true });
+      };
+      pc.onconnectionstatechange = () => {
+        if (pc.connectionState === "failed" && entry.restartAttempts < 2 && peerId < id) {
+          entry.restartAttempts++;
+          try { pc.restartIce(); } catch (_) {}
+          makeOffer(id, true).catch(() => {});
+        } else if (pc.connectionState === "connected") {
+          retryDelay = 1000;
+          status(localStream ? "LOCAL + REMOTE DEVICE LINK LIVE" : "REMOTE DEVICE LINK LIVE", true);
+        } else if (pc.connectionState === "failed") {
+          setRemoteCameraActive(id, false);
+          status("CAMERA LINK FAILED • CHECK NETWORK CONNECTION");
+        }
+      };
+      return entry;
+    })();
+    peerCreations.set(id, creation);
+    try {
+      return await creation;
+    } finally {
+      if (peerCreations.get(id) === creation) peerCreations.delete(id);
+    }
   }
 
   async function makeOffer(id, iceRestart = false) {
@@ -340,7 +357,17 @@
     }
   }
 
-  async function handleSignal(from, signal) {
+  function handleSignal(from, signal) {
+    if (!from || from === peerId || !signal || typeof signal !== "object") return Promise.resolve();
+    const previous = signalQueues.get(from) || Promise.resolve();
+    const next = previous.catch(() => {}).then(() => processSignal(from, signal));
+    signalQueues.set(from, next);
+    return next.finally(() => {
+      if (signalQueues.get(from) === next) signalQueues.delete(from);
+    });
+  }
+
+  async function processSignal(from, signal) {
     if (!from || from === peerId || !signal || typeof signal !== "object") return;
     const entry = await createPeer(from);
     const pc = entry.pc;
