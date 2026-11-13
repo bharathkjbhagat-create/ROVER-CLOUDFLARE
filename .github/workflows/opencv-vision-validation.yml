@@ -1,0 +1,41 @@
+name: OpenCV Browser Vision Validation
+
+on:
+  push:
+    branches:
+      - feature/opencv-browser-vision
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "public/opencv-vision.js"
+      - "public/ai-vision.js"
+      - "public/index.html"
+      - "tests/opencv_vision.test.js"
+      - ".github/workflows/opencv-vision-validation.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  opencv-vision:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+      - name: Validate OpenCV and AI JavaScript
+        run: |
+          node --check public/opencv-vision.js
+          node --check public/ai-vision.js
+      - name: Run OpenCV and existing vision logic tests
+        run: node --test tests/opencv_vision.test.js tests/vision_core.test.js
+      - name: Run dashboard control regression tests
+        run: python -m unittest discover -s tests -p "test_frontend_controls.py" -v
+      - name: Enforce frontend size budgets
+        run: python scripts/check_performance_budget.py
