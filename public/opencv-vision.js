@@ -53,9 +53,15 @@
       typeof cv.countNonZero === "function";
   }
 
-  async function currentRuntime() {
+  async function currentRuntime(waitMs = 0) {
     let candidate = root.cv;
-    if (candidate && typeof candidate.then === "function") candidate = await candidate;
+    if (candidate && typeof candidate.then === "function") {
+      if (waitMs <= 0) return null;
+      candidate = await Promise.race([
+        Promise.resolve(candidate),
+        new Promise(resolve => (root.setTimeout || setTimeout)(() => resolve(null), waitMs))
+      ]);
+    }
     return validRuntime(candidate) ? candidate : null;
   }
 
@@ -64,7 +70,7 @@
   async function waitForRuntime(timeoutMs) {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
-      const runtime = await currentRuntime();
+      const runtime = await currentRuntime(50);
       if (runtime) return runtime;
       await new Promise(resolve => (root.setTimeout || setTimeout)(resolve, 50));
     }
