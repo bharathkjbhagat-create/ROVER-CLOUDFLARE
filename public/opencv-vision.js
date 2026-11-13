@@ -30,6 +30,7 @@
     lastMotionRatio: 0,
     lastProcessMs: 0
   };
+  root.DEFENX_OPENCV_STATS = stats;
 
   function publish(status, message) {
     state.status = status;
@@ -99,7 +100,6 @@
           }
           script.src = SCRIPT_URL;
           script.async = true;
-          script.crossOrigin = "anonymous";
           script.dataset.defenxOpenCv = "1";
           script.onload = async () => {
             try {
