@@ -1,5 +1,5 @@
 /* DEFENX on-device AI vision pipeline (orchestrator).
- * One sequential scheduler drives object detection (TensorFlow.js COCO-SSD) and
+ * One sequential scheduler drives object detection (YOLOv8n ONNX, COCO-SSD fallback) and
  * the face pipeline (face-recognition.js). Both read the SAME live camera element
  * and nothing else, so reference photographs can never enter this pipeline.
  * Frames stay in this browser; only alert metadata is sent to the backend.
@@ -131,14 +131,32 @@
     if (model) return model;
     if (!modelPromise) {
       modelPromise = (async () => {
-        setState("loading", "LOADING ON-DEVICE AI MODEL • FIRST USE");
+        setState("loading", "LOADING YOLOv8n ON-DEVICE MODEL • FIRST USE");
+        // YOLOv8n ONNX is the primary object detector. It runs in this browser
+        // through ONNX Runtime Web/WASM; no camera frames are sent to a server.
+        const yolo = window.DEFENX_YOLO;
+        if (yolo && typeof yolo.load === "function" && typeof yolo.detect === "function") {
+          try {
+            await yolo.load();
+            model = { engine: "YOLOv8n", detect: yolo.detect.bind(yolo) };
+            window.DEFENX_OBJECT_DETECTOR = "YOLOv8n";
+            return model;
+          } catch (error) {
+            window.DEFENX_YOLO_LOAD_ERROR = String(error && error.message || error);
+            setState("loading", "YOLO UNAVAILABLE • STARTING COCO-SSD FALLBACK");
+          }
+        }
+        // Keep the existing detector as a resilience fallback if ONNX Runtime,
+        // the model host, or WebAssembly is unavailable on a device.
         await loadScript(tfUrl, "tf");
         await loadScript(modelUrl, "cocoSsd");
         const tf = window.tf;
         await tf.ready();
         try { if (!(await tf.setBackend("webgl"))) await tf.setBackend("cpu"); } catch (_) { await tf.setBackend("cpu"); }
         await tf.ready();
-        model = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
+        const fallback = await window.cocoSsd.load({ base: "lite_mobilenet_v2" });
+        model = { engine: "COCO-SSD", detect: fallback.detect.bind(fallback) };
+        window.DEFENX_OBJECT_DETECTOR = "COCO-SSD";
         return model;
       })();
     }
