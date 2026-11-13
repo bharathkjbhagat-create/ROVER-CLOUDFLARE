@@ -156,7 +156,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('pc.connectionState === "failed"', self.camera_webrtc)
         self.assertIn('setRemoteCameraActive(id, false);', self.camera_webrtc)
         self.assertIn('if(phoneCameraActive||window.__defenxRemoteCameraActive)return;', self.js)
-        self.assertIn('src="/camera-webrtc.js?v=20261112-01"', self.html)
+        self.assertIn('src="/camera-webrtc.js?v=20261113-01"', self.html)
         self.assertIn('async function loadIceServers()', self.camera_webrtc)
         self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
         self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
