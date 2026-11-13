@@ -24,7 +24,7 @@ test("YOLOv8 output decoder maps COCO class and input coordinates to camera coor
   ]), 640, 480);
   assert.equal(result.length, 1);
   assert.equal(result[0].class, "person");
-  assert.equal(result[0].score, 0.91);
+  assert.ok(Math.abs(result[0].score - 0.91) < 1e-6);
   assert.deepEqual(result[0].bbox, [270, 180, 100, 120]);
 });
 
@@ -36,7 +36,7 @@ test("YOLO decoder applies confidence filtering and class-aware non-maximum supp
     { cx: 400, cy: 300, w: 80, h: 80, classId: 1, score: 0.2 }
   ]), 640, 480, { threshold: 0.35 });
   assert.equal(result.length, 2);
-  assert.deepEqual(result.map(x => x.class).sort(), ["car", "bus"]);
+  assert.deepEqual(result.map(x => x.class).sort(), ["bus", "car"]);
 });
 
 test("YOLO decoder clips boxes to source frame and rejects invalid tensors", () => {
