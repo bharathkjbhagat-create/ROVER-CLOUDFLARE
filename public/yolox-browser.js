@@ -204,9 +204,10 @@
         if (window.ort && window.ort.InferenceSession) {
           settled = true;
           resolve(window.ort);
-        } else if (script.dataset.defenxOnnxRuntimeFailed === "1") {
+        } else {
+          script.dataset.defenxOnnxRuntimeFailed = "1";
           settled = true;
-          reject(new Error("Could not load ONNX Runtime Web"));
+          reject(new Error("ONNX Runtime Web loaded without its expected browser API"));
         }
       };
       script.addEventListener("load", ready, { once: true });
