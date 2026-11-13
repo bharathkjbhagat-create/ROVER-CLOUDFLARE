@@ -34,10 +34,15 @@ jobs:
       - name: Validate JavaScript
         run: |
           node --check public/app.js
+          node --check public/yolox-browser.js
           node --check public/camera-webrtc.js
           node --check public/dashboard-refinement.js
       - name: Validate browser AI vision JavaScript
-        run: node --check public/ai-vision.js
+        run: |
+          node --check public/ai-vision.js
+          node --check public/yolox-browser.js
+      - name: Test YOLOX output decoding and non-maximum suppression
+        run: node --test tests/yolox_browser.test.js
       - name: Validate full-screen monitor JavaScript
         run: node --check public/monitor.js
       - name: Validate face recognition JavaScript
