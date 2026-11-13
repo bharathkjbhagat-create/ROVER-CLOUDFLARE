@@ -168,21 +168,36 @@
     if (window.ort && window.ort.InferenceSession) return Promise.resolve(window.ort);
     return new Promise((resolve, reject) => {
       let script = document.querySelector("script[data-defenx-onnx-runtime='1']");
+      const shouldAppend = !script;
       if (!script) {
         script = document.createElement("script");
         script.src = ORT_SCRIPT;
         script.async = true;
         script.crossOrigin = "anonymous";
         script.dataset.defenxOnnxRuntime = "1";
-        document.head.appendChild(script);
       }
+      let settled = false;
       const ready = () => {
-        if (window.ort && window.ort.InferenceSession) resolve(window.ort);
-        else reject(new Error("ONNX Runtime Web did not initialise"));
+        if (settled) return;
+        if (window.ort && window.ort.InferenceSession) {
+          settled = true;
+          resolve(window.ort);
+        } else if (script.dataset.defenxOnnxRuntimeFailed === "1") {
+          settled = true;
+          reject(new Error("Could not load ONNX Runtime Web"));
+        }
       };
       script.addEventListener("load", ready, { once: true });
-      script.addEventListener("error", () => reject(new Error("Could not load ONNX Runtime Web")), { once: true });
+      script.addEventListener("error", () => {
+        script.dataset.defenxOnnxRuntimeFailed = "1";
+        if (!settled) {
+          settled = true;
+          reject(new Error("Could not load ONNX Runtime Web"));
+        }
+      }, { once: true });
       if (window.ort && window.ort.InferenceSession) ready();
+      else if (shouldAppend) document.head.appendChild(script);
+      else if (script.dataset.defenxOnnxRuntimeFailed === "1") ready();
     });
   }
 
