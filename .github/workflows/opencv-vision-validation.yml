@@ -9,7 +9,9 @@ on:
       - main
     paths:
       - "public/opencv-vision.js"
+      - "public/yolo-vision.js"
       - "public/ai-vision.js"
+      - "tests/yolo_vision.test.js"
       - "public/index.html"
       - "tests/opencv_vision.test.js"
       - ".github/workflows/opencv-vision-validation.yml"
@@ -36,9 +38,10 @@ jobs:
       - name: Validate OpenCV and AI JavaScript
         run: |
           node --check public/opencv-vision.js
+          node --check public/yolo-vision.js
           node --check public/ai-vision.js
       - name: Run OpenCV and existing vision logic tests
-        run: node --test tests/opencv_vision.test.js tests/vision_core.test.js
+        run: node --test tests/opencv_vision.test.js tests/vision_core.test.js tests/yolo_vision.test.js
       - name: Install Chromium for browser-level camera validation
         run: |
           npm install --no-save playwright
