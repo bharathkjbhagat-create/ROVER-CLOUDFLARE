@@ -17,6 +17,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: defenx-opencv-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   opencv-vision:
     runs-on: ubuntu-latest
