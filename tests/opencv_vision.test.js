@@ -103,6 +103,33 @@ test("loads an already available OpenCV runtime without adding a script", async 
   assert.match(vision.getStatus().message, /LOCAL MOTION ANALYSIS/);
 });
 
+test("waits for the WebAssembly runtime after the OpenCV script load event", async () => {
+  const { cv } = makeRuntime();
+  const root = makeRoot(null);
+  root.WebAssembly = WebAssembly;
+  root.setTimeout = setTimeout;
+  root.clearTimeout = clearTimeout;
+  let appended = 0;
+  root.document = {
+    head: {
+      appendChild(script) {
+        appended += 1;
+        script.parentNode = { removeChild() {} };
+        setTimeout(() => {
+          root.cv = cv;
+          script.onload();
+        }, 120);
+      }
+    },
+    createElement() { return { dataset: {}, async: false, src: "", onload: null, onerror: null }; },
+    getElementById() { return null; }
+  };
+  const vision = createOpenCV(root);
+  assert.equal(await vision.load(), cv);
+  assert.equal(appended, 1);
+  assert.equal(vision.getStatus().state, "ready");
+});
+
 test("uses OpenCV grayscale, resize, blur and frame differencing for motion metrics", async () => {
   const { cv } = makeRuntime();
   const root = makeRoot(cv);
