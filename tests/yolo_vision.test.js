@@ -52,8 +52,8 @@ test("YOLO preprocessing decoder handles letterboxed non-4:3 source frames", () 
     { cx: 320, cy: 240, w: 160, h: 120, classId: 2, score: 0.88 }
   ]), 1280, 720);
   assert.equal(result.length, 1);
-  assert.ok(Math.abs(result[0].bbox[0] - 440) < 1);
+  assert.ok(Math.abs(result[0].bbox[0] - 480) < 1);
   assert.ok(Math.abs(result[0].bbox[1] - 240) < 1);
-  assert.ok(Math.abs(result[0].bbox[2] - 400) < 1);
+  assert.ok(Math.abs(result[0].bbox[2] - 320) < 1);
   assert.ok(Math.abs(result[0].bbox[3] - 240) < 1);
 });
