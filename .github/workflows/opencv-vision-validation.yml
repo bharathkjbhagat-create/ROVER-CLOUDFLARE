@@ -14,6 +14,7 @@ on:
       - "tests/yolo_vision.test.js"
       - "public/index.html"
       - "tests/opencv_vision.test.js"
+      - "tests/opencv_browser.mjs"
       - ".github/workflows/opencv-vision-validation.yml"
 
 permissions:
@@ -44,7 +45,7 @@ jobs:
         run: node --test tests/opencv_vision.test.js tests/vision_core.test.js tests/yolo_vision.test.js
       - name: Install Chromium for browser-level camera validation
         run: |
-          npm install --no-save playwright
+          npm install --no-save playwright @techstark/opencv-js@4.12.0-release.1
           npx playwright install --with-deps chromium
       - name: Test official OpenCV.js WebAssembly with a synthetic live camera
         run: node tests/opencv_browser.mjs
