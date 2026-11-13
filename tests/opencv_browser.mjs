@@ -28,12 +28,19 @@ await new Promise((resolveListen, reject) => {
 const address = server.address();
 const origin = "http://127.0.0.1:" + address.port;
 let browser;
+let stage = "startup";
+const watchdog = setTimeout(() => {
+  console.error("FAIL: OpenCV browser integration exceeded 120 seconds at stage: " + stage);
+  process.exit(1);
+}, 120000);
 
 try {
+  stage = "launch Chromium";
   browser = await chromium.launch({
     headless: true,
     args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
   });
+  stage = "create camera-enabled browser context";
   const context = await browser.newContext({
     permissions: ["camera"],
     viewport: { width: 900, height: 700 }
@@ -43,9 +50,11 @@ try {
   const errors = [];
   page.on("pageerror", error => errors.push(error.message));
 
+  stage = "load local OpenCV test page";
   await page.goto(origin, { waitUntil: "domcontentloaded" });
   await page.addScriptTag({ url: origin + "/opencv-vision.js" });
 
+  stage = "acquire synthetic live camera";
   const camera = await page.evaluate(async () => {
     const stream = await Promise.race([
       navigator.mediaDevices.getUserMedia({
@@ -79,6 +88,7 @@ try {
   }
   console.log("PASS: Chromium acquired a live synthetic camera stream.");
 
+  stage = "load official OpenCV.js WebAssembly runtime";
   const runtime = await page.evaluate(async () => {
     const cv = await window.DEFENX_OPENCV.load();
     return {
@@ -93,6 +103,7 @@ try {
   }
   console.log("PASS: official OpenCV.js runtime and WebAssembly initialised in Chromium.");
 
+  stage = "run OpenCV motion detection";
   const metrics = await page.evaluate(() => {
     const canvas = document.createElement("canvas");
     canvas.width = 160;
@@ -120,12 +131,14 @@ try {
   }
   console.log("PASS: real OpenCV.js processed image frames and detected controlled motion: " + JSON.stringify(metrics));
 
+  stage = "close browser and camera";
   if (errors.length) throw new Error("Browser JavaScript errors: " + errors.join(" | "));
   await page.evaluate(() => {
     for (const track of window.__defenxTestStream?.getTracks?.() || []) track.stop();
   });
   await context.close();
 } finally {
+  clearTimeout(watchdog);
   if (browser) await browser.close();
   await new Promise(resolveClose => server.close(resolveClose));
 }
