@@ -54,6 +54,7 @@ class VisionEngine:
         self.object_tracks: list[dict[str, Any]] = []
         self.face_tracks: list[dict[str, Any]] = []
         self.next_track = 1
+        self.alert_last_seen: dict[str, float] = {}
         self.gallery_path = Path(os.getenv("DEFENX_FACE_GALLERY", "data/face_gallery.json"))
 
     def load(self) -> None:
