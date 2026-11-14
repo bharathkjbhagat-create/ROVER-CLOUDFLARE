@@ -348,7 +348,7 @@
       checkReadable(source);
       window.dispatchEvent(new Event("defenx-camera-live"));
       if (face()) face().boot();
-      try { const local = window.DEFENX_LOCAL_VISION && window.DEFENX_LOCAL_VISION.state(); if (!local || (!local.objects && !local.faces)) await ensureModel(); objectModelFailed = false; }
+      try { await ensureModel(); objectModelFailed = false; }
       catch (error) {
         if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
         objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
