@@ -337,6 +337,13 @@
       setFeature(feature, true, "RUNNING • another device is already scanning", true);
     } else if (state.objects || state.faces) schedule(0);
   });
+  window.addEventListener("defenx-remote-camera-left", event => {
+    const id = String(event.detail && event.detail.peer_id || "");
+    remoteSnapshots.delete(id);
+    const canvas = remoteOverlays.get(id);
+    if (canvas) canvas.remove();
+    remoteOverlays.delete(id);
+  });
   window.addEventListener("defenx-remote-vision-snapshot", event => {
     const data = event.detail || {};
     const count = (data.detections || []).length, faceCount = (data.faces || []).length;
