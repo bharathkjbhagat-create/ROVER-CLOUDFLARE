@@ -48,10 +48,14 @@ class FakeFaceDetector:
 
 
 class FakeFaceRecognizer:
+    def __init__(self):
+        self.calls = 0
     def alignCrop(self, image, row):
         return image[:10, :10]
     def feature(self, aligned):
-        return np.asarray([[1.0, 0.0]], dtype=np.float32)
+        self.calls += 1
+        vector = [1.0, 0.0] if self.calls == 1 else [0.0, 1.0]
+        return np.asarray([vector], dtype=np.float32)
 
 
 class LocalVisionTests(unittest.TestCase):
@@ -76,7 +80,7 @@ class LocalVisionTests(unittest.TestCase):
         self.assertEqual({d["class_name"] for d in detections}, {"person", "car"})
 
     def test_multiple_faces_keep_recognized_and_unknown_statuses(self):
-        self.engine._gallery = lambda: {"Bharath": [[1.0, 0.0], [0.0, 1.0]]}
+        self.engine._gallery = lambda: {"Bharath": [[1.0, 0.0]]}
         result = self.engine._faces(self.image)
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0]["match_status"], "recognized")
