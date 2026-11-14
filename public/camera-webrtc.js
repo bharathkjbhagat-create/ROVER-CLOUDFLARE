@@ -514,7 +514,7 @@
     } else if (message.type === "rtc_signal") {
       handleSignal(message.from, message.signal).catch(() => status("CAMERA CONNECTION RETRYING"));
     } else if (message.type === "vision_owner") {
-      window.dispatchEvent(new CustomEvent("defenx-vision-owner", { detail: { granted: !!message.granted, owner: message.owner || null, reason: message.reason || "" } }));
+      window.dispatchEvent(new CustomEvent("defenx-vision-owner", { detail: { granted: !!message.granted && message.owner === peerId, available: !message.owner, owner: message.owner || null, reason: message.reason || "" } }));
     } else if (message.type === "vision_snapshot") {
       window.dispatchEvent(new CustomEvent("defenx-remote-vision-snapshot", { detail: message }));
     } else if (message.type === "rtc_error") {
@@ -536,8 +536,8 @@
         if (!b || !["x1","y1","x2","y2"].every(k => Number.isFinite(Number(b[k])))) return null;
         return Object.fromEntries(["x1","y1","x2","y2"].map(k => [k, Math.max(0, Math.min(1, Number(b[k])))]));
       };
-      const detections = (result.detections || []).slice(0, 80).map(d => ({ class_id: Number(d.class_id) || 0, class_name: String(d.class_name || "object").slice(0, 32), confidence: Math.max(0, Math.min(1, Number(d.confidence) || 0)), box: cleanBox(d.normalized_box || d.box_normalized) })).filter(d => d.box);
-      const faces = (result.faces || []).slice(0, 30).map(f => ({ match_status: ["recognized","unknown","unverified"].includes(f.match_status) ? f.match_status : "unknown", box: cleanBox(f.normalized_box || f.box_normalized) })).filter(f => f.box);
+      const detections = (result.detections || []).slice(0, 80).map(d => ({ class_id: Number(d.class_id) || 0, class_name: String(d.class_name || "object").slice(0, 32), confidence: Math.max(0, Math.min(1, Number(d.confidence) || 0)), box: cleanBox(d.normalized_box || d.box_normalized || (d.box && { x1: Number(d.box.x1) / Number(result.width || 1), y1: Number(d.box.y1) / Number(result.height || 1), x2: Number(d.box.x2) / Number(result.width || 1), y2: Number(d.box.y2) / Number(result.height || 1) })) })).filter(d => d.box);
+      const faces = (result.faces || []).slice(0, 30).map(f => ({ match_status: ["recognized","unknown","unverified"].includes(f.match_status) ? f.match_status : "unknown", box: cleanBox(f.normalized_box || f.box_normalized || (f.box && { x1: Number(f.box.x1) / Number(result.width || 1), y1: Number(f.box.y1) / Number(result.height || 1), x2: Number(f.box.x2) / Number(result.width || 1), y2: Number(f.box.y2) / Number(result.height || 1) })) })).filter(f => f.box);
       return send({ type: "vision_snapshot", width: 1, height: 1, detections, faces });
     }
   };
