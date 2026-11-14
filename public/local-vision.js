@@ -339,7 +339,8 @@
   });
   window.addEventListener("defenx-remote-vision-snapshot", event => {
     const data = event.detail || {};
-    const count = (data.detections || []).length, faceCount = (data.faces || []).length;\n    if (data.peer_id) { remoteSnapshots.set(String(data.peer_id), data); drawRemote(data); }
+    const count = (data.detections || []).length, faceCount = (data.faces || []).length;
+    if (data.peer_id) { remoteSnapshots.set(String(data.peer_id), data); drawRemote(data); }
     if (events) {
       const row = document.createElement("div");
       const labels = (data.detections || []).map(d => String(d.class_name || "object").toUpperCase()).slice(0, 5);
@@ -356,7 +357,8 @@
   yolo.button.addEventListener("click", () => toggle("yolo", yolo));
   face.button.addEventListener("click", () => toggle("face", face));
   if (enrollButton) enrollButton.addEventListener("click", enroll);
-  window.addEventListener("resize", () => { if (!overlay.hidden && source()) fit(overlay.width, overlay.height); redrawRemote(); });\n  window.addEventListener("scroll", redrawRemote, true);
+  window.addEventListener("resize", () => { if (!overlay.hidden && source()) fit(overlay.width, overlay.height); redrawRemote(); });
+  window.addEventListener("scroll", redrawRemote, true);
   window.addEventListener("pagehide", () => { state.objects = state.faces = false; notifyState(); });
   window.addEventListener("online", () => { state.disconnected = false; if (state.objects || state.faces) schedule(0); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (state.objects || state.faces)) schedule(0); });
