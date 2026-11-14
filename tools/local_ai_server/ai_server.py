@@ -211,7 +211,9 @@ class VisionEngine:
         remaining = list(tracks)
         for item in detections:
             box = item["box"]
-            best = max(remaining, key=lambda t: _iou(box, t["box"]), default=None)
+            key = str(item.get("class_name") if kind == "object" else "face")
+            candidates = [track for track in remaining if track.get("key") == key]
+            best = max(candidates, key=lambda t: _iou(box, t["box"]), default=None)
             if best and _iou(box, best["box"]) >= 0.25:
                 item["track_id"] = best["id"]
                 best["box"] = box
@@ -220,7 +222,7 @@ class VisionEngine:
             else:
                 item["track_id"] = self.next_track
                 self.next_track += 1
-                tracks.append({"id": item["track_id"], "box": box, "at": now})
+                tracks.append({"id": item["track_id"], "key": key, "box": box, "at": now})
         tracks[:] = [t for t in tracks if now - t["at"] < 2.0]
 
     def infer(self, image: np.ndarray, include_objects: bool, include_faces: bool, source: str) -> dict[str, Any]:
@@ -232,19 +234,34 @@ class VisionEngine:
         h, w = image.shape[:2]
         timestamp = _now()
         events = []
+        monotonic_now = time.monotonic()
+        present_alerts = set()
         for item in detections:
             cid = item["class_id"]
             if cid == 0 or cid in VEHICLE_CLASSES:
+                key = "object:" + str(item["track_id"])
+                present_alerts.add(key)
+                if monotonic_now - self.alert_last_seen.get(key, 0) < 10:
+                    continue
+                self.alert_last_seen[key] = monotonic_now
                 label = item["class_name"].title()
                 events.append({"event_id": str(uuid.uuid4()), "type": "detection_alert", "timestamp": timestamp,
                                "source": source, "class_id": cid, "class_name": item["class_name"],
-                               "confidence": item["confidence"], "box": item["box"], "message": label + " detected"})
+                               "confidence": item["confidence"], "box": item["box"], "track_id": item["track_id"], "message": label + " detected"})
         for face in faces:
             if face["match_status"] == "recognized":
+                key = "face:" + str(face["track_id"])
+                present_alerts.add(key)
+                if monotonic_now - self.alert_last_seen.get(key, 0) < 10:
+                    continue
+                self.alert_last_seen[key] = monotonic_now
                 events.append({"event_id": str(uuid.uuid4()), "type": "face_recognized", "timestamp": timestamp,
                                "source": source, "identity": face["identity"], "confidence": face["detection_confidence"],
-                               "similarity": face["similarity"], "box": face["box"],
+                               "similarity": face["similarity"], "box": face["box"], "track_id": face["track_id"],
                                "message": "Known person detected: " + face["identity"]})
+        for key, seen_at in list(self.alert_last_seen.items()):
+            if key not in present_alerts and monotonic_now - seen_at > 30:
+                del self.alert_last_seen[key]
         ALERTS.extend(events)
         return {"timestamp": timestamp, "source": source, "device": "cuda:0" if self.device == "0" else "cpu",
                 "width": w, "height": h, "detections": detections, "faces": faces, "events": events,
