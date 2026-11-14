@@ -38,4 +38,4 @@ jobs:
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
       - name: Run authentication regression tests
-        run: uv run --group dev python -m unittest discover -s tests -p 'test_*.py'
+        run: uv run --group dev --with fastapi --with httpx --with python-multipart --with opencv-contrib-python-headless --with numpy python -m unittest discover -s tests -p 'test_*.py'
