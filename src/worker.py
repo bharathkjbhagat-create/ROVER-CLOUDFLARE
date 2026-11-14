@@ -500,7 +500,11 @@ class RealtimeHub(DurableObject):
                 confidence = max(0.0, min(1.0, float(item.get("confidence", 0))))
             except (TypeError, ValueError):
                 continue
-            detections.append({"class_id": int(item.get("class_id", 0)), "class_name": str(item.get("class_name") or "object")[:32], "confidence": confidence, "box": box})
+            try:
+                class_id = int(item.get("class_id", 0))
+            except (TypeError, ValueError):
+                continue
+            detections.append({"class_id": class_id, "class_name": str(item.get("class_name") or "object")[:32], "confidence": confidence, "box": box})
         faces = []
         for item in data.get("faces", [])[:30] if isinstance(data.get("faces"), list) else []:
             if not isinstance(item, dict):
