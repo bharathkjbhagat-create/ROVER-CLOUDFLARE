@@ -161,7 +161,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('pc.connectionState === "failed"', self.camera_webrtc)
         self.assertIn('setRemoteCameraActive(id, false);', self.camera_webrtc)
         self.assertIn('if(phoneCameraActive||window.__defenxRemoteCameraActive)return;', self.js)
-        self.assertIn('src="/camera-webrtc.js?v=20261114-01"', self.html)
+        self.assertIn('src="/camera-webrtc.js?v=20261114-02"', self.html)
         self.assertIn('async function loadIceServers()', self.camera_webrtc)
         self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
         self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
@@ -174,8 +174,27 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('@app.get("/api/rtc/ice-config")', self.server_app)
         self.assertIn('turnEnabled', self.server_app)
 
+    def test_phone_gps_syncs_ephemerally_to_other_authenticated_dashboards(self):
+        phone_gps = (ROOT / "public" / "phone-gps.js").read_text(encoding="utf-8")
+        self.assertIn('type:"phone_gps"', phone_gps)
+        self.assertIn("window.DEFENX_PHONE_GPS_SYNC", phone_gps)
+        self.assertIn("window.DEFENX_PHONE_GPS_REMOTE=showRemote", phone_gps)
+        self.assertIn("setTimeout(()=>removeRemote(sessionId),45000)", phone_gps)
+        self.assertNotIn("fetch(", phone_gps)
+        self.assertIn('if(message.type==="phone_gps")', self.js)
+        self.assertIn("window.DEFENX_PHONE_GPS_SYNC?.()", self.js)
+        self.assertIn("def _handle_phone_gps_message", self.worker)
+        self.assertIn("def _active_phone_gps", self.worker)
+        self.assertIn("self._broadcast_operator", self.worker)
+        self.assertIn('kind") != "operator"', self.worker)
+        self.assertIn('"type": "phone_gps"', self.worker)
+        self.assertIn('"phone_gps":', self.worker)
+        self.assertIn('id="cameraSyncStatus"', self.html)
+        self.assertIn("DEVICE SYNC ONLINE • WAITING FOR SECOND DEVICE", self.camera_webrtc)
+        self.assertIn("CAMERA LINK FAILED • CHECK NETWORK / TURN", self.camera_webrtc)
+
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
-        self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal"}:', self.worker)
+        self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps"}:', self.worker)
         self.assertIn('self._handle_rtc_message(ws, data, attachment)', self.worker)
         self.assertIn('def _rtc_broadcast(self, payload, exclude_peer=None, target_peer=None):', self.worker)
         self.assertIn('if info.get("rtc_room") != "defenx-global" or not peer_id:', self.worker)
@@ -224,3 +243,4 @@ class FrontendControlTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
