@@ -252,7 +252,7 @@ jobs:
           grep -Fq 'browser-vision-sync.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'ai-vision.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'face-recognition.js' /tmp/defenx-online-vision-index.html
-          grep -Fq 'defenx-remote-vision-snapshot' /tmp/defenx-browser-vision-sync.js
+          grep -Fq 'window.DEFENX_VISION_SYNC.publish(result)' /tmp/defenx-browser-vision-sync.js
           grep -Fq 'defenx-remote-vision-snapshot' /tmp/defenx-local-vision.js
           ! grep -Eq '127\.0\.0\.1:8000|localhost:8000' /tmp/defenx-local-vision.js
           echo "Live online browser vision pipeline and synchronized result renderer: PASS"
