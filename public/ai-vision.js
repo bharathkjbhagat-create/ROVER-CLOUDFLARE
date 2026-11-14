@@ -34,6 +34,8 @@
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
   let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
+  let visionRoomJoined = false, visionOwner = true, visionClaimPending = false, lastVisionPublish = 0;
+  const VISION_SYNC_INTERVAL = 750;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
   let objMs = 0, objectModelFailed = false, cache = { now: -1, value: null }, faceFails = 0, faceBroken = false;
@@ -222,6 +224,7 @@
     const scale = (contain ? Math.min : Math.max)(vw / d.width, vh / d.height);
     const ox = (vw - d.width * scale) / 2, oy = (vh - d.height * scale) / 2;
     const counts = zeroCounts();
+    const syncDetections = [], syncFaces = [];
     let confSum = 0, confN = 0;
     const box = (b, color, dashed) => {
       const x = b[0] * scale + ox, y = b[1] * scale + oy;
@@ -234,6 +237,8 @@
       const v = evalVerdict(tr, now);
       if (!v) continue;
       const det = tr.data.det, pct = Math.round(det.score * 100) + "%";
+      syncDetections.push({ class_id: det.class === "person" ? 0 : -1, class_name: det.class, confidence: det.score,
+        normalized_box: { x1: det.bbox[0] / d.width, y1: det.bbox[1] / d.height, x2: (det.bbox[0] + det.bbox[2]) / d.width, y2: (det.bbox[1] + det.bbox[3]) / d.height } });
       const color = COLORS[v.status] || COLORS[STATUS.UNVERIFIED];
       const [x, y] = box(det.bbox, color, v.status !== STATUS.LIVE_HUMAN && v.status !== STATUS.LIVE_VEHICLE && v.status !== STATUS.REAL_OBJECT);
       label(x, y, [det.class.toUpperCase() + " " + pct, v.status], color);
@@ -251,6 +256,9 @@
     const fr = face() ? face().faces : [];
     for (const f of fr) {
       if (now - f.at > 1200) continue;
+      const matchStatus = !f.spoof && f.identity === STATUS.RECOGNIZED ? "recognized" : f.identity === STATUS.UNKNOWN ? "unknown" : "unverified";
+      syncFaces.push({ match_status: matchStatus,
+        normalized_box: { x1: f.bbox[0] / d.width, y1: f.bbox[1] / d.height, x2: (f.bbox[0] + f.bbox[2]) / d.width, y2: (f.bbox[1] + f.bbox[3]) / d.height } });
       const color = f.spoof ? COLORS[STATUS.PHOTO] : COLORS[f.identity] || COLORS[STATUS.UNVERIFIED];
       const idLine = f.spoof ? STATUS.PHOTO : (f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity);
       const lines = [idLine];
@@ -267,6 +275,10 @@
       }
     }
     counts.confidence = confN ? confSum / confN : 0;
+    if (visionOwner && visionRoomJoined && window.DEFENX_VISION_SYNC && Date.now() - lastVisionPublish >= VISION_SYNC_INTERVAL) {
+      lastVisionPublish = Date.now();
+      window.DEFENX_VISION_SYNC.publish({ width: d.width, height: d.height, detections: syncDetections, faces: syncFaces });
+    }
     return counts;
   }
   function describe(counts) {
@@ -290,7 +302,7 @@
     if (running && !paused) timer = window.setTimeout(tick, Math.max(20, delay));
   }
   async function tick() {
-    if (!running || paused || busy) return;
+    if (!running || paused || busy || !visionOwner) return;
     if (document.hidden) return schedule(1200);
     if (!sourceReady(source)) { clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
     const now = performance.now();
@@ -299,9 +311,8 @@
     busy = true;
     try {
       checkReadable(source);
-      const localState = window.DEFENX_LOCAL_VISION ? window.DEFENX_LOCAL_VISION.state() : { objects: false, faces: false };
-      const f = face(), faceOn = !!(f && !faceBroken && f.active() && !localState.faces);
-      const objOn = !!model && !localState.objects;
+      const f = face(), faceOn = !!(f && !faceBroken && f.active());
+      const objOn = !!model;
       let ran = false;
       if (faceOn && now >= nextFace) {
         const ms = await runFaces(now);
@@ -328,9 +339,23 @@
     }
   }
 
+  function claimVisionOwner() {
+    const sync = window.DEFENX_VISION_SYNC;
+    if (!sync || !visionRoomJoined) { visionOwner = true; return true; }
+    if (visionOwner || visionClaimPending) return visionOwner;
+    visionOwner = false;
+    visionClaimPending = !!sync.setOwner(true);
+    return false;
+  }
+  function releaseVisionOwner() {
+    if (visionRoomJoined && visionOwner && window.DEFENX_VISION_SYNC) window.DEFENX_VISION_SYNC.setOwner(false);
+    visionOwner = !visionRoomJoined;
+    visionClaimPending = false;
+  }
   async function startDetection() {
     failures = 0;
     if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
+    if (!claimVisionOwner()) { running = false; if (timer) clearTimeout(timer); setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER"); return; }
     try {
       checkReadable(source);
       window.dispatchEvent(new Event("defenx-camera-live"));
@@ -378,28 +403,46 @@
     paused = !paused;
     if (paused) {
       running = false; if (timer) clearTimeout(timer);
-      clearAll(); setState("paused", "AI PAUSED BY OPERATOR"); toggle.disabled = false;
+      releaseVisionOwner(); clearAll(); setState("paused", "AI PAUSED BY OPERATOR"); toggle.disabled = false;
     } else { setState("loading", "RESUMING AI VISION"); startDetection(); }
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
   });
-  window.addEventListener("defenx-local-vision-state", event => {
-    const local = event.detail || {};
-    if (local.objects || local.faces) {
-      if (!paused) {
-        running = false;
-        if (timer) clearTimeout(timer);
-        clearAll();
-        setState("paused", "LOCAL PC SCAN ACTIVE • BROWSER DUPLICATE SCAN PAUSED");
+  window.addEventListener("defenx-vision-sync-state", event => {
+    const detail = event.detail || {};
+    if (!detail.connected) {
+      visionRoomJoined = false; visionOwner = true; visionClaimPending = false;
+      if (!paused && sourceReady(source) && !running) startDetection();
+      return;
+    }
+    if (detail.joined) {
+      visionRoomJoined = true; visionOwner = false; visionClaimPending = false;
+      running = false; if (timer) clearTimeout(timer); clearAll();
+      if (!paused && sourceReady(source)) {
+        if (claimVisionOwner()) startDetection();
+        else setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER");
       }
-    } else if (!paused && sourceReady(source) && !running) {
-      setState("loading", "RESUMING BROWSER AI VISION");
-      startDetection();
+    }
+  });
+  window.addEventListener("defenx-vision-owner", event => {
+    if (!visionRoomJoined) return;
+    const detail = event.detail || {}, owner = String(detail.owner || "");
+    const mine = String(window.DEFENX_CAMERA_PEER_ID || "");
+    if (detail.granted && owner && owner === mine) {
+      visionOwner = true; visionClaimPending = false;
+      if (!paused && sourceReady(source)) startDetection();
+    } else if (owner && owner !== mine) {
+      visionOwner = false; visionClaimPending = false; running = false;
+      if (timer) clearTimeout(timer); clearAll();
+      setState("waiting", "AI SCANNING ON ANOTHER AUTHENTICATED DEVICE");
+    } else if (!owner) {
+      visionOwner = false; visionClaimPending = false;
+      if (!paused && sourceReady(source) && claimVisionOwner()) startDetection();
     }
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
-  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); });
+  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
