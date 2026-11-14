@@ -19,6 +19,7 @@
   const ctx = canvas.getContext("2d");
   const counts = { person: 0, vehicle: 0, object: 0 };
   const vehicleNames = new Set(["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"]);
+  const alertCooldown = new Map();
 
   function setStatus(text, error) {
     status.textContent = text;
@@ -71,6 +72,7 @@
       ctx.fillStyle = color; ctx.fillRect(x, top, labelWidth, 17);
       ctx.fillStyle = "#07120d"; ctx.fillText(label, x + 5, top + 12);
     }
+    publishAlerts(detections);
     for (const key of Object.keys(counts)) {
       const node = document.getElementById(ids[key]);
       if (node) node.textContent = String(counts[key]);
@@ -78,6 +80,29 @@
     window.dispatchEvent(new CustomEvent("defenx-local-yolo-detection", {
       detail: { engine: "YOLOv8n CPU", ...counts, detections }
     }));
+  }
+  function publishAlerts(detections) {
+    const alerts = window.DEFENX_ALERTS;
+    if (!alerts || typeof alerts.offer !== "function") return;
+    const cfg = alerts.config();
+    const now = Date.now(), present = new Set();
+    for (const item of detections) {
+      const name = String(item.class || "object").toLowerCase();
+      const isVehicle = vehicleNames.has(name);
+      if (!(isVehicle ? cfg.vehicles : cfg.objects && cfg.objectClasses.includes(name))) continue;
+      const category = isVehicle ? "vehicle_detected" : "object_detected";
+      const key = category + ":" + name;
+      present.add(key);
+      const previous = alertCooldown.get(key) || 0;
+      if (now - previous < 6000) continue;
+      alertCooldown.set(key, now);
+      alerts.offer({
+        category, trackId: "local-yolo-" + name,
+        status: isVehicle ? "LIVE VEHICLE" : "REAL-WORLD OBJECT",
+        subject: name, confidence: Number(item.confidence) || 0, engine: "YOLOv8n CPU"
+      });
+    }
+    for (const [key, at] of alertCooldown) if (now - at > 30000 && !present.has(key)) alertCooldown.delete(key);
   }
   function clearCounts() { counts.person = counts.vehicle = counts.object = 0; }
   async function scan() {
