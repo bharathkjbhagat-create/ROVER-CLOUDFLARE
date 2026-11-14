@@ -139,9 +139,9 @@
     if (!response.ok) throw new Error(data.detail || data.error || "Local vision request failed (" + response.status + ")");
     return data;
   }
-  async function health() {
+  async function health(requireObjects) {
     const data = await request("/health");
-    if (!data.model_loaded) throw new Error("ERROR • YOLO model is not loaded");
+    if (requireObjects && !data.model_loaded) throw new Error(data.error || "ERROR • YOLO model is not loaded");
     return data;
   }
   async function refreshGallery() {
