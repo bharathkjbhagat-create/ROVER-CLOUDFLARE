@@ -1,9 +1,42 @@
 (()=>{"use strict";
 let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null,renderQueued=false,staleTimer=null;
+const remoteLocations=new Map();
 const $=id=>document.getElementById(id);
 const set=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 const quality=m=>m<=20?"GOOD":m<=100?"FAIR":"POOR";
 const valid=(lat,lon)=>Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180;
+function publish(active){
+ const ws=window.roverWS;
+ if(!ws||ws.readyState!==WebSocket.OPEN)return false;
+ try{
+  ws.send(JSON.stringify(active&&latest?{type:"phone_gps",active:true,lat:latest.lat,lon:latest.lon,accuracy_m:latest.accuracy}:{type:"phone_gps",active:false}));
+  return true;
+ }catch(_){return false;}
+}
+function removeRemote(sessionId){
+ const entry=remoteLocations.get(sessionId);if(!entry)return;
+ if(entry.timer)clearTimeout(entry.timer);
+ const map=window.__defenxGetMap?.();if(map){if(entry.marker)map.removeLayer(entry.marker);if(entry.circle)map.removeLayer(entry.circle);}
+ remoteLocations.delete(sessionId);
+}
+function showRemote(message){
+ const sessionId=String(message.session_id||"").slice(0,64);if(!sessionId)return;
+ if(message.active!==true){removeRemote(sessionId);return;}
+ const lat=Number(message.lat),lon=Number(message.lon),accuracy=Math.max(0,Number(message.accuracy_m)||0);
+ if(!valid(lat,lon)||accuracy>1000000)return;
+ const map=window.__defenxGetMap?.(),L=window.L;if(!map||!L)return;
+ let entry=remoteLocations.get(sessionId);
+ if(!entry){
+  const icon=L.divIcon({className:"phoneGpsMarkerWrap remotePhoneGpsMarker",html:'<div style="width:20px;height:20px;border:3px solid #fff;border-radius:50%;background:#35c98a;box-shadow:0 0 0 7px rgba(53,201,138,.2),0 0 18px #35c98a"></div>',iconSize:[20,20],iconAnchor:[10,10]});
+  const remoteMarker=L.marker([lat,lon],{icon,title:"SYNCED PHONE GPS",keyboard:true,zIndexOffset:1100}).addTo(map).bindTooltip("SYNCED PHONE GPS",{permanent:true,direction:"top"});
+  const circle=L.circle([lat,lon],{radius:accuracy,color:"#35c98a",weight:1.5,opacity:.8,fillColor:"#35c98a",fillOpacity:.07}).addTo(map);
+  entry={marker:remoteMarker,circle,timer:0};remoteLocations.set(sessionId,entry);
+ }else{
+  entry.marker.setLatLng([lat,lon]);entry.circle.setLatLng([lat,lon]).setRadius(accuracy);
+  if(entry.timer)clearTimeout(entry.timer);
+ }
+ entry.timer=setTimeout(()=>removeRemote(sessionId),45000);
+}
 function render(){
  if(!latest)return;
  const map=window.__defenxGetMap?.(),L=window.L;
@@ -30,6 +63,7 @@ function onPosition(position){
  set("mapCoords",lat.toFixed(6)+"° "+(lat>=0?"N":"S")+"  "+lon.toFixed(6)+"° "+(lon>=0?"E":"W"));
  set("mapTileStatus","PHONE GPS FIX • ±"+Math.round(accuracy)+" m");set("deviceGpsState","PHONE • ±"+Math.round(accuracy)+" m");
  scheduleRender();
+ publish(true);
 }
 function onError(error){
  const message=error?.code===1?"Location permission denied":error?.code===2?"Phone location unavailable":"Phone GPS timed out";
@@ -41,8 +75,10 @@ function checkStale(){
  if(!latest)return;
  const age=Date.now()-latest.timestamp;
  if(age>30000){set("gpsHeaderSub","Last fix "+Math.round(age/1000)+" s ago • waiting for update");set("mapTileStatus","PHONE GPS STALE");set("deviceGpsState","STALE");}
+ else publish(true);
 }
 function stop(){
+ publish(false);
  if(watchId!==null&&navigator.geolocation)navigator.geolocation.clearWatch(watchId);
  if(staleTimer){clearInterval(staleTimer);staleTimer=null;}
  watchId=null;latest=null;centered=false;following=true;window.DEFENX_PHONE_GPS_LATEST=null;
@@ -62,5 +98,9 @@ function start(){
 }
 window.DEFENX_PHONE_GPS_CONTROL=active=>active?start():stop();
 window.DEFENX_PHONE_GPS_RENDER=render;
+window.DEFENX_PHONE_GPS_SYNC=()=>{if(watchId!==null&&latest)publish(true);};
+window.DEFENX_PHONE_GPS_REMOTE=showRemote;
+window.addEventListener("visibilitychange",()=>{if(!document.hidden&&watchId!==null&&latest)publish(true);});
 window.addEventListener("pagehide",stop);
 })();
+
