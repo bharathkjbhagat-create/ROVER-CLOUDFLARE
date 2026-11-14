@@ -85,6 +85,44 @@
     overlay.style.zIndex = "15";
     return true;
   }
+  const remoteSnapshots = new Map();
+  const remoteOverlays = new Map();
+  function drawRemote(snapshot) {
+    const peer = String(snapshot.peer_id || "");
+    const video = Array.from(document.querySelectorAll("video[data-defenxPeerId]")).find(v => v.dataset.defenxPeerId === peer);
+    let canvas = remoteOverlays.get(peer);
+    if (!video || !video.getBoundingClientRect().width) { if (canvas) canvas.hidden = true; return; }
+    if (!canvas) {
+      canvas = document.createElement("canvas");
+      canvas.className = "localRemoteVisionCanvas";
+      canvas.setAttribute("aria-label", "Synchronized remote detections");
+      canvas.style.cssText = "position:fixed;pointer-events:none;z-index:30";
+      document.body.appendChild(canvas);
+      remoteOverlays.set(peer, canvas);
+    }
+    const rect = video.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    canvas.hidden = false;
+    canvas.style.left = rect.left + "px"; canvas.style.top = rect.top + "px";
+    canvas.style.width = rect.width + "px"; canvas.style.height = rect.height + "px";
+    canvas.width = Math.max(1, Math.round(rect.width * dpr)); canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    const c = canvas.getContext("2d"), scaleX = canvas.width, scaleY = canvas.height;
+    c.clearRect(0, 0, canvas.width, canvas.height);
+    c.lineWidth = Math.max(2, canvas.width / 220); c.font = "600 " + Math.max(11, canvas.width / 25) + "px system-ui";
+    for (const d of snapshot.detections || []) {
+      const b = d.box || {};
+      c.strokeStyle = c.fillStyle = d.class_name === "person" ? "#20d5c2" : "#f7c948";
+      const x = Number(b.x1) * scaleX, y = Number(b.y1) * scaleY;
+      c.strokeRect(x, y, (Number(b.x2) - Number(b.x1)) * scaleX, (Number(b.y2) - Number(b.y1)) * scaleY);
+      c.fillText(String(d.class_name || "object").toUpperCase(), x + 2, Math.max(12, y - 3));
+    }
+    for (const f of snapshot.faces || []) {
+      const b = f.box || {}, x = Number(b.x1) * scaleX, y = Number(b.y1) * scaleY;
+      c.strokeStyle = c.fillStyle = f.match_status === "recognized" ? "#5be37d" : "#ff6b6b";
+      c.strokeRect(x, y, (Number(b.x2) - Number(b.x1)) * scaleX, (Number(b.y2) - Number(b.y1)) * scaleY);
+      c.fillText(f.match_status === "recognized" ? "KNOWN FACE" : f.match_status === "unverified" ? "UNVERIFIED" : "UNKNOWN", x + 2, y + 13);
+    }
+  }
+  function redrawRemote() { for (const snapshot of remoteSnapshots.values()) drawRemote(snapshot); }
   const alertCooldown = new Map();
   const vehicleNames = new Set(["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"]);
   function publishObjectAlerts(detections) {
@@ -301,7 +339,7 @@
   });
   window.addEventListener("defenx-remote-vision-snapshot", event => {
     const data = event.detail || {};
-    const count = (data.detections || []).length, faceCount = (data.faces || []).length;
+    const count = (data.detections || []).length, faceCount = (data.faces || []).length;\n    if (data.peer_id) { remoteSnapshots.set(String(data.peer_id), data); drawRemote(data); }
     if (events) {
       const row = document.createElement("div");
       const labels = (data.detections || []).map(d => String(d.class_name || "object").toUpperCase()).slice(0, 5);
@@ -318,7 +356,7 @@
   yolo.button.addEventListener("click", () => toggle("yolo", yolo));
   face.button.addEventListener("click", () => toggle("face", face));
   if (enrollButton) enrollButton.addEventListener("click", enroll);
-  window.addEventListener("resize", () => { if (!overlay.hidden && source()) fit(overlay.width, overlay.height); });
+  window.addEventListener("resize", () => { if (!overlay.hidden && source()) fit(overlay.width, overlay.height); redrawRemote(); });\n  window.addEventListener("scroll", redrawRemote, true);
   window.addEventListener("pagehide", () => { state.objects = state.faces = false; notifyState(); });
   window.addEventListener("online", () => { state.disconnected = false; if (state.objects || state.faces) schedule(0); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden && (state.objects || state.faces)) schedule(0); });
