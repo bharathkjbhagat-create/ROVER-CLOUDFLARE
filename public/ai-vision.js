@@ -34,8 +34,7 @@
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
   let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
-  let visionRoomJoined = false, visionSyncConnected = false, visionOwner = true, visionClaimPending = false, pageLeaving = false, lastVisionPublish = 0;
-  const VISION_SYNC_INTERVAL = 750;
+  const browserSync = () => window.DEFENX_BROWSER_VISION_SYNC;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
   let objMs = 0, objectModelFailed = false, cache = { now: -1, value: null }, faceFails = 0, faceBroken = false;
@@ -275,10 +274,7 @@
       }
     }
     counts.confidence = confN ? confSum / confN : 0;
-    if (visionOwner && visionRoomJoined && window.DEFENX_VISION_SYNC && Date.now() - lastVisionPublish >= VISION_SYNC_INTERVAL) {
-      lastVisionPublish = Date.now();
-      window.DEFENX_VISION_SYNC.publish({ width: d.width, height: d.height, detections: syncDetections, faces: syncFaces });
-    }
+    if (browserSync()) browserSync().publish({ width: d.width, height: d.height, detections: syncDetections, faces: syncFaces });
     return counts;
   }
   function describe(counts) {
@@ -293,7 +289,7 @@
   function refreshView(now) {
     const counts = render(now) || zeroCounts();
     publish(counts);
-    const syncLabel = visionRoomJoined ? "SYNCED" : visionSyncConnected ? "CONNECTING SYNC" : "DISCONNECTED";
+    const syncLabel = browserSync() ? browserSync().status() : "DISCONNECTED";
     const label = objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts);
     setState("active", label + " • " + syncLabel);
   }
@@ -304,7 +300,7 @@
     if (running && !paused) timer = window.setTimeout(tick, Math.max(20, delay));
   }
   async function tick() {
-    if (!running || paused || busy || !visionOwner) return;
+    if (!running || paused || busy || (browserSync() && !browserSync().owns())) return;
     if (document.hidden) return schedule(1200);
     if (!sourceReady(source)) { releaseVisionOwner(); clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
     const now = performance.now();
@@ -342,22 +338,8 @@
     }
   }
 
-  function claimVisionOwner() {
-    const sync = window.DEFENX_VISION_SYNC;
-    if (!sync || !visionRoomJoined) { visionOwner = true; return true; }
-    if (visionOwner || visionClaimPending) return visionOwner;
-    visionOwner = false;
-    visionClaimPending = !!sync.setOwner(true);
-    return false;
-  }
-  function releaseVisionOwner() {
-    if (visionRoomJoined && visionOwner && window.DEFENX_VISION_SYNC) {
-      window.DEFENX_VISION_SYNC.publish({ width: 1, height: 1, detections: [], faces: [] });
-      window.DEFENX_VISION_SYNC.setOwner(false);
-    }
-    visionOwner = !visionRoomJoined;
-    visionClaimPending = false;
-  }
+  function claimVisionOwner() { return !browserSync() || browserSync().claim(); }
+  function releaseVisionOwner() { if (browserSync()) browserSync().release(); }
   async function startDetection() {
     failures = 0;
     if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
@@ -414,45 +396,18 @@
     } else { setState("loading", "RESUMING AI VISION"); startDetection(); }
   });
   document.addEventListener("visibilitychange", () => {
-    if (document.hidden && visionRoomJoined && visionOwner) { releaseVisionOwner(); running = false; if (timer) clearTimeout(timer); }
-    else if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
+    if (document.hidden) { releaseVisionOwner(); running = false; if (timer) clearTimeout(timer); }
+    else if (!paused && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
   });
-  window.addEventListener("defenx-vision-sync-state", event => {
+  window.addEventListener("defenx-browser-vision-owner", event => {
     const detail = event.detail || {};
-    visionSyncConnected = !!detail.connected;
-    if (!detail.connected) {
-      visionRoomJoined = false; visionOwner = true; visionClaimPending = false;
-      if (!paused && sourceReady(source) && !running) startDetection();
-      return;
-    }
-    if (detail.joined) {
-      visionRoomJoined = true; visionOwner = false; visionClaimPending = false;
-      running = false; if (timer) clearTimeout(timer); clearAll();
-      if (!paused && sourceReady(source)) {
-        if (claimVisionOwner()) startDetection();
-        else setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER");
-      }
-    }
-  });
-  window.addEventListener("defenx-vision-owner", event => {
-    if (!visionRoomJoined) return;
-    const detail = event.detail || {}, owner = String(detail.owner || "");
-    const mine = String(window.DEFENX_CAMERA_PEER_ID || "");
-    if (detail.granted && owner && owner === mine) {
-      visionOwner = true; visionClaimPending = false;
-      if (!paused && sourceReady(source)) startDetection();
-    } else if (owner && owner !== mine) {
-      visionOwner = false; visionClaimPending = false; running = false;
-      if (timer) clearTimeout(timer); clearAll();
-      setState("waiting", "AI SCANNING ON ANOTHER AUTHENTICATED DEVICE");
-    } else if (!owner) {
-      visionOwner = false; visionClaimPending = false;
-      if (!paused && !document.hidden && !pageLeaving && sourceReady(source) && claimVisionOwner()) startDetection();
-    }
+    if (detail.owned) { if (!paused && sourceReady(source)) startDetection(); return; }
+    running = false; if (timer) clearTimeout(timer); clearAll();
+    setState("waiting", detail.reason || "AI SCANNING ON ANOTHER AUTHENTICATED DEVICE");
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
-  window.addEventListener("pagehide", () => { pageLeaving = true; running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
-  window.addEventListener("pageshow", () => { pageLeaving = false; if (!paused && sourceReady(source) && !running) startDetection(); });
+  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
+  window.addEventListener("pageshow", () => { if (!paused && sourceReady(source) && !running) startDetection(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
