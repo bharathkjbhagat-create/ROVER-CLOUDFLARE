@@ -236,7 +236,7 @@ test("identity: damaged or incompatible descriptors fail closed as UNVERIFIED", 
   assert.equal(core.matchIdentity(vec(), [{ id: "broken", name: "Broken", descriptors: [[NaN, 1]] }]).state, "UNVERIFIED");
   assert.equal(core.matchIdentity(null, [valid]).state, "UNVERIFIED");
   assert.equal(core.matchIdentity([NaN, 0], [valid]).state, "UNVERIFIED");
-  assert.equal(core.matchIdentity(vec(), [valid, { id: "bad", name: "Bad", descriptor: [1] }]).state, "RECOGNIZED");
+  assert.equal(core.matchIdentity(near(valid.descriptor, 0.2), [valid, { id: "bad", name: "Bad", descriptor: [1] }]).state, "RECOGNIZED");
 });
 test("identity smoothing needs 3 agreeing frames", () => {
   const a = { state: "RECOGNIZED", name: "A", confidence: 0.8 }, u = { state: "UNKNOWN", name: null, confidence: 0.9 };
