@@ -236,25 +236,26 @@ jobs:
           test "$camera_code" = "200"
           grep -Fq 'new RTCPeerConnection' /tmp/defenx-camera-sync.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX camera sync HTML check)' "$base/index.html?demo=1" -o /tmp/defenx-camera-sync-index.html
-          grep -Fq 'camera-webrtc.js?v=20261114-02' /tmp/defenx-camera-sync-index.html
+          grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-camera-sync-index.html
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
 
-      - name: Verify deployed local AI dashboard panels
+      - name: Verify deployed online browser vision integration
         run: |
           set -euo pipefail
           base="$WORKER_URL"
-          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/index.html?demo=1" -o /tmp/defenx-local-ai-index.html
-          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/local-yolo.js?v=20261114-02" -o /tmp/defenx-local-yolo.js
-          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/local-face.js?v=20261114-01" -o /tmp/defenx-local-face.js
-          grep -Fq 'id="localYoloPanel"' /tmp/defenx-local-ai-index.html
-          grep -Fq 'id="localFacePanel"' /tmp/defenx-local-ai-index.html
-          grep -Fq 'id="localFaceEnrollButton"' /tmp/defenx-local-ai-index.html
-          grep -Fq 'local-yolo.js?v=20261114-02' /tmp/defenx-local-ai-index.html
-          grep -Fq 'local-face.js?v=20261114-01' /tmp/defenx-local-ai-index.html
-          grep -Fq '127.0.0.1:8000' /tmp/defenx-local-yolo.js
-          grep -Fq '/face-detect' /tmp/defenx-local-face.js
-          grep -Fq '/faces/enroll' /tmp/defenx-local-face.js
-          echo "Live local YOLO and PC-local face panels: PASS"
+          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/index.html?demo=1" -o /tmp/defenx-online-vision-index.html
+          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/ai-vision.js" -o /tmp/defenx-ai-vision.js
+          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/browser-vision-sync.js" -o /tmp/defenx-browser-vision-sync.js
+          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/local-vision.js" -o /tmp/defenx-local-vision.js
+          grep -Fq 'ONLINE BROWSER AI • OBJECT + FACE' /tmp/defenx-online-vision-index.html
+          grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'browser-vision-sync.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'ai-vision.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'face-recognition.js' /tmp/defenx-online-vision-index.html
+          grep -Fq 'defenx-remote-vision-snapshot' /tmp/defenx-browser-vision-sync.js
+          grep -Fq 'defenx-remote-vision-snapshot' /tmp/defenx-local-vision.js
+          ! grep -Eq '127\.0\.0\.1:8000|localhost:8000' /tmp/defenx-local-vision.js
+          echo "Live online browser vision pipeline and synchronized result renderer: PASS"
 
       - name: Verify deployed warning controls and JavaScript bindings
         run: |
