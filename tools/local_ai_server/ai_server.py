@@ -58,20 +58,26 @@ class VisionEngine:
         self.gallery_path = Path(os.getenv("DEFENX_FACE_GALLERY", "data/face_gallery.json"))
 
     def load(self) -> None:
-        from ultralytics import YOLO
-
-        weights = Path(os.getenv("DEFENX_YOLO_MODEL", "yolov8n.pt"))
-        if not weights.is_file():
-            raise RuntimeError(f"YOLO weights not found: {weights}")
         try:
-            import torch
-            self.cuda = bool(torch.cuda.is_available())
-        except Exception:
-            self.cuda = False
-        requested = os.getenv("DEFENX_AI_DEVICE", "auto").lower()
-        self.device = "0" if self.cuda and requested in {"auto", "cuda", "gpu", "0"} else "cpu"
-        self.yolo = YOLO(str(weights))
-        self.names = {int(k): str(v) for k, v in getattr(self.yolo, "names", {}).items()}
+            from ultralytics import YOLO
+            weights = Path(os.getenv("DEFENX_YOLO_MODEL", "yolov8n.pt"))
+            if not weights.is_file():
+                raise RuntimeError(f"YOLO weights not found: {weights}")
+            try:
+                import torch
+                self.cuda = bool(torch.cuda.is_available())
+            except Exception:
+                self.cuda = False
+            requested = os.getenv("DEFENX_AI_DEVICE", "auto").lower()
+            self.device = "0" if self.cuda and requested in {"auto", "cuda", "gpu", "0"} else "cpu"
+            self.yolo = YOLO(str(weights))
+            names = getattr(self.yolo, "names", {})
+            self.names = {int(k): str(v) for k, v in names.items()} if hasattr(names, "items") else {i: str(v) for i, v in enumerate(names)}
+            self.yolo_error = None
+        except Exception as exc:
+            # Keep face-only scans available when YOLO weights, CUDA, or Ultralytics fail.
+            self.yolo = None
+            self.yolo_error = str(exc)
         self._load_face_models()
 
     def _load_face_models(self) -> None:
