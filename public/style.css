@@ -1572,6 +1572,8 @@ body.light .deviceTag{color:#0a6f58}
 
 .aiVisionCanvas{position:absolute;inset:0;z-index:7;width:100%;height:100%;pointer-events:none}
 .localYoloCanvas{position:absolute;inset:0;z-index:8;width:100%;height:100%;pointer-events:none}
+.cameraSyncStatus{padding:5px 10px;border-top:1px solid #173242;background:#08131b;color:#8eb3c2;font:700 8px/1.3 ui-monospace,monospace;letter-spacing:.45px}
+.cameraSyncStatus[data-state="connected"]{color:#63e0ad}.cameraSyncStatus[data-state="waiting"]{color:#e7c66d}.cameraSyncStatus[data-state="error"]{color:#ff8791}
 .localYoloPanel{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 10px;border-top:1px solid #244538;background:#081711;color:#b9cfbf;font-size:9px}
 .localYoloPanel>div{flex:1 1 200px;min-width:180px}.localYoloPanel>div b{display:block;color:#c5f5d9;letter-spacing:.5px}.localYoloPanel>div small{display:block;margin-top:3px;color:#9bb6a4;line-height:1.4}.localYoloPanel>span{white-space:nowrap}.localYoloPanel>span b{color:#effff3;font-size:11px;margin-left:3px}.localYoloPanel button{min-height:28px;padding:0 9px;border:1px solid #60a879;border-radius:6px;background:#102b1c;color:#c5f5d9;font-size:8px;font-weight:900;letter-spacing:.4px}.localYoloPanel button:disabled{opacity:.5;cursor:wait}
 .aiVisionBar{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:9px;padding:9px 10px 8px;border-top:1px solid #193a4d;background:#07131d}
@@ -1595,3 +1597,4 @@ body.light .deviceTag{color:#0a6f58}
 
 /* Keep an authenticated live camera visible in the regular dashboard viewport as well as the full-screen monitor. */
 #cameraViewport #roverRealCamera[data-defenxLiveStream="1"]{display:block!important;visibility:visible!important;opacity:1!important;width:100%!important;height:100%!important;object-fit:cover!important;position:absolute!important;inset:0!important;z-index:7!important;}
+
