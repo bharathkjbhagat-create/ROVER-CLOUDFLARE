@@ -104,6 +104,24 @@
     if (remote && !localStream && scene) scene.textContent = message;
     if (state) state.textContent = localStream && remote ? "LOCAL + REMOTE CAMERA LIVE" :
       localStream ? "PHONE CAMERA LIVE" : remote ? "REMOTE CAMERA LIVE" : message;
+    updateSyncStatus();
+  }
+
+  function updateSyncStatus() {
+    const node = $("cameraSyncStatus");
+    if (!node) return;
+    const connected = Array.from(peers.values()).filter(entry => entry.pc.connectionState === "connected").length;
+    const failed = Array.from(peers.values()).some(entry => entry.pc.connectionState === "failed");
+    let message, state;
+    if (!navigator.onLine) { message = "DEVICE SYNC OFFLINE"; state = "error"; }
+    else if (!socket || socket.readyState !== WebSocket.OPEN) { message = "DEVICE SYNC RECONNECTING"; state = "error"; }
+    else if (!roomJoined) { message = "DEVICE SYNC CONNECTING"; state = "waiting"; }
+    else if (failed) { message = "CAMERA LINK FAILED • CHECK NETWORK / TURN"; state = "error"; }
+    else if (connected) { message = localStream ? "CAMERA SYNC LIVE • " + connected + " OTHER DEVICE" + (connected === 1 ? "" : "S") : "REMOTE CAMERA SYNC LIVE"; state = "connected"; }
+    else if (peers.size) { message = "OTHER DEVICE FOUND • CONNECTING CAMERA"; state = "waiting"; }
+    else { message = "DEVICE SYNC ONLINE • WAITING FOR SECOND DEVICE"; state = "waiting"; }
+    node.textContent = message;
+    node.dataset.state = state;
   }
 
   function send(payload) {
@@ -342,6 +360,7 @@
         event.track.addEventListener("ended", () => removeRemoteVideo(id), { once: true });
       };
       pc.onconnectionstatechange = () => {
+        updateSyncStatus();
         if (pc.connectionState === "failed" && entry.restartAttempts < 2 && peerId < id) {
           entry.restartAttempts++;
           try { pc.restartIce(); } catch (_) {}
@@ -476,6 +495,7 @@
         send({ type: "rtc_camera", active: cameraActive });
         lastSentCameraState = cameraActive;
       }
+      updateSyncStatus();
     } else if (message.type === "rtc_peer_joined") {
       const peer = message.peer || {};
       if (!peer.id || peer.id === peerId) return;
@@ -483,10 +503,12 @@
       updateRemoteCameraActiveFlag();
       if (peerId < peer.id) makeOffer(peer.id).catch(() => {});
       else createPeer(peer.id).catch(() => {});
+      updateSyncStatus();
     } else if (message.type === "rtc_peer_left") {
       remoteCameraStates.delete(String(message.peer_id || ""));
       closePeer(message.peer_id);
       updateRemoteCameraActiveFlag();
+      updateSyncStatus();
     } else if (message.type === "rtc_camera") {
       setRemoteCameraActive(message.peer_id, !!message.active);
     } else if (message.type === "rtc_signal") {
@@ -505,6 +527,7 @@
       retryDelay = 1000;
       roomJoined = false;
       lastSentCameraState = null;
+      updateSyncStatus();
       send({ type: "rtc_join", peer_id: peerId });
       status(localStream ? "LOCAL CAMERA • CONNECTING TO DEVICES" : "CAMERA SYNC CONNECTED");
       clearInterval(heartbeatTimer);
@@ -532,6 +555,7 @@
       remoteCameraStates.clear();
       for (const id of Array.from(peers.keys())) closePeer(id);
       updateRemoteCameraActiveFlag();
+      updateSyncStatus();
       peerId = makePeerId();
       if (!stopped) {
         status("CAMERA SYNC RECONNECTING");
@@ -547,7 +571,8 @@
     attachLocalStream(detail.active ? detail.stream : null);
   });
   window.addEventListener("online", connect);
-  window.addEventListener("offline", () => status("CAMERA SYNC OFFLINE"));
+  window.addEventListener("offline", () => { status("CAMERA SYNC OFFLINE"); updateSyncStatus(); });
+  window.addEventListener("online", updateSyncStatus);
   window.addEventListener("pagehide", () => {
     stopped = true;
     clearTimeout(retryTimer);
@@ -564,3 +589,4 @@
     connect();
   }
 })();
+
