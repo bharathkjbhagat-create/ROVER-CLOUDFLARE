@@ -23,7 +23,8 @@ class FrontendControlTests(unittest.TestCase):
     def setUpClass(cls):
         cls.html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
-        cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")\n        cls.local_vision = (ROOT / "public" / "local-vision.js").read_text(encoding="utf-8")
+        cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
+        cls.local_vision = (ROOT / "public" / "local-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
         cls.camera_webrtc = (ROOT / "public" / "camera-webrtc.js").read_text(encoding="utf-8")
