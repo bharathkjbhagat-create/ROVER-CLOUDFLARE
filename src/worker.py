@@ -2,6 +2,7 @@ import json
 import base64
 import hashlib
 import hmac
+import math
 from urllib.parse import urlparse
 import uuid
 import time
@@ -230,6 +231,68 @@ class RealtimeHub(DurableObject):
             except Exception:
                 pass
 
+    def _broadcast_operator(self, payload, exclude_session=None):
+        message = json.dumps(payload, separators=(",", ":"))
+        for ws in self.ctx.getWebSockets():
+            try:
+                attachment = ws.deserializeAttachment() or {}
+                if attachment.get("kind") != "operator":
+                    continue
+                if exclude_session and attachment.get("id") == exclude_session:
+                    continue
+                ws.send(message)
+            except Exception:
+                pass
+
+    def _active_phone_gps(self, exclude_session=None):
+        now = int(time.time())
+        active = []
+        for ws in self.ctx.getWebSockets():
+            try:
+                attachment = ws.deserializeAttachment() or {}
+                session_id = str(attachment.get("id") or "")
+                fix = attachment.get("phone_gps")
+                if (attachment.get("kind") != "operator" or not session_id
+                        or session_id == exclude_session or not isinstance(fix, dict)):
+                    continue
+                if now - int(fix.get("updated_at") or 0) > 45:
+                    continue
+                active.append({
+                    "type": "phone_gps", "active": True, "session_id": session_id,
+                    "lat": fix["lat"], "lon": fix["lon"],
+                    "accuracy_m": fix["accuracy_m"], "updated_at": fix["updated_at"],
+                })
+            except Exception:
+                pass
+        return active
+
+    def _handle_phone_gps_message(self, ws, data, attachment):
+        session_id = str(attachment.get("id") or "")
+        if not session_id:
+            return
+        if data.get("active") is not True:
+            attachment.pop("phone_gps", None)
+            ws.serializeAttachment(attachment)
+            self._broadcast_operator({
+                "type": "phone_gps", "active": False, "session_id": session_id,
+            }, exclude_session=session_id)
+            return
+        try:
+            lat, lon = float(data.get("lat")), float(data.get("lon"))
+            accuracy = float(data.get("accuracy_m", 0))
+        except (TypeError, ValueError, OverflowError):
+            return
+        if (not math.isfinite(lat) or not math.isfinite(lon) or not math.isfinite(accuracy)
+                or not -90 <= lat <= 90 or not -180 <= lon <= 180
+                or not 0 <= accuracy <= 1000000):
+            return
+        fix = {"lat": lat, "lon": lon, "accuracy_m": accuracy, "updated_at": int(time.time())}
+        attachment["phone_gps"] = fix
+        ws.serializeAttachment(attachment)
+        self._broadcast_operator({
+            "type": "phone_gps", "active": True, "session_id": session_id, **fix,
+        }, exclude_session=session_id)
+
     async def fetch(self, request):
         upgrade = str(request.headers.get("Upgrade") or "").lower()
         if upgrade != "websocket":
@@ -309,6 +372,8 @@ class RealtimeHub(DurableObject):
                 server.send(json.dumps({
                     "type": "state", "telemetry": state, "source": "initial"
                 }, separators=(",", ":")))
+            for fix in self._active_phone_gps(exclude_session=session_id):
+                server.send(json.dumps(fix, separators=(",", ":")))
         return Response(None, status=101, web_socket=client)
 
     async def _device_websocket_message(self, ws, data, attachment):
@@ -471,7 +536,7 @@ class RealtimeHub(DurableObject):
         if action == "ping":
             ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
             return
-        if action in {"rtc_join", "rtc_camera", "rtc_signal"}:
+        if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps"}:
             if not cookie:
                 ws.send(json.dumps({"type": "rtc_error", "error": "Authentication required"}))
                 return
@@ -494,7 +559,10 @@ class RealtimeHub(DurableObject):
                 except Exception:
                     ws.send(json.dumps({"type": "rtc_error", "error": "Camera authorization unavailable"}))
                     return
-            self._handle_rtc_message(ws, data, attachment)
+            if action == "phone_gps":
+                self._handle_phone_gps_message(ws, data, attachment)
+            else:
+                self._handle_rtc_message(ws, data, attachment)
             return
         if action not in {"command", "mode"}:
             return
@@ -579,6 +647,10 @@ class RealtimeHub(DurableObject):
         peer_id = str(attachment.get("rtc_peer_id") or "")
         if peer_id:
             self._rtc_broadcast({"type": "rtc_peer_left", "peer_id": peer_id}, exclude_peer=peer_id)
+        if attachment.get("phone_gps") and session_id:
+            self._broadcast_operator({
+                "type": "phone_gps", "active": False, "session_id": str(session_id),
+            }, exclude_session=str(session_id))
         if session_id:
             self.sessions.pop(session_id, None)
         try:
@@ -1141,3 +1213,4 @@ class Default(WorkerEntrypoint):
                     },
                 )
             raise
+
