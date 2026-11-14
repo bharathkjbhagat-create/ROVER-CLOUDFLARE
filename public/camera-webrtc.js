@@ -513,10 +513,34 @@
       setRemoteCameraActive(message.peer_id, !!message.active);
     } else if (message.type === "rtc_signal") {
       handleSignal(message.from, message.signal).catch(() => status("CAMERA CONNECTION RETRYING"));
+    } else if (message.type === "vision_owner") {
+      window.dispatchEvent(new CustomEvent("defenx-vision-owner", { detail: { granted: !!message.granted, owner: message.owner || null, reason: message.reason || "" } }));
+    } else if (message.type === "vision_snapshot") {
+      window.dispatchEvent(new CustomEvent("defenx-remote-vision-snapshot", { detail: message }));
     } else if (message.type === "rtc_error") {
       status("CAMERA SYNC: " + String(message.error || "connection error").toUpperCase());
     }
   }
+
+  window.DEFENX_VISION_SYNC = {
+    setOwner(enabled) {
+      if (!roomJoined) {
+        window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: false } }));
+        return false;
+      }
+      return send({ type: enabled ? "vision_claim" : "vision_release" });
+    },
+    setStatus(value) { this.status = value; },
+    publish(result) {
+      const cleanBox = b => {
+        if (!b || !["x1","y1","x2","y2"].every(k => Number.isFinite(Number(b[k])))) return null;
+        return Object.fromEntries(["x1","y1","x2","y2"].map(k => [k, Math.max(0, Math.min(1, Number(b[k])))]));
+      };
+      const detections = (result.detections || []).slice(0, 80).map(d => ({ class_id: Number(d.class_id) || 0, class_name: String(d.class_name || "object").slice(0, 32), confidence: Math.max(0, Math.min(1, Number(d.confidence) || 0)), box: cleanBox(d.normalized_box || d.box_normalized) })).filter(d => d.box);
+      const faces = (result.faces || []).slice(0, 30).map(f => ({ match_status: ["recognized","unknown","unverified"].includes(f.match_status) ? f.match_status : "unknown", box: cleanBox(f.normalized_box || f.box_normalized) })).filter(f => f.box);
+      return send({ type: "vision_snapshot", width: 1, height: 1, detections, faces });
+    }
+  };
 
   function connect() {
     if (stopped || socket || !navigator.onLine) return;
