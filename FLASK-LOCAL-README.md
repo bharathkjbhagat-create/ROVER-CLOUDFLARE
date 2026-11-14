@@ -65,9 +65,16 @@ existing browser TensorFlow.js AI remains available.
    needs no Cloudflare credentials.
 3. Sign in to the dashboard, open its live camera, and press **START LOCAL
    YOLO**. The local row reports YOLOv8n CPU detections separately from the
-   existing browser AI counts. Press **STOP LOCAL YOLO** to stop frame transfer.
+   existing browser AI counts. Turn on **VEHICLE ALERTS** or **OBJECT ALERTS**
+   in **DETECTION EVENTS & ALERTS** to add configured live YOLO detections to
+   the dashboard feed and authenticated admin audit. Vehicle alerts cover
+   detected vehicle classes; object alerts use the existing configured object
+   classes. Repeated same-class detections are limited to one alert per six
+   seconds. Browser notifications additionally require **ALERTS ON** and browser
+   permission. Press **STOP LOCAL YOLO** to stop frame transfer.
 
 The local inference process, camera permissions, browser loopback access, and
-physical rover are separate from Cloudflare deployment. API and mock-based
-software checks do not verify those user-specific components.
+physical rover are separate from Cloudflare deployment. Python runs on the
+Windows PC; Cloudflare hosts the website and its authenticated alert API. API
+and mock-based software checks do not verify those user-specific components.
 
