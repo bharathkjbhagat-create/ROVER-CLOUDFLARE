@@ -2213,6 +2213,7 @@ def detection_alert_create():
     record = {
         "category": category, "label": ALERT_CATEGORIES[category], "status": status,
         "mask": _clean_alert_text(data.get("mask"), 40) or None,
+        "engine": _clean_alert_text(data.get("engine"), 40) or "browser AI",
         "confidence": round(confidence, 3), "subject": subject,
         "camera": {"label": _clean_alert_text(camera.get("label"), 60) or None,
                    "source": _clean_alert_text(camera.get("source"), 30) or None},
