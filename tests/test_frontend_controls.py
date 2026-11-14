@@ -24,6 +24,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
+        cls.sync = (ROOT / "public" / "browser-vision-sync.js").read_text(encoding="utf-8")
         cls.local_vision = (ROOT / "public" / "local-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
@@ -204,6 +205,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('Authentication expired', self.worker)
 
     def test_online_browser_pipeline_needs_no_pc_ai_service(self):
+        self.assertIn('/browser-vision-sync.js', self.html)
         self.assertIn('/local-vision.js', self.html)  # remote overlay renderer only
         self.assertNotIn('localYoloPanel', self.html)
         self.assertNotIn('localFacePanel', self.html)
@@ -219,8 +221,10 @@ class FrontendControlTests(unittest.TestCase):
         self.assertNotIn('"identity": face["identity"]', self.worker)
         self.assertIn('defenx-remote-vision-snapshot', self.camera_webrtc)
         self.assertIn('claimVisionOwner()', self.ai)
-        self.assertIn('defenx-vision-owner', self.ai)
+        self.assertIn('defenx-vision-owner', self.sync)
+        self.assertIn('window.DEFENX_BROWSER_VISION_SYNC.publish', self.ai)
         self.assertIn('normalized_box', self.ai)
+        self.assertIn('defenx-vision-sync-state', self.sync)
 
     def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
         self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)
