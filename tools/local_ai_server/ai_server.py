@@ -263,6 +263,18 @@ def create_app(engine: VisionEngine | None = None) -> FastAPI:
         # There is no camera or background inference loop to stop.
 
     app = FastAPI(title="DEFENX Local Vision", version="1.0", lifespan=lifespan)
+    from fastapi.middleware.cors import CORSMiddleware
+    origins = os.getenv("DEFENX_AI_ALLOWED_ORIGINS", "https://defenx.bindukjagadish.workers.dev,http://127.0.0.1:5000,http://localhost:5000").split(",")
+    allowed_origins = [origin.strip() for origin in origins if origin.strip()]
+    app.add_middleware(CORSMiddleware, allow_origins=allowed_origins, allow_methods=["GET", "POST", "DELETE", "OPTIONS"], allow_headers=["*"], allow_credentials=False)
+
+    @app.middleware("http")
+    async def allow_private_network_preflight(request, call_next):
+        response = await call_next(request)
+        origin = request.headers.get("origin")
+        if origin in allowed_origins and request.headers.get("access-control-request-private-network") == "true":
+            response.headers["Access-Control-Allow-Private-Network"] = "true"
+        return response
 
     async def read_image(image: UploadFile) -> np.ndarray:
         data = await image.read(MAX_IMAGE_BYTES + 1)
