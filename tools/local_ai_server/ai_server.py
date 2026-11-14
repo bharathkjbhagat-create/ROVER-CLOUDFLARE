@@ -155,7 +155,7 @@ class VisionEngine:
             coords[1] = max(0, min(image.shape[0] - 1, coords[1]))
             coords[3] = max(coords[1] + 1, min(image.shape[0], coords[3]))
             name = self.names.get(class_id, str(class_id))
-            detections.append({"class_id": class_id, "class_name": name, "confidence": round(confidence, 4),
+            detections.append({"class_id": class_id, "class_name": name, "confidence": round(confidence, 4), "alert": class_id == 0 or class_id in VEHICLE_CLASSES,
                                "box": dict(zip(("x1", "y1", "x2", "y2"), coords))})
         # Suppress duplicates across model outputs by class and overlap.
         detections.sort(key=lambda d: d["confidence"], reverse=True)
