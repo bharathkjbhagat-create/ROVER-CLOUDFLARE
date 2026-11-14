@@ -332,7 +332,7 @@
 
   function matchIdentity(descriptor, enrolled) {
     if (!enrolled || !enrolled.length) return { state: "UNKNOWN", name: null, distance: null, confidence: 0.6, reason: "no enrolled users" };
-    if (!Array.isArray(descriptor) || !descriptor.length || descriptor.some(v => !Number.isFinite(v))) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0, reason: "invalid live descriptor" };
+    if (!Array.isArray(descriptor) || !descriptor.length || descriptor.some(v => !Number.isFinite(v))) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0 };
     const rows = enrolled.map(e => {
       const samples = Array.isArray(e.descriptors) && e.descriptors.length ? e.descriptors : [e.descriptor];
       let best = Infinity;
@@ -344,7 +344,7 @@
       }
       return { e, d: best };
     }).filter(row => Number.isFinite(row.d)).sort((a, b) => a.d - b.d);
-    if (!rows.length) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0, reason: "no valid enrolled descriptors" };
+    if (!rows.length) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0 };
     const best = rows[0], other = rows.find(r => r.e.name !== best.e.name), margin = other ? other.d - best.d : 1;
     if (best.d <= T.match && margin >= T.margin) return { state: "RECOGNIZED", name: best.e.name, id: best.e.id, distance: best.d, confidence: clamp((T.unknown - best.d) / T.unknown, 0, 1) };
     if (best.d >= T.unknown) return { state: "UNKNOWN", name: null, distance: best.d, confidence: clamp(0.5 + (best.d - T.unknown) * 2, 0.5, 0.99) };
