@@ -49,25 +49,51 @@ dashboard's current live camera stream; it does not open the webcam itself. The
 existing browser TensorFlow.js AI remains available.
 
 1. Keep `C:\DEFENX\venv` and the existing model file. Do not reinstall Python,
-   PyTorch, Ultralytics, or OpenCV. If Flask is missing from that venv, install
-   only Flask there: `C:\DEFENX\venv\Scripts\python.exe -m pip install Flask`.
-2. In Command Prompt, set the existing model path and start the API using that
-   venv (replace `<project-folder>` with the extracted project path):
+   PyTorch, Ultralytics, or OpenCV.
+2. Start the existing FastAPI server on the same PC as the browser:
 
    ```cmd
-   set DEFENX_YOLO_MODEL=C:\DEFENX\yolov8n.pt
-   set DEFENX_AI_ALLOWED_ORIGINS=https://defenx.bindukjagadish.workers.dev
-   C:\DEFENX\venv\Scripts\python.exe <project-folder>\src\local_ai_api.py
+   cd /d C:\DEFENX
+   venv\Scripts\activate
+   set DEFENX_AI_ALLOWED_ORIGINS=https://defenx.bindukjagadish.workers.dev,http://127.0.0.1:5000,http://localhost:5000,http://127.0.0.1:8000,http://localhost:8000
+   python -m uvicorn ai_server:app --host 127.0.0.1 --port 8000
    ```
 
-   For a custom deployed domain, set its exact `https://` origin in
-   `DEFENX_AI_ALLOWED_ORIGINS`. The API binds only to `127.0.0.1:8765` and
-   needs no Cloudflare credentials.
+   Keep this window open. The dashboard sends JPEG uploads to `/detect` on
+   `127.0.0.1:8000`; the API accepts the deployed dashboard origin listed
+   above, binds only to loopback, and needs no Cloudflare credentials. For a
+   custom deployed domain, add its exact `https://` origin to the variable.
 3. Sign in to the dashboard, open its live camera, and press **START LOCAL
    YOLO**. The local row reports YOLOv8n CPU detections separately from the
-   existing browser AI counts. Press **STOP LOCAL YOLO** to stop frame transfer.
+   existing browser AI counts. Turn on **VEHICLE ALERTS** or **OBJECT ALERTS**
+   in **DETECTION EVENTS & ALERTS** to add configured live YOLO detections to
+   the dashboard feed and authenticated admin audit. Vehicle alerts cover
+   detected vehicle classes; object alerts use the existing configured object
+   classes. Repeated same-class detections are limited to one alert per six
+   seconds. Browser notifications additionally require **ALERTS ON** and browser
+   permission. Press **STOP LOCAL YOLO** to stop frame transfer.
 
 The local inference process, camera permissions, browser loopback access, and
-physical rover are separate from Cloudflare deployment. API and mock-based
-software checks do not verify those user-specific components.
+physical rover are separate from Cloudflare deployment. Python runs on the
+Windows PC; Cloudflare hosts the website and its authenticated alert API. API
+and mock-based software checks do not verify those user-specific components.
+
+
+## PC-local face recognition panel
+
+The dashboard includes an operator-started **PC-LOCAL FACE ID** panel for the FastAPI service in `C:\DEFENX`. It uses the existing live camera only after the operator starts the panel. Frames go to `127.0.0.1:8000/face-detect`; the browser draws recognized names and unknown-face alerts locally. The panel also lets the operator capture one live frame and enroll it under a name such as **Bharath** using `/faces/enroll`. Enrollment requires exactly one clear face; the face template is saved in `C:\DEFENX\face_gallery.json`, and the photograph itself is not saved. The gallery list can remove an old placeholder label before re-enrolling with the correct name. Names and face alerts stay in this browser and are not sent to Cloudflare. This local gallery is separate from the encrypted administrator face registry.
+
+Start the existing FastAPI server in a second Command Prompt on the same PC as the browser:
+
+```cmd
+cd /d C:\DEFENX
+venv\Scripts\activate
+set DEFENX_AI_ALLOWED_ORIGINS=https://defenx.bindukjagadish.workers.dev,http://127.0.0.1:5000,http://localhost:5000,http://127.0.0.1:8000,http://localhost:8000
+python -m uvicorn ai_server:app --host 127.0.0.1 --port 8000
+```
+
+For another dashboard hostname, replace the production origin in the comma-separated allowlist with that exact `https://` origin. Restart FastAPI after changing its code or origin list. The panel does not open or stop the dashboard camera; use the existing camera controls for that. Press **START LOCAL FACE ID** to send frames to this PC and **STOP LOCAL FACE ID** to stop analysis. Close the dashboard or stop its camera separately when camera capture should end.
+
+When Chromium asks, allow the dashboard to access local-network/loopback services. If access still fails, confirm the server window is running and the dashboard origin exactly matches `DEFENX_AI_ALLOWED_ORIGINS`. The FastAPI process remains bound to `127.0.0.1`; do not change it to `0.0.0.0` or expose port 8000 publicly.
+
 
