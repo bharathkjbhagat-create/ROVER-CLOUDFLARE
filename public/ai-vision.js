@@ -34,7 +34,7 @@
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
   let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
-  let visionRoomJoined = false, visionOwner = true, visionClaimPending = false, lastVisionPublish = 0;
+  let visionRoomJoined = false, visionSyncConnected = false, visionOwner = true, visionClaimPending = false, lastVisionPublish = 0;
   const VISION_SYNC_INTERVAL = 750;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
@@ -293,7 +293,9 @@
   function refreshView(now) {
     const counts = render(now) || zeroCounts();
     publish(counts);
-    setState("active", objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts));
+    const syncLabel = visionRoomJoined ? "SYNCED" : visionSyncConnected ? "CONNECTING SYNC" : "DISCONNECTED";
+    const label = objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts);
+    setState("active", label + " • " + syncLabel);
   }
 
   /* ---------------- scheduler: one task at a time, never blocks the stream ---------------- */
@@ -415,6 +417,7 @@
   });
   window.addEventListener("defenx-vision-sync-state", event => {
     const detail = event.detail || {};
+    visionSyncConnected = !!detail.connected;
     if (!detail.connected) {
       visionRoomJoined = false; visionOwner = true; visionClaimPending = false;
       if (!paused && sourceReady(source) && !running) startDetection();
