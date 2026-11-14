@@ -348,7 +348,10 @@
     return false;
   }
   function releaseVisionOwner() {
-    if (visionRoomJoined && visionOwner && window.DEFENX_VISION_SYNC) window.DEFENX_VISION_SYNC.setOwner(false);
+    if (visionRoomJoined && visionOwner && window.DEFENX_VISION_SYNC) {
+      window.DEFENX_VISION_SYNC.publish({ width: 1, height: 1, detections: [], faces: [] });
+      window.DEFENX_VISION_SYNC.setOwner(false);
+    }
     visionOwner = !visionRoomJoined;
     visionClaimPending = false;
   }
