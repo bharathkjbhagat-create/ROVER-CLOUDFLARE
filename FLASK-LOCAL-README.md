@@ -49,10 +49,17 @@ dashboard's current live camera stream; it does not open the webcam itself. The
 existing browser TensorFlow.js AI remains available.
 
 1. Keep `C:\DEFENX\venv` and the existing model file. Do not reinstall Python,
-   PyTorch, Ultralytics, or OpenCV. If Flask is missing from that venv, install
-   only Flask there: `C:\DEFENX\venv\Scripts\python.exe -m pip install Flask`.
+   PyTorch, Ultralytics, or OpenCV. Install the local AI dependency into that
+   same venv (replace `<project-folder>` with the extracted project path):
+
+   ```cmd
+   C:\DEFENX\venv\Scripts\python.exe -m pip install -r <project-folder>\local-ai-requirements.txt
+   ```
+
+   This installs Flask only; the main project requirements also include Flask
+   for the web application.
 2. In Command Prompt, set the existing model path and start the API using that
-   venv (replace `<project-folder>` with the extracted project path):
+   venv:
 
    ```cmd
    set DEFENX_YOLO_MODEL=C:\DEFENX\yolov8n.pt
@@ -65,9 +72,16 @@ existing browser TensorFlow.js AI remains available.
    needs no Cloudflare credentials.
 3. Sign in to the dashboard, open its live camera, and press **START LOCAL
    YOLO**. The local row reports YOLOv8n CPU detections separately from the
-   existing browser AI counts. Press **STOP LOCAL YOLO** to stop frame transfer.
+   existing browser AI counts. Turn on **VEHICLE ALERTS** or **OBJECT ALERTS**
+   in **DETECTION EVENTS & ALERTS** to add configured live YOLO detections to
+   the dashboard feed and authenticated admin audit. Vehicle alerts cover
+   detected vehicle classes; object alerts use the existing configured object
+   classes. Repeated same-class detections are limited to one alert per six
+   seconds. Browser notifications additionally require **ALERTS ON** and browser
+   permission. Press **STOP LOCAL YOLO** to stop frame transfer.
 
 The local inference process, camera permissions, browser loopback access, and
-physical rover are separate from Cloudflare deployment. API and mock-based
-software checks do not verify those user-specific components.
+physical rover are separate from Cloudflare deployment. Python runs on the
+Windows PC; Cloudflare hosts the website and its authenticated alert API. API
+and mock-based software checks do not verify those user-specific components.
 

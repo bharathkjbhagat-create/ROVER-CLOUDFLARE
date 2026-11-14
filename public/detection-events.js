@@ -102,7 +102,7 @@
     list.innerHTML = events.map(item => {
       const when = escapeText(new Date(item.at).toLocaleString());
       if (item.type === "ALERT") {
-        const bits = [item.status, item.subject && item.subject !== "UNKNOWN" ? item.subject : null, item.mask,
+        const bits = [item.status, item.engine, item.subject && item.subject !== "UNKNOWN" ? item.subject : null, item.mask,
           item.confidence != null ? Math.round(item.confidence * 100) + "% confidence" : null,
           item.camera && item.camera.label, gpsText(item.gps)].filter(Boolean).map(escapeText).join(" • ");
         return '<div class="detectionEvent alert"><span class="detectionEventMark">▲</span><span><b>' + escapeText(item.label) + '</b><small>' + when + ' • ' + bits + (item.synced === false ? " • not synced" : "") + '</small></span></div>';
@@ -140,7 +140,7 @@
       method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, keepalive: true,
       body: JSON.stringify({
         category: event.category, status: event.status, confidence: event.confidence, subject: event.subject, mask: event.mask,
-        live_verified: event.liveVerified === true, source: "live_camera", camera: event.camera,
+        live_verified: event.liveVerified === true, source: "live_camera", engine: event.engine || "browser AI", camera: event.camera,
         gps: event.gps ? { lat: event.gps.lat, lon: event.gps.lon, accuracy: event.gps.accuracy_m } : null
       })
     }).then(async response => {
@@ -156,7 +156,7 @@
     const event = {
       type: "ALERT", category: a.category, label: LABELS[a.category], status: a.status,
       confidence: Math.max(0, Math.min(1, Number(a.confidence) || 0)), subject: a.subject || null, mask: a.mask || null,
-      camera: cameraRef(), gps: currentGps(), liveVerified: a.live === true, at: new Date().toISOString(), synced: false
+      camera: cameraRef(), gps: currentGps(), liveVerified: a.live === true, engine: a.engine || "browser AI", at: new Date().toISOString(), synced: false
     };
     events.unshift(event); events = events.slice(0, 50); save(); render();
     send(event);
@@ -210,7 +210,7 @@
       if (!response.ok) return;
       const data = await response.json();
       const remote = (data.alerts || []).map(a => ({
-        type: "ALERT", category: a.category, label: a.label, status: a.status, confidence: a.confidence, subject: a.subject,
+        type: "ALERT", category: a.category, label: a.label, status: a.status, confidence: a.confidence, subject: a.subject, engine: a.engine,
         mask: a.mask, camera: a.camera, gps: a.gps, at: a.at, synced: true
       }));
       const keep = events.filter(e => e.type !== "ALERT" || e.synced === false);

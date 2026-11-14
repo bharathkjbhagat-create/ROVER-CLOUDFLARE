@@ -54,6 +54,25 @@
   build (`g++` unavailable), or physical rover behavior.
 
 The supplied conversation verifies that YOLOv8n and camera inference worked
-previously on the user's PC. This bundle does not claim the new dashboard/API
+previously on the user's PC. This report does not claim the new dashboard/API
 connection has been exercised on that PC; follow `FLASK-LOCAL-README.md` and
 verify the live camera connection there.
+
+## Dashboard-alert continuation (2026-11-14)
+
+- The local YOLO client forwards configured vehicle and object detections
+  through the existing `DEFENX_ALERTS` dashboard event path. The operator must
+  enable the corresponding VEHICLE ALERTS or OBJECT ALERTS toggle. Object alerts
+  use the existing configured alert classes.
+- Repeated detections of the same class are rate-limited locally; the existing
+  alert gate also suppresses continuous repeats. Alerts appear in the dashboard
+  event list with class, confidence, time, and `YOLOv8n CPU` label.
+- The existing authenticated `POST /api/detection-alerts` and admin-only history
+  API persist alert metadata. Person alerts retain the separate verified-live-
+  face safeguards; general YOLO person boxes do not create person identity alerts.
+- **PASS:** dashboard script syntax checks; browser vision-core tests (19/19);
+  Python syntax compilation.
+- **NOT RUN:** Flask API tests and full browser-to-Cloudflare persistence. The
+  available Python environment lacks Flask. Live camera inference, browser
+  loopback permission, and production Cloudflare deployment also remain
+  unverified.
