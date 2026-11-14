@@ -11,6 +11,7 @@
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
   let peerId = makePeerId();
+  window.DEFENX_CAMERA_PEER_ID = peerId;
   const fallbackIceServers = [
     { urls: "stun:stun.cloudflare.com:3478" },
     { urls: "stun:stun.l.google.com:19302" },
@@ -496,6 +497,7 @@
         lastSentCameraState = cameraActive;
       }
       updateSyncStatus();
+      window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: true, joined: true } }));
     } else if (message.type === "rtc_peer_joined") {
       const peer = message.peer || {};
       if (!peer.id || peer.id === peerId) return;
@@ -553,7 +555,7 @@
       roomJoined = false;
       lastSentCameraState = null;
       updateSyncStatus();
-      window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: true } }));
+      window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: true, joined: false } }));
       send({ type: "rtc_join", peer_id: peerId });
       status(localStream ? "LOCAL CAMERA • CONNECTING TO DEVICES" : "CAMERA SYNC CONNECTED");
       clearInterval(heartbeatTimer);

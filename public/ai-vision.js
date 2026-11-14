@@ -2,7 +2,7 @@
  * One sequential scheduler drives object detection (TensorFlow.js COCO-SSD) and
  * the face pipeline (face-recognition.js). Both read the SAME live camera element
  * and nothing else, so reference photographs can never enter this pipeline.
- * Frames stay in this browser; only alert metadata is sent to the backend.
+ * Camera frames and face descriptors stay in this browser; normalized boxes and face match states are relayed only to authenticated paired dashboards.
  * Decisions are made in vision-core.js: anything not positively established is
  * reported as UNVERIFIED rather than guessed.
  */
@@ -34,6 +34,7 @@
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
   let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
+  const browserSync = () => window.DEFENX_BROWSER_VISION_SYNC;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
   let objMs = 0, objectModelFailed = false, cache = { now: -1, value: null }, faceFails = 0, faceBroken = false;
@@ -222,6 +223,7 @@
     const scale = (contain ? Math.min : Math.max)(vw / d.width, vh / d.height);
     const ox = (vw - d.width * scale) / 2, oy = (vh - d.height * scale) / 2;
     const counts = zeroCounts();
+    const syncDetections = [], syncFaces = [];
     let confSum = 0, confN = 0;
     const box = (b, color, dashed) => {
       const x = b[0] * scale + ox, y = b[1] * scale + oy;
@@ -234,6 +236,8 @@
       const v = evalVerdict(tr, now);
       if (!v) continue;
       const det = tr.data.det, pct = Math.round(det.score * 100) + "%";
+      syncDetections.push({ class_id: det.class === "person" ? 0 : -1, class_name: det.class, confidence: det.score,
+        normalized_box: { x1: det.bbox[0] / d.width, y1: det.bbox[1] / d.height, x2: (det.bbox[0] + det.bbox[2]) / d.width, y2: (det.bbox[1] + det.bbox[3]) / d.height } });
       const color = COLORS[v.status] || COLORS[STATUS.UNVERIFIED];
       const [x, y] = box(det.bbox, color, v.status !== STATUS.LIVE_HUMAN && v.status !== STATUS.LIVE_VEHICLE && v.status !== STATUS.REAL_OBJECT);
       label(x, y, [det.class.toUpperCase() + " " + pct, v.status], color);
@@ -251,6 +255,9 @@
     const fr = face() ? face().faces : [];
     for (const f of fr) {
       if (now - f.at > 1200) continue;
+      const matchStatus = !f.spoof && f.identity === STATUS.RECOGNIZED ? "recognized" : f.identity === STATUS.UNKNOWN ? "unknown" : "unverified";
+      syncFaces.push({ match_status: matchStatus,
+        normalized_box: { x1: f.bbox[0] / d.width, y1: f.bbox[1] / d.height, x2: (f.bbox[0] + f.bbox[2]) / d.width, y2: (f.bbox[1] + f.bbox[3]) / d.height } });
       const color = f.spoof ? COLORS[STATUS.PHOTO] : COLORS[f.identity] || COLORS[STATUS.UNVERIFIED];
       const idLine = f.spoof ? STATUS.PHOTO : (f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity);
       const lines = [idLine];
@@ -267,6 +274,7 @@
       }
     }
     counts.confidence = confN ? confSum / confN : 0;
+    if (browserSync()) browserSync().publish({ width: d.width, height: d.height, detections: syncDetections, faces: syncFaces });
     return counts;
   }
   function describe(counts) {
@@ -281,7 +289,9 @@
   function refreshView(now) {
     const counts = render(now) || zeroCounts();
     publish(counts);
-    setState("active", objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts));
+    const syncLabel = browserSync() ? browserSync().status() : "DISCONNECTED";
+    const label = objectModelFailed ? "FACE AI ONLY • OBJECT MODEL UNAVAILABLE" : describe(counts);
+    setState("active", label + " • " + syncLabel);
   }
 
   /* ---------------- scheduler: one task at a time, never blocks the stream ---------------- */
@@ -290,18 +300,17 @@
     if (running && !paused) timer = window.setTimeout(tick, Math.max(20, delay));
   }
   async function tick() {
-    if (!running || paused || busy) return;
+    if (!running || paused || busy || (browserSync() && !browserSync().owns())) return;
     if (document.hidden) return schedule(1200);
-    if (!sourceReady(source)) { clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
+    if (!sourceReady(source)) { releaseVisionOwner(); clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
     const now = performance.now();
     const token = frameToken(source);
     if (token !== null && token === lastToken && now - lastWorkAt < 2500) { stats.skippedFrames++; return schedule(120); }
     busy = true;
     try {
       checkReadable(source);
-      const localState = window.DEFENX_LOCAL_VISION ? window.DEFENX_LOCAL_VISION.state() : { objects: false, faces: false };
-      const f = face(), faceOn = !!(f && !faceBroken && f.active() && !localState.faces);
-      const objOn = !!model && !localState.objects;
+      const f = face(), faceOn = !!(f && !faceBroken && f.active());
+      const objOn = !!model;
       let ran = false;
       if (faceOn && now >= nextFace) {
         const ms = await runFaces(now);
@@ -324,18 +333,22 @@
       if (!cors && ++failures < 3) return schedule(1000 * failures);
       running = false;
       clearAll();
+      releaseVisionOwner();
       setState("error", cors ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
     }
   }
 
+  function claimVisionOwner() { return !browserSync() || browserSync().claim(); }
+  function releaseVisionOwner() { if (browserSync()) browserSync().release(); }
   async function startDetection() {
     failures = 0;
     if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
+    if (!claimVisionOwner()) { running = false; if (timer) clearTimeout(timer); setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER"); return; }
     try {
       checkReadable(source);
       window.dispatchEvent(new Event("defenx-camera-live"));
       if (face()) face().boot();
-      try { const local = window.DEFENX_LOCAL_VISION && window.DEFENX_LOCAL_VISION.state(); if (!local || (!local.objects && !local.faces)) await ensureModel(); objectModelFailed = false; }
+      try { await ensureModel(); objectModelFailed = false; }
       catch (error) {
         if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
         objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
@@ -349,6 +362,7 @@
       schedule(0);
     } catch (error) {
       running = false;
+      releaseVisionOwner();
       setState("error", /taint|cross.origin|securityerror/i.test(String(error && error.message || error))
         ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
     }
@@ -356,7 +370,7 @@
   function onSourceReady() { if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); } }
   function onSourceError() {
     running = false; if (timer) clearTimeout(timer);
-    clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
+    releaseVisionOwner(); clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
   }
   function findSource() {
     const element = document.getElementById("roverRealCamera");
@@ -378,28 +392,22 @@
     paused = !paused;
     if (paused) {
       running = false; if (timer) clearTimeout(timer);
-      clearAll(); setState("paused", "AI PAUSED BY OPERATOR"); toggle.disabled = false;
+      releaseVisionOwner(); clearAll(); setState("paused", "AI PAUSED BY OPERATOR"); toggle.disabled = false;
     } else { setState("loading", "RESUMING AI VISION"); startDetection(); }
   });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
+    if (document.hidden) { releaseVisionOwner(); running = false; if (timer) clearTimeout(timer); }
+    else if (!paused && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
   });
-  window.addEventListener("defenx-local-vision-state", event => {
-    const local = event.detail || {};
-    if (local.objects || local.faces) {
-      if (!paused) {
-        running = false;
-        if (timer) clearTimeout(timer);
-        clearAll();
-        setState("paused", "LOCAL PC SCAN ACTIVE • BROWSER DUPLICATE SCAN PAUSED");
-      }
-    } else if (!paused && sourceReady(source) && !running) {
-      setState("loading", "RESUMING BROWSER AI VISION");
-      startDetection();
-    }
+  window.addEventListener("defenx-browser-vision-owner", event => {
+    const detail = event.detail || {};
+    if (detail.owned) { if (!paused && sourceReady(source)) startDetection(); return; }
+    running = false; if (timer) clearTimeout(timer); clearAll();
+    setState("waiting", detail.reason || "AI SCANNING ON ANOTHER AUTHENTICATED DEVICE");
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
-  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); });
+  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
+  window.addEventListener("pageshow", () => { if (!paused && sourceReady(source) && !running) startDetection(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");

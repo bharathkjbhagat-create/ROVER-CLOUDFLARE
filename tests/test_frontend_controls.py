@@ -24,6 +24,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
+        cls.sync = (ROOT / "public" / "browser-vision-sync.js").read_text(encoding="utf-8")
         cls.local_vision = (ROOT / "public" / "local-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
@@ -162,7 +163,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('pc.connectionState === "failed"', self.camera_webrtc)
         self.assertIn('setRemoteCameraActive(id, false);', self.camera_webrtc)
         self.assertIn('if(phoneCameraActive||window.__defenxRemoteCameraActive)return;', self.js)
-        self.assertIn('src="/camera-webrtc.js?v=20261114-02"', self.html)
+        self.assertIn('src="/camera-webrtc.js?v=20261114-online-01"', self.html)
         self.assertIn('async function loadIceServers()', self.camera_webrtc)
         self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
         self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
@@ -203,20 +204,27 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('"rtc_peer_left"', self.worker)
         self.assertIn('Authentication expired', self.worker)
 
-    def test_local_yolo_and_face_share_one_pipeline(self):
-        self.assertIn('/local-vision.js', self.html)
-        self.assertNotIn('/local-yolo.js', self.html)
-        self.assertNotIn('/local-face.js', self.html)
-        self.assertIn('"/vision-detect"', self.local_vision)
-        self.assertIn('include_objects', self.local_vision)
-        self.assertIn('include_faces', self.local_vision)
-        self.assertIn('window.DEFENX_LOCAL_VISION', self.ai)
+    def test_online_browser_pipeline_needs_no_pc_ai_service(self):
+        self.assertIn('/browser-vision-sync.js', self.html)
+        self.assertIn('/local-vision.js', self.html)  # remote overlay renderer only
+        self.assertNotIn('localYoloPanel', self.html)
+        self.assertNotIn('localFacePanel', self.html)
+        self.assertIn('ONLINE BROWSER AI • OBJECT + FACE', self.html)
+        self.assertNotIn('127.0.0.1:8000', self.local_vision)
+        self.assertNotIn('/vision-detect', self.local_vision)
+        self.assertIn('f.process({ source: active', self.ai)
+        self.assertIn('browserSync().publish', self.ai)
 
     def test_vision_sync_requires_single_owner_and_sanitizes_identity(self):
         self.assertIn('def _handle_vision_message', self.worker)
         self.assertIn('"vision_snapshot"', self.worker)
         self.assertNotIn('"identity": face["identity"]', self.worker)
         self.assertIn('defenx-remote-vision-snapshot', self.camera_webrtc)
+        self.assertIn('claimVisionOwner()', self.ai)
+        self.assertIn('defenx-vision-owner', self.sync)
+        self.assertIn('browserSync().publish', self.ai)
+        self.assertIn('normalized_box', self.ai)
+        self.assertIn('defenx-vision-sync-state', self.sync)
 
     def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
         self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)
@@ -225,7 +233,7 @@ class FrontendControlTests(unittest.TestCase):
     def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
         # one sequential scheduler: a task never starts while another is running, and both
         # detectors back off in proportion to how long inference took
-        self.assertIn("if (!running || paused || busy) return;", self.ai)
+        self.assertIn("if (!running || paused || busy || (browserSync() && !browserSync().owns())) return;", self.ai)
         self.assertIn("nextObj = performance.now() + Math.max(OBJECT_DELAY, objMs * 2)", self.ai)
         self.assertIn("nextFace = performance.now() + Math.max(FACE_DELAY, ms * 1.3)", self.ai)
         self.assertIn("if (!active() || working) return lastFaces;", self.face)
