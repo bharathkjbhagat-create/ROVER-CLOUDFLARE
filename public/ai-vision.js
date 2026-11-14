@@ -304,7 +304,7 @@
   async function tick() {
     if (!running || paused || busy || !visionOwner) return;
     if (document.hidden) return schedule(1200);
-    if (!sourceReady(source)) { clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
+    if (!sourceReady(source)) { releaseVisionOwner(); clearAll(); setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return schedule(900); }
     const now = performance.now();
     const token = frameToken(source);
     if (token !== null && token === lastToken && now - lastWorkAt < 2500) { stats.skippedFrames++; return schedule(120); }
@@ -384,7 +384,7 @@
   function onSourceReady() { if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); } }
   function onSourceError() {
     running = false; if (timer) clearTimeout(timer);
-    clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
+    releaseVisionOwner(); clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
   }
   function findSource() {
     const element = document.getElementById("roverRealCamera");
