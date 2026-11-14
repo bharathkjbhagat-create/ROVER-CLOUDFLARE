@@ -89,7 +89,7 @@
   const remoteOverlays = new Map();
   function drawRemote(snapshot) {
     const peer = String(snapshot.peer_id || "");
-    const video = Array.from(document.querySelectorAll("video[data-defenxPeerId]")).find(v => v.dataset.defenxPeerId === peer);
+    const video = Array.from(document.querySelectorAll("video[data-defenx-remote-camera='1']")).find(v => v.dataset.defenxPeerId === peer);
     let canvas = remoteOverlays.get(peer);
     if (!video || !video.getBoundingClientRect().width) { if (canvas) canvas.hidden = true; return; }
     if (!canvas) {
