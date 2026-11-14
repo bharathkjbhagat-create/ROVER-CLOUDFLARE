@@ -49,10 +49,17 @@ dashboard's current live camera stream; it does not open the webcam itself. The
 existing browser TensorFlow.js AI remains available.
 
 1. Keep `C:\DEFENX\venv` and the existing model file. Do not reinstall Python,
-   PyTorch, Ultralytics, or OpenCV. If Flask is missing from that venv, install
-   only Flask there: `C:\DEFENX\venv\Scripts\python.exe -m pip install Flask`.
+   PyTorch, Ultralytics, or OpenCV. Install the local AI dependency into that
+   same venv (replace `<project-folder>` with the extracted project path):
+
+   ```cmd
+   C:\DEFENX\venv\Scripts\python.exe -m pip install -r <project-folder>\local-ai-requirements.txt
+   ```
+
+   This installs Flask only; the main project requirements also include Flask
+   for the web application.
 2. In Command Prompt, set the existing model path and start the API using that
-   venv (replace `<project-folder>` with the extracted project path):
+   venv:
 
    ```cmd
    set DEFENX_YOLO_MODEL=C:\DEFENX\yolov8n.pt
