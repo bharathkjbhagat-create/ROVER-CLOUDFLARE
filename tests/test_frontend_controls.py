@@ -24,6 +24,7 @@ class FrontendControlTests(unittest.TestCase):
         cls.html = (ROOT / "public" / "index.html").read_text(encoding="utf-8")
         cls.js = (ROOT / "public" / "app.js").read_text(encoding="utf-8")
         cls.ai = (ROOT / "public" / "ai-vision.js").read_text(encoding="utf-8")
+        cls.local_vision = (ROOT / "public" / "local-vision.js").read_text(encoding="utf-8")
         cls.face = (ROOT / "public" / "face-recognition.js").read_text(encoding="utf-8")
         cls.phone_camera = (ROOT / "public" / "phone-camera.js").read_text(encoding="utf-8")
         cls.camera_webrtc = (ROOT / "public" / "camera-webrtc.js").read_text(encoding="utf-8")
@@ -194,13 +195,28 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn("CAMERA LINK FAILED • CHECK NETWORK / TURN", self.camera_webrtc)
 
     def test_webrtc_signaling_is_authenticated_and_relayed_by_existing_durable_object(self):
-        self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps"}:', self.worker)
+        self.assertIn('if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps", "vision_claim", "vision_release", "vision_snapshot"}:', self.worker)
         self.assertIn('self._handle_rtc_message(ws, data, attachment)', self.worker)
         self.assertIn('def _rtc_broadcast(self, payload, exclude_peer=None, target_peer=None):', self.worker)
         self.assertIn('if info.get("rtc_room") != "defenx-global" or not peer_id:', self.worker)
         self.assertIn('"rtc_peer_list"', self.worker)
         self.assertIn('"rtc_peer_left"', self.worker)
         self.assertIn('Authentication expired', self.worker)
+
+    def test_local_yolo_and_face_share_one_pipeline(self):
+        self.assertIn('/local-vision.js', self.html)
+        self.assertNotIn('/local-yolo.js', self.html)
+        self.assertNotIn('/local-face.js', self.html)
+        self.assertIn('"/vision-detect"', self.local_vision)
+        self.assertIn('include_objects', self.local_vision)
+        self.assertIn('include_faces', self.local_vision)
+        self.assertIn('window.DEFENX_LOCAL_VISION', self.ai)
+
+    def test_vision_sync_requires_single_owner_and_sanitizes_identity(self):
+        self.assertIn('def _handle_vision_message', self.worker)
+        self.assertIn('"vision_snapshot"', self.worker)
+        self.assertNotIn('"identity": face["identity"]', self.worker)
+        self.assertIn('defenx-remote-vision-snapshot', self.camera_webrtc)
 
     def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
         self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)

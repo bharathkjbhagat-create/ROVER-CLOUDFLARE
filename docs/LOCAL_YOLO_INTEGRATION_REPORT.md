@@ -1,59 +1,11 @@
-# DEFENX local YOLO integration handoff
+# DEFENX local vision integration
 
-## Architecture
+This handoff replaces the earlier separate Local YOLO and local face prototypes.
 
-- Cloudflare Worker, Durable Object/WebRTC signaling, existing dashboard controls,
-  ESP32 protocol, browser TensorFlow.js AI, and offline-patrol sync remain in
-  their existing paths.
-- `public/local-yolo.js` adds an operator-started second inference option. It
-  reads only the current live camera element (`roverRealCamera`), scales a frame
-  to at most 640 pixels wide, and sends JPEG bytes to `127.0.0.1:8765`.
-- `src/local_ai_api.py` is a separate loopback-only Flask service. It decodes the
-  frame with OpenCV and calls the installed Ultralytics YOLO model with
-  `device="cpu"`; detections return to the dashboard as boxes, class names, and
-  confidence. No camera is opened by the service and no image is sent to
-  Cloudflare. The model path defaults to `yolov8n.pt` in the project root and
-  can be set with `DEFENX_YOLO_MODEL`.
-- The browser shows local YOLO counts and status separately from the existing
-  browser-AI counts. Demo mode cannot activate this service. The local endpoint
-  binds to IPv4 loopback, checks the request Host and allowed Origin, handles
-  browser preflight, caps frames at 2 MiB, and never enables Flask debug mode.
+The dashboard uses one local scanner and one loopback Python service. It captures each live dashboard camera frame once and submits a single request. If both controls are on, that request runs YOLO and face detection/recognition against the same frame under one inference lock. If Local YOLO is off while Local Face ID remains on, the service runs only face scanning. Browser AI pauses the corresponding work while local scanning is active.
 
-## Changed files
+The service loads `yolov8n.pt` once per process, selects CUDA when PyTorch reports it available, and retries on CPU if GPU inference fails. It never opens a webcam; camera ownership and lifecycle remain in the dashboard. Run one Uvicorn worker so the model is not loaded by multiple processes.
 
-- Added `src/local_ai_api.py` and `public/local-yolo.js`.
-- Added local YOLO panel and script reference in `public/index.html`; added its
-  styles in `public/style.css`.
-- Added `tests/test_local_yolo_api.py` with mocked inference coverage.
-- Added setup and limitation notes to `FLASK-LOCAL-README.md` and `README.md`;
-  added a 12 KB frontend budget for the new client.
+The local API exposes `/health`, `/vision-detect`, compatibility endpoints `/detect` and `/face-detect`, `/alerts`, and face gallery/enrollment endpoints. Person and vehicle alerts are throttled in the dashboard. Unknown faces remain UNKNOWN; uncertain matches are not labeled as enrolled people. Face names and templates stay on the scanning PC. The authenticated phone/laptop sync relays sanitized labels, boxes, and recognized/unknown/unverified status only.
 
-## Verification
-
-- **PASS:** Python syntax compilation of the new API/test and existing `src/app.py`
-  and `src/worker.py` using host Python 3.15.
-- **PASS:** `node --check` for the new browser client and existing dashboard AI
-  scripts.
-- **PASS:** Frontend performance budgets; generated embedded WebP assets.
-- **PASS:** Existing vision-core tests, 19/19.
-- **PARTIAL:** Simulation + spoof suite, 35/37. Two spoof assertions failed in
-  the supplied source tree: animated-screen test setup expected motion that was
-  not present, and the full-frame replay case expected `LIVE HUMAN` while the
-  code returned `UNVERIFIED`.
-- **PARTIAL:** Fleet protocol suite, 2/4. Its Python cross-language checks could
-  not start because the test invokes `python3`, which is not installed here.
-- **NOT RUN:** New Flask API tests and Flask smoke/browser suites. Host Python
-  has no Flask, and package downloads are unavailable. The reported
-  `C:\DEFENX\venv\Scripts\python.exe` also failed to launch because its base
-  Python 3.11 executable path is unavailable in this environment; it was not
-  changed. Full Python discovery ran 167 tests and reported 8 failures and 6
-  errors, driven by missing `cryptography`/`pyodide` for biometric checks and
-  resulting fail-closed biometric responses.
-- **NOT RUN:** Live camera-to-YOLO inference, browser loopback permission, custom
-  production-domain CORS, Cloudflare deployment/credentials, ESP32 firmware
-  build (`g++` unavailable), or physical rover behavior.
-
-The supplied conversation verifies that YOLOv8n and camera inference worked
-previously on the user's PC. This bundle does not claim the new dashboard/API
-connection has been exercised on that PC; follow `FLASK-LOCAL-README.md` and
-verify the live camera connection there.
+See [LOCAL_VISION.md](LOCAL_VISION.md) for Windows install and run steps. The branch has not been merged or deployed. Local hardware, real camera behavior, GPU inference, and two physical device sync still require operator testing.

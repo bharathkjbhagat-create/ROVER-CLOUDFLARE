@@ -7,3 +7,4 @@ __pycache__/
 .wrangler/
 node_modules/
 .DS_Store
+\n# Local model weights and private face templates\n/.venv-local-ai/\n/data/face_gallery.json\n/data/face_gallery.tmp\n/models/*.onnx\n/yolov8n.pt\n

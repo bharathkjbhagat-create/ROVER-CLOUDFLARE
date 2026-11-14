@@ -299,8 +299,9 @@
     busy = true;
     try {
       checkReadable(source);
-      const f = face(), faceOn = !!(f && !faceBroken && f.active());
-      const objOn = !!model;
+      const localState = window.DEFENX_LOCAL_VISION ? window.DEFENX_LOCAL_VISION.state() : { objects: false, faces: false };
+      const f = face(), faceOn = !!(f && !faceBroken && f.active() && !localState.faces);
+      const objOn = !!model && !localState.objects;
       let ran = false;
       if (faceOn && now >= nextFace) {
         const ms = await runFaces(now);
@@ -334,7 +335,7 @@
       checkReadable(source);
       window.dispatchEvent(new Event("defenx-camera-live"));
       if (face()) face().boot();
-      try { await ensureModel(); objectModelFailed = false; }
+      try { const local = window.DEFENX_LOCAL_VISION && window.DEFENX_LOCAL_VISION.state(); if (!local || (!local.objects && !local.faces)) await ensureModel(); objectModelFailed = false; }
       catch (error) {
         if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
         objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
@@ -382,6 +383,20 @@
   });
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
+  });
+  window.addEventListener("defenx-local-vision-state", event => {
+    const local = event.detail || {};
+    if (local.objects || local.faces) {
+      if (!paused) {
+        running = false;
+        if (timer) clearTimeout(timer);
+        clearAll();
+        setState("paused", "LOCAL PC SCAN ACTIVE • BROWSER DUPLICATE SCAN PAUSED");
+      }
+    } else if (!paused && sourceReady(source) && !running) {
+      setState("loading", "RESUMING BROWSER AI VISION");
+      startDetection();
+    }
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
   window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); });

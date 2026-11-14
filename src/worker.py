@@ -446,6 +446,78 @@ class RealtimeHub(DurableObject):
             except Exception:
                 pass
 
+    def _vision_owner(self):
+        for socket in self.ctx.getWebSockets():
+            try:
+                info = socket.deserializeAttachment() or {}
+                if info.get("rtc_room") == "defenx-global" and info.get("vision_owner"):
+                    return str(info.get("rtc_peer_id") or "")
+            except Exception:
+                pass
+        return ""
+
+    def _handle_vision_message(self, ws, data, attachment):
+        action = str(data.get("type") or "").lower()
+        peer_id = str(attachment.get("rtc_peer_id") or "")
+        owner = self._vision_owner()
+        if action == "vision_claim":
+            if owner and owner != peer_id:
+                ws.send(json.dumps({"type": "vision_owner", "granted": False, "owner": owner, "reason": "scanner already active"}, separators=(",", ":")))
+                return
+            attachment["vision_owner"] = True
+            ws.serializeAttachment(attachment)
+            self._rtc_broadcast({"type": "vision_owner", "granted": True, "owner": peer_id})
+            return
+        if action == "vision_release":
+            attachment["vision_owner"] = False
+            ws.serializeAttachment(attachment)
+            self._rtc_broadcast({"type": "vision_owner", "granted": False, "owner": ""})
+            return
+        if action != "vision_snapshot" or not attachment.get("vision_owner"):
+            return
+        if len(json.dumps(data, separators=(",", ":"))) > 28000:
+            return
+        def clean_box(value):
+            if not isinstance(value, dict):
+                return None
+            try:
+                box = {key: float(value[key]) for key in ("x1", "y1", "x2", "y2")}
+            except (KeyError, TypeError, ValueError):
+                return None
+            if not all(math.isfinite(number) and 0 <= number <= 1 for number in box.values()):
+                return None
+            if box["x2"] <= box["x1"] or box["y2"] <= box["y1"]:
+                return None
+            return box
+        detections = []
+        for item in data.get("detections", [])[:80] if isinstance(data.get("detections"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            box = clean_box(item.get("box"))
+            if not box:
+                continue
+            try:
+                confidence = max(0.0, min(1.0, float(item.get("confidence", 0))))
+            except (TypeError, ValueError):
+                continue
+            try:
+                class_id = int(item.get("class_id", 0))
+            except (TypeError, ValueError):
+                continue
+            detections.append({"class_id": class_id, "class_name": str(item.get("class_name") or "object")[:32], "confidence": confidence, "box": box})
+        faces = []
+        for item in data.get("faces", [])[:30] if isinstance(data.get("faces"), list) else []:
+            if not isinstance(item, dict):
+                continue
+            box = clean_box(item.get("box"))
+            if not box:
+                continue
+            status = str(item.get("match_status") or "unknown")
+            if status not in {"recognized", "unknown", "unverified"}:
+                status = "unknown"
+            faces.append({"match_status": status, "box": box})
+        self._rtc_broadcast({"type": "vision_snapshot", "peer_id": peer_id, "detections": detections, "faces": faces}, exclude_peer=peer_id)
+
     def _handle_rtc_message(self, ws, data, attachment):
         action = str(data.get("type") or "").lower()
         peer_id = str(attachment.get("rtc_peer_id") or "")
@@ -536,7 +608,7 @@ class RealtimeHub(DurableObject):
         if action == "ping":
             ws.send(json.dumps({"type": "pong", "t": data.get("t")}))
             return
-        if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps"}:
+        if action in {"rtc_join", "rtc_camera", "rtc_signal", "phone_gps", "vision_claim", "vision_release", "vision_snapshot"}:
             if not cookie:
                 ws.send(json.dumps({"type": "rtc_error", "error": "Authentication required"}))
                 return
@@ -561,6 +633,8 @@ class RealtimeHub(DurableObject):
                     return
             if action == "phone_gps":
                 self._handle_phone_gps_message(ws, data, attachment)
+            elif action.startswith("vision_"):
+                self._handle_vision_message(ws, data, attachment)
             else:
                 self._handle_rtc_message(ws, data, attachment)
             return
@@ -645,6 +719,8 @@ class RealtimeHub(DurableObject):
         attachment = ws.deserializeAttachment() or {}
         session_id = attachment.get("id")
         peer_id = str(attachment.get("rtc_peer_id") or "")
+        if peer_id and attachment.get("vision_owner"):
+            self._rtc_broadcast({"type": "vision_owner", "granted": False, "owner": ""})
         if peer_id:
             self._rtc_broadcast({"type": "rtc_peer_left", "peer_id": peer_id}, exclude_peer=peer_id)
         if attachment.get("phone_gps") and session_id:

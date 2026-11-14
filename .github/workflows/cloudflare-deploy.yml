@@ -63,16 +63,17 @@ jobs:
         run: node --check public/face-recognition.js
       - name: Validate local AI dashboard JavaScript
         run: |
-          node --check public/local-yolo.js
-          node --check public/local-face.js
+          node --check public/local-vision.js
       - name: Validate detection event history JavaScript
         run: node --check public/detection-events.js
       - name: Validate full-screen monitor JavaScript
         run: node --check public/monitor.js
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
-      - name: Run authentication and security regression tests
-        run: uv run --group dev python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Run authentication, security, and local vision regression tests
+        run: uv run --group dev --with fastapi --with httpx --with python-multipart --with opencv-contrib-python-headless --with numpy python -m unittest discover -s tests -p "test_*.py" -v
+      - name: Validate local AI service Python source
+        run: python -m py_compile tools/local_ai_server/ai_server.py tests/test_local_vision_api.py
       - name: Run independent multi-device sync and reconnect integration
         run: uv run --group dev python tests/integration_two_clients.py -v
       - name: Verify required frontend assets
@@ -83,8 +84,9 @@ jobs:
           test -f public/vision-core.js
           test -f public/ai-vision.js
           test -f public/face-recognition.js
-          test -f public/local-yolo.js
-          test -f public/local-face.js
+          test -f public/local-vision.js
+          test -f tools/local_ai_server/ai_server.py
+          test -f requirements-local-ai.txt
           test -f public/detection-events.js
           test -f public/login.html
           test -f public/app.js
