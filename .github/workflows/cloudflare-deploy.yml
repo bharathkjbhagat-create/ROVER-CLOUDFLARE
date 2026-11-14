@@ -61,6 +61,10 @@ jobs:
         run: node --test tests/vision_core.test.js
       - name: Validate face recognition JavaScript
         run: node --check public/face-recognition.js
+      - name: Validate local AI dashboard JavaScript
+        run: |
+          node --check public/local-yolo.js
+          node --check public/local-face.js
       - name: Validate detection event history JavaScript
         run: node --check public/detection-events.js
       - name: Validate full-screen monitor JavaScript
@@ -79,6 +83,8 @@ jobs:
           test -f public/vision-core.js
           test -f public/ai-vision.js
           test -f public/face-recognition.js
+          test -f public/local-yolo.js
+          test -f public/local-face.js
           test -f public/detection-events.js
           test -f public/login.html
           test -f public/app.js
@@ -230,6 +236,23 @@ jobs:
           curl -fsS -A 'Mozilla/5.0 (DEFENX camera sync HTML check)' "$base/index.html?demo=1" -o /tmp/defenx-camera-sync-index.html
           grep -Fq 'camera-webrtc.js?v=20261114-02' /tmp/defenx-camera-sync-index.html
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
+
+      - name: Verify deployed local AI dashboard panels
+        run: |
+          set -euo pipefail
+          base="$WORKER_URL"
+          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/index.html?demo=1" -o /tmp/defenx-local-ai-index.html
+          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/local-yolo.js?v=20261114-02" -o /tmp/defenx-local-yolo.js
+          curl -fsS -A 'Mozilla/5.0 (DEFENX local AI integration check)' "$base/local-face.js?v=20261114-01" -o /tmp/defenx-local-face.js
+          grep -Fq 'id="localYoloPanel"' /tmp/defenx-local-ai-index.html
+          grep -Fq 'id="localFacePanel"' /tmp/defenx-local-ai-index.html
+          grep -Fq 'id="localFaceEnrollButton"' /tmp/defenx-local-ai-index.html
+          grep -Fq 'local-yolo.js?v=20261114-02' /tmp/defenx-local-ai-index.html
+          grep -Fq 'local-face.js?v=20261114-01' /tmp/defenx-local-ai-index.html
+          grep -Fq '127.0.0.1:8000' /tmp/defenx-local-yolo.js
+          grep -Fq '/face-detect' /tmp/defenx-local-face.js
+          grep -Fq '/faces/enroll' /tmp/defenx-local-face.js
+          echo "Live local YOLO and PC-local face panels: PASS"
 
       - name: Verify deployed warning controls and JavaScript bindings
         run: |

@@ -1,7 +1,8 @@
 /* Optional local Python YOLO service. Frames come only from the existing live camera. */
 (() => {
   "use strict";
-  const API = "http://127.0.0.1:8765";
+  // Use the same PC-local FastAPI service as face recognition.
+  const API = "http://127.0.0.1:8000";
   const panel = document.getElementById("localYoloPanel");
   const button = document.getElementById("localYoloToggle");
   const status = document.getElementById("localYoloStatus");
@@ -19,6 +20,7 @@
   const ctx = canvas.getContext("2d");
   const counts = { person: 0, vehicle: 0, object: 0 };
   const vehicleNames = new Set(["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"]);
+  const alertCooldown = new Map();
 
   function setStatus(text, error) {
     status.textContent = text;
@@ -41,9 +43,9 @@
     return null;
   }
   async function health() {
-    const response = await fetch(API + "/health", { mode: "cors", credentials: "omit", cache: "no-store" });
+    const response = await fetch(API + "/health", { mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback" });
     const data = await response.json();
-    if (!response.ok || !data.ready) throw new Error(data.model_found ? "AI packages unavailable in local Python environment" : "YOLO model file not found; see local AI setup guide");
+    if (!response.ok || !data.model_loaded) throw new Error(data.detail || (data.model_found === false ? "YOLO model file not found" : "Local YOLO model is not ready"));
     return data;
   }
   function draw(detections, width, height) {
@@ -57,7 +59,9 @@
     const ox = (vw - width * scale) / 2, oy = (vh - height * scale) / 2;
     clearCounts();
     for (const item of detections) {
-      const name = String(item.class || "object").toLowerCase(), [x1, y1, x2, y2] = item.box || [];
+      const name = String(item.class_name || item.class || "object").toLowerCase();
+      const box = item.box || {};
+      const [x1, y1, x2, y2] = Array.isArray(box) ? box : [box.x1, box.y1, box.x2, box.y2];
       if (![x1, y1, x2, y2, item.confidence].every(Number.isFinite)) continue;
       if (name === "person") counts.person++;
       else if (vehicleNames.has(name)) counts.vehicle++;
@@ -71,6 +75,7 @@
       ctx.fillStyle = color; ctx.fillRect(x, top, labelWidth, 17);
       ctx.fillStyle = "#07120d"; ctx.fillText(label, x + 5, top + 12);
     }
+    publishAlerts(detections);
     for (const key of Object.keys(counts)) {
       const node = document.getElementById(ids[key]);
       if (node) node.textContent = String(counts[key]);
@@ -78,6 +83,29 @@
     window.dispatchEvent(new CustomEvent("defenx-local-yolo-detection", {
       detail: { engine: "YOLOv8n CPU", ...counts, detections }
     }));
+  }
+  function publishAlerts(detections) {
+    const alerts = window.DEFENX_ALERTS;
+    if (!alerts || typeof alerts.offer !== "function") return;
+    const cfg = alerts.config();
+    const now = Date.now(), present = new Set();
+    for (const item of detections) {
+      const name = String(item.class_name || item.class || "object").toLowerCase();
+      const isVehicle = vehicleNames.has(name);
+      if (!(isVehicle ? cfg.vehicles : cfg.objects && cfg.objectClasses.includes(name))) continue;
+      const category = isVehicle ? "vehicle_detected" : "object_detected";
+      const key = category + ":" + name;
+      present.add(key);
+      const previous = alertCooldown.get(key) || 0;
+      if (now - previous < 6000) continue;
+      alertCooldown.set(key, now);
+      alerts.offer({
+        category, trackId: "local-yolo-" + name,
+        status: isVehicle ? "LIVE VEHICLE" : "REAL-WORLD OBJECT",
+        subject: name, confidence: Number(item.confidence) || 0, engine: "YOLOv8n CPU"
+      });
+    }
+    for (const [key, at] of alertCooldown) if (now - at > 30000 && !present.has(key)) alertCooldown.delete(key);
   }
   function clearCounts() { counts.person = counts.vehicle = counts.object = 0; }
   async function scan() {
@@ -93,13 +121,14 @@
       const factor = Math.min(1, 640 / size.width), width = Math.max(1, Math.round(size.width * factor)), height = Math.max(1, Math.round(size.height * factor));
       const frame = document.createElement("canvas"); frame.width = width; frame.height = height;
       frame.getContext("2d").drawImage(source, 0, 0, width, height);
-      const jpeg = frame.toDataURL("image/jpeg", 0.72);
+      const blob = await new Promise(resolve => frame.toBlob(resolve, "image/jpeg", 0.72));
+      if (!blob) throw new Error("Could not prepare a camera frame");
+      const form = new FormData(); form.append("image", blob, "live-frame.jpg");
       const response = await fetch(API + "/detect", {
-        method: "POST", mode: "cors", credentials: "omit", cache: "no-store",
-        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ image: jpeg.split(",")[1] })
+        method: "POST", mode: "cors", credentials: "omit", cache: "no-store", targetAddressSpace: "loopback", body: form
       });
       const data = await response.json();
-      if (!response.ok || !data.ok) throw new Error(data.error || "Local inference request failed");
+      if (!response.ok) throw new Error(data.detail || data.error || "Local inference request failed");
       if (active && version === generation && source === liveSource()) {
         draw(data.detections || [], data.width, data.height);
         setStatus("LIVE • YOLOv8n CPU • " + (data.detections || []).length + " detections • frames sent to this PC only", false);
@@ -145,3 +174,4 @@
   const cameraViewport = document.getElementById("cameraViewport");
   if (cameraViewport) new MutationObserver(() => { if (active) schedule(0); }).observe(cameraViewport, { childList: true });
 })();
+

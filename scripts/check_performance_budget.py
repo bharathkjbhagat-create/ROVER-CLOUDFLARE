@@ -14,6 +14,7 @@ BUDGETS = {
     "public/style.css": 120_000,
     "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering
     "public/local-yolo.js": 12_000,  # optional loopback client for Python YOLO inference
+    "public/local-face.js": 15_000,  # optional local face gallery and live enrollment client
     "public/vision-core.js": 22_000,
     "public/face-recognition.js": 24_000,
     "public/detection-events.js": 16_000,
