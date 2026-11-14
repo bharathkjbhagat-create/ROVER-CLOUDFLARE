@@ -47,7 +47,7 @@
     }
     if (detail.joined) {
       joined = true; pending = false; owned = false;
-      if (wanted && !document.hidden) claim();
+      if (wanted && !document.hidden) { notify("CHECKING FOR ANOTHER ACTIVE SCANNER"); claim(); }
       else notify();
     }
   });
@@ -63,7 +63,7 @@
     } else {
       owned = false; pending = false;
       if (wanted && !document.hidden) claim();
-      else notify("SCANNER AVAILABLE");
+      else if (wanted) notify("SCANNER AVAILABLE");
     }
   });
 
