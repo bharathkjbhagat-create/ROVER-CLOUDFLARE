@@ -58,6 +58,13 @@ class FakeFaceRecognizer:
         return np.asarray([vector], dtype=np.float32)
 
 
+class GpuFailureModel(FakeModel):
+    def predict(self, *args, **kwargs):
+        if kwargs.get("device") == "0":
+            raise RuntimeError("simulated CUDA out of memory")
+        return super().predict(*args, **kwargs)
+
+
 class LocalVisionTests(unittest.TestCase):
     def setUp(self):
         self.engine = api.VisionEngine()
@@ -78,6 +85,13 @@ class LocalVisionTests(unittest.TestCase):
         detections = self.engine._objects(self.image)
         self.assertEqual(len(detections), 2)
         self.assertEqual({d["class_name"] for d in detections}, {"person", "car"})
+
+    def test_cuda_failure_retries_once_on_cpu(self):
+        self.engine.yolo = GpuFailureModel()
+        self.engine.device = "0"
+        detections = self.engine._objects(self.image)
+        self.assertEqual(self.engine.device, "cpu")
+        self.assertEqual(len(detections), 2)
 
     def test_multiple_faces_keep_recognized_and_unknown_statuses(self):
         self.engine._gallery = lambda: {"Bharath": [[1.0, 0.0]]}
