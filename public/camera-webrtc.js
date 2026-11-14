@@ -505,6 +505,7 @@
       else createPeer(peer.id).catch(() => {});
       updateSyncStatus();
     } else if (message.type === "rtc_peer_left") {
+      window.dispatchEvent(new CustomEvent("defenx-remote-camera-left", { detail: { peer_id: message.peer_id } }));
       remoteCameraStates.delete(String(message.peer_id || ""));
       closePeer(message.peer_id);
       updateRemoteCameraActiveFlag();
