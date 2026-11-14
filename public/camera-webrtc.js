@@ -552,6 +552,7 @@
       roomJoined = false;
       lastSentCameraState = null;
       updateSyncStatus();
+      window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: true } }));
       send({ type: "rtc_join", peer_id: peerId });
       status(localStream ? "LOCAL CAMERA • CONNECTING TO DEVICES" : "CAMERA SYNC CONNECTED");
       clearInterval(heartbeatTimer);
@@ -580,6 +581,7 @@
       for (const id of Array.from(peers.keys())) closePeer(id);
       updateRemoteCameraActiveFlag();
       updateSyncStatus();
+      window.dispatchEvent(new CustomEvent("defenx-vision-sync-state", { detail: { connected: false } }));
       peerId = makePeerId();
       if (!stopped) {
         status("CAMERA SYNC RECONNECTING");
