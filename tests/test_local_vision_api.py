@@ -96,6 +96,13 @@ class LocalVisionTests(unittest.TestCase):
         self.assertEqual(len(response.json()["faces"]), 2)
         self.assertEqual(response.json()["detections"], [])
 
+    def test_inference_tracks_are_stable_and_repeated_alerts_are_throttled(self):
+        first = self.engine.infer(self.image, True, True, "upload")
+        second = self.engine.infer(self.image, True, True, "upload")
+        self.assertEqual([d["track_id"] for d in first["detections"]], [d["track_id"] for d in second["detections"]])
+        self.assertGreater(len(first["events"]), 0)
+        self.assertEqual(second["events"], [])
+
     def test_health_reports_camera_stopped_and_device(self):
         response = self.client.get("/health")
         self.assertEqual(response.status_code, 200)
