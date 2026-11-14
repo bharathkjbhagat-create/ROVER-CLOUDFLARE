@@ -332,20 +332,20 @@
 
   function matchIdentity(descriptor, enrolled) {
     if (!enrolled || !enrolled.length) return { state: "UNKNOWN", name: null, distance: null, confidence: 0.6, reason: "no enrolled users" };
+    if (!Array.isArray(descriptor) || !descriptor.length || descriptor.some(v => !Number.isFinite(v))) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0 };
     const rows = enrolled.map(e => {
       const samples = Array.isArray(e.descriptors) && e.descriptors.length ? e.descriptors : [e.descriptor];
       let best = Infinity;
       for (const sample of samples) {
-        if (!Array.isArray(sample) || sample.length !== descriptor.length) continue;
+        if (!Array.isArray(sample) || sample.length !== descriptor.length || sample.some(v => !Number.isFinite(v))) continue;
         let sum = 0;
         for (let i = 0; i < descriptor.length; i++) { const d = descriptor[i] - sample[i]; sum += d * d; }
         best = Math.min(best, Math.sqrt(sum));
       }
       return { e, d: best };
     }).filter(row => Number.isFinite(row.d)).sort((a, b) => a.d - b.d);
-    const best = rows[0];
-    const other = rows.find(r => r.e.name !== best.e.name); // runner-up must be a different person
-    const margin = other ? other.d - best.d : 1;
+    if (!rows.length) return { state: "UNVERIFIED", name: null, distance: null, confidence: 0 };
+    const best = rows[0], other = rows.find(r => r.e.name !== best.e.name), margin = other ? other.d - best.d : 1;
     if (best.d <= T.match && margin >= T.margin) return { state: "RECOGNIZED", name: best.e.name, id: best.e.id, distance: best.d, confidence: clamp((T.unknown - best.d) / T.unknown, 0, 1) };
     if (best.d >= T.unknown) return { state: "UNKNOWN", name: null, distance: best.d, confidence: clamp(0.5 + (best.d - T.unknown) * 2, 0.5, 0.99) };
     return { state: "UNVERIFIED", name: null, distance: best.d, confidence: 0.4, possible: best.e.name };

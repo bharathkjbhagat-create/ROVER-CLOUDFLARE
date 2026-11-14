@@ -230,6 +230,14 @@ test("identity: enrolled user recognised, stranger unknown, borderline unverifie
   const multi = core.matchIdentity(near(alice2.descriptor, 0.04), [photoProfile, bob]);
   assert.equal(multi.state, "RECOGNIZED"); assert.equal(multi.name, "Alice");
 });
+test("identity: damaged or incompatible descriptors fail closed as UNVERIFIED", () => {
+  const valid = { id: "a", name: "Alice", descriptor: vec() };
+  assert.equal(core.matchIdentity(vec(), [{ id: "broken", name: "Broken", descriptor: [1, 2] }]).state, "UNVERIFIED");
+  assert.equal(core.matchIdentity(vec(), [{ id: "broken", name: "Broken", descriptors: [[NaN, 1]] }]).state, "UNVERIFIED");
+  assert.equal(core.matchIdentity(null, [valid]).state, "UNVERIFIED");
+  assert.equal(core.matchIdentity([NaN, 0], [valid]).state, "UNVERIFIED");
+  assert.equal(core.matchIdentity(near(valid.descriptor, 0.2), [valid, { id: "bad", name: "Bad", descriptor: [1] }]).state, "RECOGNIZED");
+});
 test("identity smoothing needs 3 agreeing frames", () => {
   const a = { state: "RECOGNIZED", name: "A", confidence: 0.8 }, u = { state: "UNKNOWN", name: null, confidence: 0.9 };
   assert.equal(core.smoothIdentity([a, a]).state, "UNVERIFIED");
