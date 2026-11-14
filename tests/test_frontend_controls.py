@@ -203,20 +203,24 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('"rtc_peer_left"', self.worker)
         self.assertIn('Authentication expired', self.worker)
 
-    def test_local_yolo_and_face_share_one_pipeline(self):
-        self.assertIn('/local-vision.js', self.html)
-        self.assertNotIn('/local-yolo.js', self.html)
-        self.assertNotIn('/local-face.js', self.html)
-        self.assertIn('"/vision-detect"', self.local_vision)
-        self.assertIn('include_objects', self.local_vision)
-        self.assertIn('include_faces', self.local_vision)
-        self.assertIn('window.DEFENX_LOCAL_VISION', self.ai)
+    def test_online_browser_pipeline_needs_no_pc_ai_service(self):
+        self.assertIn('/local-vision.js', self.html)  # remote overlay renderer only
+        self.assertNotIn('localYoloPanel', self.html)
+        self.assertNotIn('localFacePanel', self.html)
+        self.assertIn('ONLINE BROWSER AI • OBJECT + FACE', self.html)
+        self.assertNotIn('127.0.0.1:8000', self.local_vision)
+        self.assertNotIn('/vision-detect', self.local_vision)
+        self.assertIn('face().process', self.ai)
+        self.assertIn('window.DEFENX_VISION_SYNC.publish', self.ai)
 
     def test_vision_sync_requires_single_owner_and_sanitizes_identity(self):
         self.assertIn('def _handle_vision_message', self.worker)
         self.assertIn('"vision_snapshot"', self.worker)
         self.assertNotIn('"identity": face["identity"]', self.worker)
         self.assertIn('defenx-remote-vision-snapshot', self.camera_webrtc)
+        self.assertIn('claimVisionOwner()', self.ai)
+        self.assertIn('defenx-vision-owner', self.ai)
+        self.assertIn('normalized_box', self.ai)
 
     def test_live_camera_is_visible_in_the_normal_dashboard_view(self):
         self.assertIn('#cameraViewport #roverRealCamera[data-defenxLiveStream="1"]', self.css)
@@ -225,7 +229,7 @@ class FrontendControlTests(unittest.TestCase):
     def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
         # one sequential scheduler: a task never starts while another is running, and both
         # detectors back off in proportion to how long inference took
-        self.assertIn("if (!running || paused || busy) return;", self.ai)
+        self.assertIn("if (!running || paused || busy || !visionOwner) return;", self.ai)
         self.assertIn("nextObj = performance.now() + Math.max(OBJECT_DELAY, objMs * 2)", self.ai)
         self.assertIn("nextFace = performance.now() + Math.max(FACE_DELAY, ms * 1.3)", self.ai)
         self.assertIn("if (!active() || working) return lastFaces;", self.face)
