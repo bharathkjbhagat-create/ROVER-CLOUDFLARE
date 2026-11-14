@@ -23,8 +23,7 @@ from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
-ALERT_CLASSES = {0: "person"}
-VEHICLE_CLASSES = {1, 2, 3, 5, 7}
+VEHICLE_CLASSES = {1, 2, 3, 4, 5, 6, 7, 8}
 ALERTS: deque[dict[str, Any]] = deque(maxlen=500)
 
 
