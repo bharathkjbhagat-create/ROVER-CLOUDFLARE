@@ -370,6 +370,7 @@ return window.roverWS?.readyState===WebSocket.OPEN?"● ONLINE • REALTIME":"�
 }
 function applyRemoteState(message){
 if(!message)return;
+if(message.type==="phone_gps"){window.DEFENX_PHONE_GPS_REMOTE?.(message);return;}
 if(message.type==="camera-command"&&message.command){
 const c=String(message.command).toUpperCase();
 setText("cmd",c);
@@ -415,6 +416,7 @@ ws.onopen=()=>{
 window.roverReconnectAttempts=0;
 healthy=true;
 setText("conn","● ONLINE • REALTIME");
+window.DEFENX_PHONE_GPS_SYNC?.();
 try{ws.send(JSON.stringify({type:"ping",t:Date.now()}))}catch(_){ }
 if(window.roverReconnectTimer){clearTimeout(window.roverReconnectTimer);window.roverReconnectTimer=null}
 clearHeartbeat();
@@ -1466,3 +1468,4 @@ bootDashboard();
 }
 document.addEventListener("click",function(e){if(e.target.closest("#selectReturnBaseBtn"))beginBaseSelection();if(e.target.closest("#returnToBaseBtn"))requestReturnToBase();if(e.target.closest("#previewReturnRouteBtn"))previewReturnRoute(false);if(e.target.closest("#simulateObstacleRouteBtn"))previewReturnRoute(true);if(e.target.closest("#clearReturnRouteBtn"))clearReturnRoutePreview();});
 })();
+
