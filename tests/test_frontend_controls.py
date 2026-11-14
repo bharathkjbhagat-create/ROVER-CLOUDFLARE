@@ -213,7 +213,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertNotIn('127.0.0.1:8000', self.local_vision)
         self.assertNotIn('/vision-detect', self.local_vision)
         self.assertIn('f.process({ source: active', self.ai)
-        self.assertIn('window.DEFENX_VISION_SYNC.publish', self.ai)
+        self.assertIn('browserSync().publish', self.ai)
 
     def test_vision_sync_requires_single_owner_and_sanitizes_identity(self):
         self.assertIn('def _handle_vision_message', self.worker)
