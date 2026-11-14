@@ -34,7 +34,7 @@
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
   let source = null, model = null, modelPromise = null, paused = false, running = false, timer = 0;
-  let visionRoomJoined = false, visionSyncConnected = false, visionOwner = true, visionClaimPending = false, lastVisionPublish = 0;
+  let visionRoomJoined = false, visionSyncConnected = false, visionOwner = true, visionClaimPending = false, pageLeaving = false, lastVisionPublish = 0;
   const VISION_SYNC_INTERVAL = 750;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
@@ -337,6 +337,7 @@
       if (!cors && ++failures < 3) return schedule(1000 * failures);
       running = false;
       clearAll();
+      releaseVisionOwner();
       setState("error", cors ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI DETECTION UNAVAILABLE • CHECK CAMERA / MODEL");
     }
   }
@@ -379,6 +380,7 @@
       schedule(0);
     } catch (error) {
       running = false;
+      releaseVisionOwner();
       setState("error", /taint|cross.origin|securityerror/i.test(String(error && error.message || error))
         ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
     }
@@ -445,11 +447,11 @@
       setState("waiting", "AI SCANNING ON ANOTHER AUTHENTICATED DEVICE");
     } else if (!owner) {
       visionOwner = false; visionClaimPending = false;
-      if (!paused && sourceReady(source) && claimVisionOwner()) startDetection();
+      if (!paused && !document.hidden && !pageLeaving && sourceReady(source) && claimVisionOwner()) startDetection();
     }
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
-  window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
+  window.addEventListener("pagehide", () => { pageLeaving = true; running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
