@@ -332,17 +332,26 @@
 
   function matchIdentity(descriptor, enrolled) {
     if (!enrolled || !enrolled.length) return { state: "UNKNOWN", name: null, distance: null, confidence: 0.6, reason: "no enrolled users" };
+    // A malformed live descriptor must never be treated as an identity match.
+    if (!Array.isArray(descriptor) || !descriptor.length || !descriptor.every(Number.isFinite)) {
+      return { state: "UNVERIFIED", name: null, distance: null, confidence: 0, reason: "invalid live descriptor" };
+    }
     const rows = enrolled.map(e => {
       const samples = Array.isArray(e.descriptors) && e.descriptors.length ? e.descriptors : [e.descriptor];
       let best = Infinity;
       for (const sample of samples) {
-        if (!Array.isArray(sample) || sample.length !== descriptor.length) continue;
+        if (!Array.isArray(sample) || sample.length !== descriptor.length || !sample.every(Number.isFinite)) continue;
         let sum = 0;
         for (let i = 0; i < descriptor.length; i++) { const d = descriptor[i] - sample[i]; sum += d * d; }
         best = Math.min(best, Math.sqrt(sum));
       }
       return { e, d: best };
     }).filter(row => Number.isFinite(row.d)).sort((a, b) => a.d - b.d);
+    // Profiles may exist while their descriptor payload is damaged or incompatible.
+    // Fail closed instead of dereferencing an absent best match or guessing UNKNOWN.
+    if (!rows.length) {
+      return { state: "UNVERIFIED", name: null, distance: null, confidence: 0, reason: "no valid enrolled descriptors" };
+    }
     const best = rows[0];
     const other = rows.find(r => r.e.name !== best.e.name); // runner-up must be a different person
     const margin = other ? other.d - best.d : 1;
