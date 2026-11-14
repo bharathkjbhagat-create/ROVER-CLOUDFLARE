@@ -452,6 +452,7 @@
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
   window.addEventListener("pagehide", () => { pageLeaving = true; running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
+  window.addEventListener("pageshow", () => { pageLeaving = false; if (!paused && sourceReady(source) && !running) startDetection(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
