@@ -79,7 +79,9 @@ assert "enableHighAccuracy:true" in phone_gps_js
 assert 'bindTooltip("PHONE LOCATION"' in phone_gps_js
 assert "L.circle" in phone_gps_js
 assert "DEFENX_PHONE_GPS_CONTROL" in phone_gps_js
-assert "fetch(" not in phone_gps_js  # Phone coordinates stay on-device; they are not uploaded.
+assert 'type:"phone_gps"' in phone_gps_js  # Live coordinates relay only to other authenticated dashboard sessions.
+assert "window.DEFENX_PHONE_GPS_REMOTE=showRemote" in phone_gps_js
+assert "fetch(" not in phone_gps_js  # Coordinates use the authenticated, transient WebSocket relay, never a REST/database upload.
 assert "randomDemoPoint" in app_js
 assert '$("warningToggleBtn")?.addEventListener("click",toggleWarningDisplay)' in app_js
 assert "updateWarningControlUI({obstacle_cm:d.obstacle_cm,target:{detected}})" in app_js
@@ -107,3 +109,4 @@ assert "navigator.mediaDevices.getUserMedia" in phone_camera_js
 assert 'let facing="environment"' in phone_camera_js and "facingMode:{ideal:facing}" in phone_camera_js
 
 print("DEFENX smoke tests: PASS")
+
