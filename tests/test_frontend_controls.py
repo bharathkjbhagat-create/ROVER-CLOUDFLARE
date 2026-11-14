@@ -163,7 +163,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('pc.connectionState === "failed"', self.camera_webrtc)
         self.assertIn('setRemoteCameraActive(id, false);', self.camera_webrtc)
         self.assertIn('if(phoneCameraActive||window.__defenxRemoteCameraActive)return;', self.js)
-        self.assertIn('src="/camera-webrtc.js?v=20261114-02"', self.html)
+        self.assertIn('src="/camera-webrtc.js?v=20261114-online-01"', self.html)
         self.assertIn('async function loadIceServers()', self.camera_webrtc)
         self.assertIn('fetch("/api/rtc/ice-config"', self.camera_webrtc)
         self.assertIn('Camera sync heartbeat timeout', self.camera_webrtc)
@@ -212,7 +212,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('ONLINE BROWSER AI • OBJECT + FACE', self.html)
         self.assertNotIn('127.0.0.1:8000', self.local_vision)
         self.assertNotIn('/vision-detect', self.local_vision)
-        self.assertIn('face().process', self.ai)
+        self.assertIn('f.process({ source: active', self.ai)
         self.assertIn('window.DEFENX_VISION_SYNC.publish', self.ai)
 
     def test_vision_sync_requires_single_owner_and_sanitizes_identity(self):
@@ -233,7 +233,7 @@ class FrontendControlTests(unittest.TestCase):
     def test_face_scan_and_object_detection_do_not_compete_for_mobile_cpu(self):
         # one sequential scheduler: a task never starts while another is running, and both
         # detectors back off in proportion to how long inference took
-        self.assertIn("if (!running || paused || busy || !visionOwner) return;", self.ai)
+        self.assertIn("if (!running || paused || busy || (browserSync() && !browserSync().owns())) return;", self.ai)
         self.assertIn("nextObj = performance.now() + Math.max(OBJECT_DELAY, objMs * 2)", self.ai)
         self.assertIn("nextFace = performance.now() + Math.max(FACE_DELAY, ms * 1.3)", self.ai)
         self.assertIn("if (!active() || working) return lastFaces;", self.face)
