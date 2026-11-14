@@ -222,7 +222,7 @@ class FrontendControlTests(unittest.TestCase):
         self.assertIn('defenx-remote-vision-snapshot', self.camera_webrtc)
         self.assertIn('claimVisionOwner()', self.ai)
         self.assertIn('defenx-vision-owner', self.sync)
-        self.assertIn('window.DEFENX_BROWSER_VISION_SYNC.publish', self.ai)
+        self.assertIn('browserSync().publish', self.ai)
         self.assertIn('normalized_box', self.ai)
         self.assertIn('defenx-vision-sync-state', self.sync)
 
