@@ -83,7 +83,4 @@
   });
   window.addEventListener("resize", redraw);
   window.addEventListener("scroll", redraw, true);
-  window.DEFENX_LOCAL_VISION = {
-    state: () => ({ objects: false, faces: false, status: "OFF" })
-  };
 })();
