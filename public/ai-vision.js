@@ -407,7 +407,8 @@
     } else { setState("loading", "RESUMING AI VISION"); startDetection(); }
   });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) { running = true; schedule(0); }
+    if (document.hidden && visionRoomJoined && visionOwner) { releaseVisionOwner(); running = false; if (timer) clearTimeout(timer); }
+    else if (!document.hidden && !paused && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
   });
   window.addEventListener("defenx-vision-sync-state", event => {
     const detail = event.detail || {};
