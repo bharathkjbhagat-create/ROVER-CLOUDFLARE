@@ -21,7 +21,7 @@
     return;
   }
 
-  const state = { objects: false, faces: false, busy: false, timer: 0, generation: 0, errors: 0, disconnected: false, owner: false };
+  const state = { objects: false, faces: false, busy: false, timer: 0, generation: 0, errors: 0, disconnected: false, owner: true };
   const overlay = document.createElement("canvas");
   overlay.className = "localYoloCanvas localFaceCanvas";
   overlay.setAttribute("aria-label", "Unified local object and face scanning overlay");
@@ -265,6 +265,27 @@
       setFeature(feature, false, errorText(e), true);
     } finally { if (feature.button) feature.button.disabled = false; }
   }
+  window.addEventListener("defenx-vision-owner", event => {
+    state.owner = !!(event.detail && event.detail.granted);
+    if (!state.owner) {
+      state.disconnected = false;
+      const feature = state.objects ? yolo : face;
+      setFeature(feature, true, "RUNNING • another device is already scanning", true);
+    } else if (state.objects || state.faces) schedule(0);
+  });
+  window.addEventListener("defenx-remote-vision-snapshot", event => {
+    const data = event.detail || {};
+    const count = (data.detections || []).length, faceCount = (data.faces || []).length;
+    if (events) {
+      const row = document.createElement("div");
+      row.textContent = "SYNC • " + String(data.peer_id || "device") + " • " + count + " objects • " + faceCount + " faces";
+      events.prepend(row);
+      while (events.children.length > 8) events.lastChild.remove();
+    }
+  });
+  window.addEventListener("defenx-vision-sync-state", event => {
+    if (event.detail && !event.detail.connected) state.disconnected = true;
+  });
   yolo.button.addEventListener("click", () => toggle("yolo", yolo));
   face.button.addEventListener("click", () => toggle("face", face));
   if (enrollButton) enrollButton.addEventListener("click", enroll);
