@@ -51,3 +51,7 @@ The current feature branch contains dashboard scaffolding for selecting a base a
 
 ## DEFENX Simulation Lab (software only)
 `docs/SIMULATION_LAB.md` — dashboard card that simulates autonomous exploration, 10–15 minute offline operation, offline event journal + sync, obstacle detours, safe stops and return-to-base (map-selected base, arrival radius, stop-and-verify arrival). Loaded on demand. Not hardware evidence.
+
+## PC-local face recognition
+
+The dashboard includes an operator-started **PC-LOCAL FACE ID** panel that connects to the FastAPI service on the same PC at `127.0.0.1:8000`. It analyzes only the dashboard's current live camera frames, displays local gallery matches and unknown-face alerts, and does not send those frames, names or events to Cloudflare. It uses a separate local gallery from the encrypted administrator face registry. See [`FLASK-LOCAL-README.md`](FLASK-LOCAL-README.md#pc-local-face-recognition-panel) for setup and loopback/CORS requirements. The local inference service remains bound to loopback on the operator PC.
