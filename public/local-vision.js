@@ -85,6 +85,26 @@
     overlay.style.zIndex = "15";
     return true;
   }
+  const alertCooldown = new Map();
+  const vehicleNames = new Set(["bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat"]);
+  function publishObjectAlerts(detections) {
+    const alerts = window.DEFENX_ALERTS;
+    if (!alerts || typeof alerts.offer !== "function") return;
+    const cfg = alerts.config(), now = Date.now(), present = new Set();
+    for (const item of detections || []) {
+      const name = String(item.class_name || "object").toLowerCase();
+      const vehicle = vehicleNames.has(name);
+      if (item.class_id !== 0 && !vehicle) continue;
+      if (vehicle ? !cfg.vehicles : !cfg.objects && !cfg.objectClasses.includes(name)) continue;
+      const category = vehicle ? "vehicle_detected" : "object_detected";
+      const key = category + ":" + name; present.add(key);
+      if (now - (alertCooldown.get(key) || 0) < 6000) continue;
+      alertCooldown.set(key, now);
+      alerts.offer({ category, trackId: "local-vision-" + name, status: vehicle ? "LIVE VEHICLE" : "PERSON DETECTED",
+        subject: name, confidence: Number(item.confidence) || 0, engine: "DEFENX local YOLO" });
+    }
+    for (const [key, at] of alertCooldown) if (now - at > 30000 && !present.has(key)) alertCooldown.delete(key);
+  }
   function draw(data) {
     const ds = Array.isArray(data.detections) ? data.detections : [];
     const fs = Array.isArray(data.faces) ? data.faces : [];
@@ -229,6 +249,7 @@
       if (generation !== state.generation) return;
       state.errors = 0; state.disconnected = false;
       draw(result);
+      if (state.objects) publishObjectAlerts(result.detections || []);
       if (window.DEFENX_VISION_SYNC) window.DEFENX_VISION_SYNC.publish(result);
       if (state.objects) setFeature(yolo, true, "ON • YOLO " + (result.device || "CPU").toUpperCase() + " • " + (result.detections || []).length + " detections", false);
       if (state.faces) setFeature(face, true, "ON • " + (result.faces || []).length + " faces • unknown faces remain UNKNOWN", false);
