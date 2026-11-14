@@ -2,7 +2,7 @@
  * One sequential scheduler drives object detection (TensorFlow.js COCO-SSD) and
  * the face pipeline (face-recognition.js). Both read the SAME live camera element
  * and nothing else, so reference photographs can never enter this pipeline.
- * Frames stay in this browser; only alert metadata is sent to the backend.
+ * Camera frames and face descriptors stay in this browser; normalized boxes and face match states are relayed only to authenticated paired dashboards.
  * Decisions are made in vision-core.js: anything not positively established is
  * reported as UNVERIFIED rather than guessed.
  */
