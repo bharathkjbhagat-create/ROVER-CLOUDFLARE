@@ -1,13 +1,6 @@
-/* DEFENX registered-user face verification, mask detection and liveness.
- * - Runs only on the live camera element (#roverRealCamera, data-defenx-live-stream="1").
- * - Compares live faces against administrator-enrolled, consenting users only.
- * - Enrollment photographs are processed on their own canvas and are never fed to
- *   the live pipeline, so an uploaded reference photo cannot raise a detection or alert.
- * - Frames never leave the browser. Enrolled descriptors and reference photographs
- *   are encrypted with AES-256-GCM before storage in the admin-only Durable Object.
- *   There is no plaintext IndexedDB or server-side plaintext fallback.
- * Orchestrated by ai-vision.js through window.DEFENX_FACE.
- */
+/* Face ID scans only live camera frames; enrollment photos are separate.
+ * Consenting users' descriptors and photos are encrypted in admin-only storage.
+ * Frames stay in this browser. */
 (() => {
   "use strict";
   const core = window.DEFENX_VISION_CORE;
@@ -169,7 +162,7 @@
           id: tr.id, bbox: face.bbox, score: face.score, live, spoof, liveChallenge: d.live.prompt(),
           identity: resolved.identity, mask: resolved.mask, name: resolved.name, alerts: resolved.alerts,
           identityConfidence: identity.confidence || 0, maskConfidence: mask.confidence || 0,
-          reasons: resolved.reasons, possible: identity.possible || (identity.state === "RECOGNIZED" && !live ? identity.name : null), at: now
+          reasons: resolved.reasons, possible: identity.possible || (identity.state === "RECOGNIZED" && !live ? identity.name : null), identityVotes: d.idHistory.length, challengeStep: d.live.challengeIndex, at: now
         });
       }
       lastFaces = results;
@@ -209,8 +202,8 @@
       const idLine = f.identity === STATUS.RECOGNIZED ? STATUS.RECOGNIZED + " • " + f.name : f.identity;
       const conf = f.identity === STATUS.RECOGNIZED || f.identity === STATUS.UNKNOWN ? " • " + Math.round(f.identityConfidence * 100) + "%" : "";
       const promptLabel = { blink: "BLINK", mouth: "OPEN AND CLOSE MOUTH", turn_left: "TURN HEAD LEFT", turn_right: "TURN HEAD RIGHT" };
-      const prompt = f.liveChallenge ? " • ACTION: " + (promptLabel[f.liveChallenge] || "FOLLOW PROMPT") : "";
-      const extra = (f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • MATCH: " + f.possible + " • confirm live action" : ""))) + prompt;
+      const prompt = f.liveChallenge ? " • ACTION " + ((f.challengeStep || 0) + 1) + "/3: " + (promptLabel[f.liveChallenge] || "FOLLOW PROMPT") : "";
+      const extra = (f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.identity === STATUS.UNVERIFIED && !f.live ? (f.possible ? " • MATCH: " + f.possible + " • confirm live action" : (f.identityVotes < 3 ? " • MATCHING FACE (" + (f.identityVotes || 0) + "/3)" : " • NO ENROLLED FACE MATCH")) : ""))) + prompt;
       const maskText = f.mask + (f.mask === STATUS.NOT_CLEAR ? "" : " • " + Math.round(f.maskConfidence * 100) + "%");
       row.children[0].textContent = idLine + conf;
       row.children[1].textContent = maskText + extra;
