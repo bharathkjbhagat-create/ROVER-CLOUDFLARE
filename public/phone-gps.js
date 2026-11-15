@@ -1,17 +1,27 @@
 (()=>{"use strict";
 let watchId=null,latest=null,marker=null,accuracyCircle=null,centered=false,following=true,mapBound=false,pendingRender=false,lastCenter=null,phoneIcon=null,renderQueued=false,staleTimer=null;
 const remoteLocations=new Map();
+const gpsButton=()=>document.getElementById("phoneGpsSyncBtn");
+const isDemo=window.location.pathname==="/"||window.location.pathname==="/demo"||new URLSearchParams(window.location.search).get("demo")==="1";
+function updateControl(status){
+ const button=gpsButton(),active=watchId!==null;
+ if(button){button.disabled=isDemo;button.textContent=isDemo?"GPS SYNC UNAVAILABLE IN DEMO":(active?"STOP PHONE GPS SYNC":"START PHONE GPS SYNC");button.setAttribute("aria-pressed",String(active));}
+ const ws=window.roverWS,synced=!!ws&&ws.readyState===WebSocket.OPEN;
+ const label=status||(active?(latest?(synced?"LIVE • SHARING WITH SIGNED-IN DEVICES":"GPS LIVE • DEVICE SYNC DISCONNECTED"):"REQUESTING PHONE LOCATION…"):"OFF • LOCATION NOT SHARED");
+ set("phoneGpsSyncStatus",label);
+}
 const $=id=>document.getElementById(id);
 const set=(id,value)=>{const el=$(id);if(el)el.textContent=value;};
 const quality=m=>m<=20?"GOOD":m<=100?"FAIR":"POOR";
 const valid=(lat,lon)=>Number.isFinite(lat)&&lat>=-90&&lat<=90&&Number.isFinite(lon)&&lon>=-180&&lon<=180;
 function publish(active){
  const ws=window.roverWS;
- if(!ws||ws.readyState!==WebSocket.OPEN)return false;
+ if(!ws||ws.readyState!==WebSocket.OPEN){updateControl(active?"GPS LIVE • DEVICE SYNC DISCONNECTED":"OFF • LOCATION NOT SHARED");return false;}
  try{
   ws.send(JSON.stringify(active&&latest?{type:"phone_gps",active:true,lat:latest.lat,lon:latest.lon,accuracy_m:latest.accuracy}:{type:"phone_gps",active:false}));
+  updateControl(active?"LIVE • SHARING WITH SIGNED-IN DEVICES":"OFF • LOCATION NOT SHARED");
   return true;
- }catch(_){return false;}
+ }catch(_){updateControl("GPS LIVE • DEVICE SYNC DISCONNECTED");return false;}
 }
 function removeRemote(sessionId){
  const entry=remoteLocations.get(sessionId);if(!entry)return;
@@ -63,18 +73,29 @@ function onPosition(position){
  set("mapCoords",lat.toFixed(6)+"° "+(lat>=0?"N":"S")+"  "+lon.toFixed(6)+"° "+(lon>=0?"E":"W"));
  set("mapTileStatus","PHONE GPS FIX • ±"+Math.round(accuracy)+" m");set("deviceGpsState","PHONE • ±"+Math.round(accuracy)+" m");
  scheduleRender();
- publish(true);
+ const synced=publish(true);
+ updateControl(synced?"LIVE • SHARING WITH SIGNED-IN DEVICES":"GPS LIVE • DEVICE SYNC DISCONNECTED");
 }
 function onError(error){
  const message=error?.code===1?"Location permission denied":error?.code===2?"Phone location unavailable":"Phone GPS timed out";
  set("gpsHeader","PHONE GPS");set("gpsHeaderSub",message);set("gpsSignalText",message.toUpperCase());set("mapTileStatus",message.toUpperCase());
  set("deviceGpsState",error?.code===1?"PERMISSION DENIED":error?.code===2?"UNAVAILABLE":"NO FIX YET");
+ if(error?.code===1){
+  publish(false);
+  if(watchId!==null)navigator.geolocation?.clearWatch(watchId);
+  watchId=null;latest=null;window.DEFENX_PHONE_GPS_LATEST=null;
+  if(staleTimer){clearInterval(staleTimer);staleTimer=null;}
+  const map=window.__defenxGetMap?.();if(map){if(marker)map.removeLayer(marker);if(accuracyCircle)map.removeLayer(accuracyCircle);}
+  marker=null;accuracyCircle=null;centered=false;
+  set("mapCoords","PHONE GPS PERMISSION DENIED");
+ }
+ updateControl(error?.code===1?"ERROR • LOCATION PERMISSION DENIED":"WAITING • PHONE LOCATION UNAVAILABLE");
 }
 // A fix that stops arriving is reported as stale instead of silently showing an old position.
 function checkStale(){
  if(!latest)return;
  const age=Date.now()-latest.timestamp;
- if(age>30000){set("gpsHeaderSub","Last fix "+Math.round(age/1000)+" s ago • waiting for update");set("mapTileStatus","PHONE GPS STALE");set("deviceGpsState","STALE");}
+ if(age>30000){set("gpsHeaderSub","Last fix "+Math.round(age/1000)+" s ago • waiting for update");set("mapTileStatus","PHONE GPS STALE");set("deviceGpsState","STALE");updateControl("STALE • WAITING FOR PHONE LOCATION");}
  else publish(true);
 }
 function stop(){
@@ -86,21 +107,28 @@ function stop(){
  if(map){if(marker)map.removeLayer(marker);if(accuracyCircle)map.removeLayer(accuracyCircle);}
  marker=null;accuracyCircle=null;mapBound=false;pendingRender=false;lastCenter=null;phoneIcon=null;
  set("gpsHeader","GPS");set("gpsHeaderSub","Phone GPS stopped");set("gpsSignalText","PHONE GPS STOPPED");
+ set("mapTileStatus","PHONE GPS SYNC OFF");set("deviceGpsState","OFF");set("mapCoords","PHONE GPS SYNC OFF");updateControl("OFF • LOCATION NOT SHARED");
 }
 function start(){
- if(watchId!==null)return;
+ if(isDemo||watchId!==null)return;
  set("gpsHeader","PHONE GPS");set("gpsHeaderSub","Requesting location permission…");set("gpsSignalText","WAITING FOR PHONE GPS");set("mapTileStatus","ACQUIRING PHONE GPS…");set("deviceGpsState","ACQUIRING");
  if(!staleTimer)staleTimer=setInterval(checkStale,10000);
  try{navigator.permissions?.query({name:"geolocation"}).then(r=>{r.onchange=()=>{if(r.state==="denied")onError({code:1});else if(watchId!==null&&!latest)set("gpsHeaderSub","Permission granted • acquiring…");};if(r.state==="denied")onError({code:1});}).catch(()=>{});}catch(_){}
  if(!navigator.geolocation){onError({code:2});return;}
  try{watchId=navigator.geolocation.watchPosition(onPosition,onError,{enableHighAccuracy:true,maximumAge:1000,timeout:20000});}
  catch(_){watchId=null;onError({code:2});}
+ updateControl();
 }
 window.DEFENX_PHONE_GPS_CONTROL=active=>active?start():stop();
 window.DEFENX_PHONE_GPS_RENDER=render;
-window.DEFENX_PHONE_GPS_SYNC=()=>{if(watchId!==null&&latest)publish(true);};
+window.DEFENX_PHONE_GPS_SYNC=()=>{if(watchId!==null&&latest){publish(true);updateControl();}};
 window.DEFENX_PHONE_GPS_REMOTE=showRemote;
-window.addEventListener("visibilitychange",()=>{if(!document.hidden&&watchId!==null&&latest)publish(true);});
+window.addEventListener("visibilitychange",()=>{if(!document.hidden&&watchId!==null&&latest){publish(true);updateControl();}});
+window.addEventListener("DOMContentLoaded",()=>{
+ const button=gpsButton();
+ button?.addEventListener("click",()=>watchId===null?start():stop());
+ updateControl();
+});
 window.addEventListener("pagehide",stop);
 })();
 

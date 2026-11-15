@@ -841,10 +841,10 @@ window.__defenxGetMap=()=>map;
 window.__defenxSetPhoneCameraActive=(active)=>{
 phoneCameraActive=!!active;
 realCameraActive=!!active;
-window.DEFENX_PHONE_GPS_CONTROL?.(!!active);
+
 if(!active){realCameraInitialized=false;initRealCameraStream();}
 };
-function initLiveGPSFeed(){setText("gpsSignalText","WAITING FOR CAMERA GPS");setText("deviceGpsState","NOT ACTIVE");}
+function initLiveGPSFeed(){setText("gpsSignalText","PHONE GPS OFF • START SYNC TO SHARE");setText("deviceGpsState","OFF");}
 function randomDemoPoint(){return {lat:12.9716+(Math.random()-0.5)*0.018,lon:77.5946+(Math.random()-0.5)*0.022};}
 async function loop(){
 if(telemetryBusy)return;
