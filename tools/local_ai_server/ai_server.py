@@ -20,7 +20,7 @@ from typing import Any
 import cv2
 import numpy as np
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
+
 
 MAX_IMAGE_BYTES = 10 * 1024 * 1024
 VEHICLE_CLASSES = {1, 2, 3, 4, 5, 6, 7, 8}
@@ -363,3 +363,4 @@ def create_app(engine: VisionEngine | None = None) -> FastAPI:
 
 
 app = create_app()
+

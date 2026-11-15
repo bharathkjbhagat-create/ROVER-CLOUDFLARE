@@ -97,6 +97,12 @@ if not SESSION_SECRET:
             str(_session_seed).encode("utf-8")
         ).hexdigest()
 SESSION_SECRET_CONFIGURED = bool(SESSION_SECRET)
+# True only when a dedicated SESSION_SECRET binding exists. A key derived from another credential
+# (device token / password / hash) means anyone holding that credential can forge session cookies.
+SESSION_SECRET_DEDICATED = bool(_config("SESSION_SECRET"))
+if SESSION_SECRET_CONFIGURED and not SESSION_SECRET_DEDICATED:
+    print("DEFENX SECURITY WARNING: SESSION_SECRET is not set; session key is derived from another credential. "
+          "Set a dedicated random SESSION_SECRET (wrangler secret put SESSION_SECRET).")
 # Cloudflare validates/imports the module during deployment. If no secret
 # binding exists at all, login returns a clear configuration error rather than
 # producing an opaque 500.
@@ -1041,6 +1047,7 @@ def health():
         "service": "ROVER-01",
         "runtime": "cloudflare-worker",
         "session_configured": bool(SESSION_SECRET),
+        "session_secret_dedicated": SESSION_SECRET_DEDICATED,
         "admin_configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD),
         "legacy_bridge_configured": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL and CF_ENV is not None),
         "legacy_auth_enabled": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL),
@@ -1295,7 +1302,7 @@ def login():
                     if not user["enabled"] or not safe_check_password_hash(user["password_hash"], password):
                         record_login_failure(ip)
                         audit("LOGIN_FAILED", "Invalid login attempt")
-                        return jsonify({"ok": False, "error": "Invalid password.", "field": "password"}), 401
+                        return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "password"}), 401
                     cur.execute(
                         """UPDATE users SET display_name=%s,role='user',
                            enabled=TRUE,can_control=TRUE,can_manage_users=FALSE,
@@ -1320,7 +1327,7 @@ def login():
                     if not valid:
                         record_login_failure(ip)
                         audit("LOGIN_FAILED", "Invalid login attempt")
-                        return jsonify({"ok": False, "error": "Invalid password.", "field": "password"}), 401
+                        return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "password"}), 401
                     friend_id = str(uuid.uuid4())
                     cur.execute(
                         """INSERT INTO users
@@ -1338,11 +1345,11 @@ def login():
             elif not user:
                 record_login_failure(ip)
                 audit("LOGIN_FAILED", "Invalid login attempt")
-                return jsonify({"ok": False, "error": "Invalid login ID.", "field": "username"}), 401
+                return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
             elif not user["enabled"] or not safe_check_password_hash(user["password_hash"], password):
                 record_login_failure(ip)
                 audit("LOGIN_FAILED", "Invalid login attempt")
-                return jsonify({"ok": False, "error": "Invalid password.", "field": "password"}), 401
+                return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "password"}), 401
             else:
                 cur.execute("UPDATE users SET last_login_at=NOW() WHERE id=%s", (user["id"],))
                 user = dict(user)

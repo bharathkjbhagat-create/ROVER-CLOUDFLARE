@@ -71,9 +71,33 @@ test("ATTACK bent / curled photo (slow smooth warp) is never live", () => {
   const r = sequence(600, i => { const bend = 0.10 * Math.sin(i / 20); return transform(base(), (x, y) => [x * (1 + bend * (y / 60)), y * (1 - bend * (x / 120))]); });
   assert.equal(r.verifiedFrames, 0);
 });
-test("ATTACK phone-screen replay of a blinking, talking face is blocked by picture context on every frame", () => {
-  const live = sequence(300, i => landmarks(200, 200, 60, { eye: (i % 40 >= 12 && i % 40 < 15) ? 0.3 : 1, mouth: (i % 50 >= 20 && i % 50 < 26) ? 1 : 0 }));
-  assert.equal(live.anyVerified, true, "a replayed video DOES animate the landmarks, so liveness alone cannot stop it");
+// Performs one prompted cue the way a live person would (frames at 10 fps), returns the next timestamp.
+function perform(lv, cue, t) {
+  const open = () => landmarks(200, 200, 60);
+  const frame = (pts) => { lv.update(pts, t); t += FPS_MS; };
+  for (let i = 0; i < 8; i++) frame(open());                 // warm-up: eye baseline needs >= 6 samples
+  if (cue === "blink") { for (let i = 0; i < 3; i++) frame(landmarks(200, 200, 60, { eye: 0.3 })); }
+  else if (cue === "mouth") { for (let i = 0; i < 3; i++) frame(landmarks(200, 200, 60, { mouth: 1 })); }
+  else { const yaw = cue === "turn_left" ? -0.3 : 0.3; for (let i = 0; i < 3; i++) frame(landmarks(200, 200, 60, { yaw })); }
+  for (let i = 0; i < 4; i++) frame(open());                 // return to neutral completes the cue
+  return t;
+}
+test("LIVENESS a person who performs every prompted cue (any random challenge) is verified", () => {
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+    let s = seed; const rng = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    const lv = new core.Liveness(rng); let t = 0, guard = 0;
+    while (lv.prompt() && guard++ < 10) t = perform(lv, lv.prompt(), t);
+    assert.equal(lv.verified(t), true, "seed " + seed + " challenge " + lv.challenge.join(","));
+  }
+});
+test("ATTACK phone-screen replay of a blinking, talking face (no head turn) can never pass the random challenge, and picture context blocks it on every frame", () => {
+  // Any 3 of the 4 cues {blink, mouth, turn_left, turn_right} must include a head turn, so a replay that only blinks/talks cannot verify.
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) {
+    let s = seed; const rng = () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; };
+    const lv = new core.Liveness(rng); let t = 0, verified = false;
+    for (let i = 0; i < 300; i++) { lv.update(landmarks(200, 200, 60, { eye: (i % 40 >= 12 && i % 40 < 15) ? 0.3 : 1, mouth: (i % 50 >= 20 && i % 50 < 26) ? 1 : 0 }), t); if (lv.verified(t)) verified = true; t += FPS_MS; }
+    assert.equal(verified, false, "seed " + seed);
+  }
   for (const screen of [{ cls: "cell phone", containment: 0.85 }, { cls: "tv", containment: 0.9 }, { cls: "laptop", containment: 0.8 }]) {
     for (let frames = 1; frames <= 40; frames += 13) {
       const v = verdictFor({ class: "person", score: 0.95, bbox: [100, 50, 60, 100] }, { frames, liveFace: true, screen });
@@ -85,10 +109,11 @@ test("ATTACK phone-screen replay of a blinking, talking face is blocked by pictu
 test("ATTACK photo/video inside a straight-edged frame (border cue) is never LIVE HUMAN", () => {
   for (const frames of [1, 6, 30]) assert.notEqual(verdictFor({ class: "person", score: 0.9, bbox: [50, 50, 100, 200] }, { frames, liveFace: true, border: { all: true } }).status, STATUS.LIVE_HUMAN);
 });
-test("KNOWN LIMITATION full-frame video replay with no visible bezel passes liveness (needs challenge-response or depth hardware)", () => {
+test("ATTACK full-frame video replay with no visible bezel (passive blinks only) is not verified live and is never LIVE HUMAN", () => {
+  // Previously a known limitation (passive liveness). Mitigated by the randomized challenge-response in Liveness; see docs/ACCEPTANCE_REPORT.md.
   const live = sequence(300, i => landmarks(200, 200, 60, { eye: (i % 40 >= 12 && i % 40 < 15) ? 0.3 : 1 }));
+  assert.equal(live.anyVerified, false);
   const v = verdictFor({ class: "person", score: 0.95, bbox: [100, 50, 60, 100] }, { frames: 10, liveFace: live.anyVerified });
-  // This test pins the CURRENT behaviour so nobody assumes this attack is covered. If a mitigation is added,
-  // flip the assertion and update docs/ACCEPTANCE_REPORT.md.
-  assert.equal(v.status, STATUS.LIVE_HUMAN);
+  assert.notEqual(v.status, STATUS.LIVE_HUMAN);
 });
+
