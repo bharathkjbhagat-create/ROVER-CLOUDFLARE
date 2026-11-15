@@ -342,26 +342,30 @@
   function releaseVisionOwner() { if (browserSync()) browserSync().release(); }
   async function startDetection() {
     failures = 0;
+    if (running) return;
     if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
     if (!claimVisionOwner()) { running = false; if (timer) clearTimeout(timer); setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER"); return; }
     try {
       checkReadable(source);
       window.dispatchEvent(new Event("defenx-camera-live"));
-      if (face()) face().boot();
-      try { await ensureModel(); objectModelFailed = false; }
-      catch (error) {
-        if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
-        objectModelFailed = true; // keep the face pipeline running even if COCO-SSD cannot load
-        if (!face()) throw error;
-      }
-      if (paused || !sourceReady(source)) return;
+      const f = face();
+      if (f) f.boot();
+      // Start frame analysis now; it must not wait for the separate object model download.
       running = true;
       toggle.disabled = false;
       toggle.textContent = "PAUSE AI";
       nextObj = nextFace = 0;
       schedule(0);
+      try { await ensureModel(); objectModelFailed = false; }
+      catch (error) {
+        if (/taint|cross.origin|securityerror/i.test(String(error && error.message || error))) throw error;
+        objectModelFailed = true; // face analysis keeps running if COCO-SSD is unavailable
+        if (!f) throw error;
+      }
+      if (paused || !sourceReady(source)) { running = false; if (timer) clearTimeout(timer); return; }
     } catch (error) {
       running = false;
+      if (timer) clearTimeout(timer);
       releaseVisionOwner();
       setState("error", /taint|cross.origin|securityerror/i.test(String(error && error.message || error))
         ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
