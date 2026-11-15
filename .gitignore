@@ -4,7 +4,15 @@ __pycache__/
 .env
 .env.*
 !.env.example
+!.env.local.example
 .wrangler/
 node_modules/
 .DS_Store
-\n# Local model weights and private face templates\n/.venv-local-ai/\n/data/face_gallery.json\n/data/face_gallery.tmp\n/models/*.onnx\n/yolov8n.pt\n
+
+# Local model weights and private face templates
+/.venv-local-ai/
+/data/face_gallery.json
+/data/face_gallery.tmp
+/models/*.onnx
+/yolov8n.pt
+

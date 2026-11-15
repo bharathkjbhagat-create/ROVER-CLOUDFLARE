@@ -1,5 +1,4 @@
 import json
-import base64
 import hashlib
 import hmac
 import math
@@ -12,7 +11,7 @@ from workers import DurableObject, Response, WorkerEntrypoint, wsgi
 from werkzeug.security import check_password_hash
 
 from fleet_do import FleetDOLogic
-from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME, runtime_users, runtime_password_hashes, safe_check_password_hash
+from app import app, LEGACY_AUTH_ENABLED, LEGACY_AUTH_URL, SESSION_SECRET, ADMIN_USERNAME
 
 
 class RealtimeHub(DurableObject):
@@ -1289,4 +1288,5 @@ class Default(WorkerEntrypoint):
                     },
                 )
             raise
+
 

@@ -13,7 +13,9 @@
   function claim() {
     wanted = true;
     const sync = window.DEFENX_VISION_SYNC;
-    if (!sync || !joined) { owned = true; notify(); return true; }
+    // Standalone (no joined sync session): this browser always owns scanning. Only notify on a real
+    // change - the owner listener calls claim() again, so an unconditional notify() recurses forever.
+    if (!sync || !joined) { const changed = !owned; owned = true; if (changed) notify(); return true; }
     if (owned) return true;
     if (!pending) pending = !!sync.setOwner(true);
     if (!pending) notify("CONNECTING TO DEVICE SYNC");

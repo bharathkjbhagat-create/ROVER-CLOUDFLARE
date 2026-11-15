@@ -52,6 +52,37 @@ class ButtonAudit(unittest.TestCase):
         for attrs, label in self.buttons:
             self.assertIn("type=", attrs, "button without explicit type (would submit a form): " + attrs[:60])
 
+    # Buttons that intentionally share a handler because they live in different, never-simultaneous contexts.
+    SHARED_HANDLER_ALLOWED = {frozenset({"logoutBtn", "sideLogoutBtn"})}
+
+    def test_no_two_buttons_are_bound_to_the_same_click_handler(self):
+        ids = {m for attrs, _ in self.buttons for m in re.findall(r'\bid="([^"]+)"', attrs)}
+        by_fn = {}
+        for js in PUBLIC.glob("*.js"):
+            if js.name in SKIP_JS:
+                continue
+            text = js.read_text(encoding="utf-8")
+            for bid, fn in re.findall(r'\$\("([A-Za-z0-9_]+)"\)\??\.addEventListener\("click",\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)', text):
+                if bid in ids:
+                    by_fn.setdefault((js.name, fn), set()).add(bid)
+        dupes = {k: sorted(v) for k, v in by_fn.items() if len(v) > 1 and frozenset(v) not in self.SHARED_HANDLER_ALLOWED}
+        self.assertEqual(dupes, {}, "duplicate controls: different buttons run the same handler")
+
+    def test_icon_only_camera_buttons_have_accessible_names(self):
+        for bid in ("camShotBtn", "camRecordBtn", "camFullscreenBtn"):
+            m = re.search(r'<button[^>]*id="%s"[^>]*>' % bid, self.html)
+            self.assertIsNotNone(m, bid)
+            self.assertIn("aria-label=", m.group(0), bid)
+
+    def test_return_to_base_exists_once_on_the_dashboard(self):
+        fleet = (PUBLIC / "fleet-panel.js").read_text(encoding="utf-8")
+        self.assertNotIn('btn("↩ RETURN TO BASE"', fleet)
+        self.assertEqual(self.html.count('id="returnToBaseBtn"'), 1)
+        app = (PUBLIC / "app.js").read_text(encoding="utf-8")
+        i = app.index("function requestReturnToBase")
+        self.assertIn("confirm(", app[i:i + 600], "fleet return-to-base must ask for confirmation")
+
 
 if __name__ == "__main__":
     unittest.main()
+

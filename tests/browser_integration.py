@@ -11,6 +11,7 @@ reachable from the test sandbox, so that must be verified on a real device.
 Usage: python tests/browser_integration.py http://localhost:5077 ROVERADMIN <password>
 """
 import json
+import tempfile
 import mimetypes
 import struct
 import sys
@@ -162,11 +163,12 @@ def main():
         page.wait_for_function("document.getElementById('faceStorageNote').textContent.length>0")
         check("enrollment tab visible, other tabs hidden", page.evaluate("!document.getElementById('faceTab').classList.contains('hidden') && document.getElementById('usersTab').classList.contains('hidden')"))
         note = page.inner_text("#faceStorageNote")
-        check("fallback storage is stated honestly when no database", "THIS browser" in note, note)
+        check("storage mode is stated honestly (encrypted server storage; no browser-local plaintext fallback exists)", ("Stored encrypted" in note or "storage unavailable" in note) and "THIS browser" not in note, note)
         page.evaluate("window.__t0 = Date.now() - 2000")  # ignore server-side history from earlier runs
         page.fill("#faceEnrollName", "Asha Rao")
-        Path("/tmp/claude-0/ref.png").write_bytes(png_bytes())
-        page.set_input_files("#faceEnrollFile", "/tmp/claude-0/ref.png")
+        ref_png = Path(tempfile.gettempdir()) / "defenx_ref.png"
+        ref_png.write_bytes(png_bytes())
+        page.set_input_files("#faceEnrollFile", str(ref_png))
         page.click("#faceEnrollBtn")
         page.wait_for_timeout(500)
         check("consent is required to enroll", "consent" in page.inner_text("#faceEnrollMsg").lower(), page.inner_text("#faceEnrollMsg"))

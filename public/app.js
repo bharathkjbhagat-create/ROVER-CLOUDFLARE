@@ -1,8 +1,5 @@
-
 window.ROVER_DEVICE_IMAGE="/rover-device.webp";
-
 window.ROVER_LEFT_IMAGE="/rover-left.webp";
-
 (function(){
 "use strict";
 const demoMode = window.location.pathname === "/" || window.location.pathname === "/demo" || new URLSearchParams(window.location.search).get("demo") === "1";
@@ -133,7 +130,6 @@ updateNotificationSoundUI();
 setText("alertStatus",notificationSoundEnabled?"Notification sound ENABLED.":"Notification sound MUTED.");
 }
 const demoCenter=[12.9716,77.5946];
-
 const $=id=>document.getElementById(id);
 const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 function setText(id,v){const target=id==="conn"?"connStatus":id;const e=$(target);if(e)e.textContent=v;}
@@ -141,7 +137,6 @@ function show(id){const e=$(id);if(e)e.classList.remove("hidden")}
 function hide(id){const e=$(id);if(e)e.classList.add("hidden")}
 function openModal(id){show(id)}
 function closeModal(id){const e=$(id);if(e)e.classList.add("hidden")}
-
 async function api(url,options={}){
 if(demoMode)throw new Error("This action is unavailable in the read-only demo.");
 const controller=new AbortController();
@@ -159,7 +154,6 @@ throw new Error("Login required");
 }
 return r;
 }
-
 function isValidMapPoint(lat,lon){
 const latitude=Number(lat),longitude=Number(lon);
 return Number.isFinite(latitude)&&latitude>=-90&&latitude<=90&&Number.isFinite(longitude)&&longitude>=-180&&longitude<=180;
@@ -358,8 +352,6 @@ const d=await r.json();
 setText("deviceMsg",d.ok?"Device added successfully.":(d.error||"Could not add device"));
 if(d.ok){$("newDeviceCode").value="";$("newDeviceName").value="";$("newDeviceNotes").value="";await loadDevices();}
 }
-
-
 function realtimeEndpoint(){
 const proto=location.protocol==="https:"?"wss":"ws";
 return proto+"://"+location.host+"/api/ws";
@@ -604,7 +596,6 @@ const x=c.getContext("2d");if(!x)return;x.clearRect(0,0,w,h);if(!samples.length)
 x.strokeStyle="#1e3444";x.lineWidth=devicePixelRatio;for(let i=1;i<5;i++){let y=h*i/5;x.beginPath();x.moveTo(0,y);x.lineTo(w,y);x.stroke()}
 const draw=(k,col)=>{x.strokeStyle=col;x.lineWidth=2*devicePixelRatio;x.beginPath();samples.forEach((v,i)=>{const xx=i/Math.max(1,samples.length-1)*w,yy=h-(v[k]/100)*h;i?x.lineTo(xx,yy):x.moveTo(xx,yy)});x.stroke()};draw("b","#22d3a6");draw("s","#4aa3ff");
 }
-
 function renderRecentActivity(){
 const el=$("recentActivity");if(!el)return;
 const persistent=lastKnownLoss?(()=>{
@@ -846,7 +837,6 @@ video.play().catch(()=>{});
 realCameraActive=false;
 }
 }
-
 window.__defenxGetMap=()=>map;
 window.__defenxSetPhoneCameraActive=(active)=>{
 phoneCameraActive=!!active;
@@ -885,7 +875,6 @@ setTimeout(async()=>{await loop();scheduleTelemetry()},delay);
 }
 let returnBaseMarker=null,returnBaseSelection=false,returnBase=null;
 let returnRouteLine=null,returnRouteMode="none",lastRoadRouteCache=null,lastRoadRouteRequestAt=0;
-
 try{const saved=localStorage.getItem("defenx_return_base");if(saved){const parsed=JSON.parse(saved);if(parsed&&Number.isFinite(parsed.lat)&&Number.isFinite(parsed.lon)&&parsed.lat>=-90&&parsed.lat<=90&&parsed.lon>=-180&&parsed.lon<=180)returnBase=parsed;else localStorage.removeItem("defenx_return_base");}}catch(_){}
 function renderReturnBase(){
 if(!mapReady||!map)return;
@@ -978,6 +967,7 @@ addLog("BASE",demoMode?"Simulated base saved in this browser; no rover movement 
 }
 async function requestReturnToBase(){
 if(!demoMode&&window.DEFENX_FLEET&&window.DEFENX_FLEET.active()){
+if(!confirm("Start autonomous return to base? Keep clear; be ready to press EMERGENCY STOP.")){setText("returnBaseStatus","RETURN CANCELLED");return;}
 const res=await window.DEFENX_FLEET.returnToBase();
 setText("returnBaseStatus",res.ok?"RETURN REQUESTED · WAITING FOR ROVER ACKNOWLEDGEMENT":"RETURN BLOCKED · "+String(res.message).toUpperCase());
 addLog(res.ok?"RETURN":"RETURN BLOCKED",res.ok?"Return-to-base request sent to the rover; no arrival is claimed until the rover confirms it":res.message);
@@ -997,7 +987,6 @@ alert("Return to Base is not started. The connected controller must confirm auto
 addLog("RETURN BLOCKED","A verified hardware return-to-base command endpoint is not yet configured; no movement command was sent");
 setText("returnBaseStatus","RETURN BLOCKED · HARDWARE COMMAND ENDPOINT REQUIRED");
 }
-
 async function sendCommand(command){
 if(demoMode){addLog("DEMO","Rover commands are disabled in the read-only demo");return false;}
 if(!me){try{await loadMe()}catch(_){addLog("DENIED","User session is still loading");return false;}}
@@ -1049,7 +1038,6 @@ new Promise(resolve=>setTimeout(resolve,1500))
 }catch(_){}
 location.replace("/login.html");
 }
-
 async function saveProfile(){
 const payload={display_name:$("profileName").value.trim(),new_password:$("profilePassword").value};
 const r=await api("/api/profile",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const d=await r.json();
@@ -1066,7 +1054,6 @@ $("userTable").innerHTML="<div class='panelTitle'>"+friendCount+" USER ACCOUNTS"
 "<table><tr><th>User ID</th><th>User</th><th>Role</th><th>Status</th><th>Control</th><th>Manage</th><th>Last login</th><th>Actions</th></tr>"+
 users.map(u=>"<tr><td><small>"+esc(u.id)+"</small></td><td><b>"+esc(u.display_name)+"</b><small>"+esc(u.username)+"</small></td><td>"+esc(u.role)+"</td><td>"+(u.enabled?"ENABLED":"DISABLED")+"</td><td>"+(u.can_control?"YES":"NO")+"</td><td>"+(u.can_manage_users?"YES":"NO")+"</td><td>"+esc(u.last_login_at?new Date(u.last_login_at).toLocaleString():"Never")+"</td><td><button class='mini' data-user='"+esc(u.id)+"' data-action='toggle' data-value='"+(!u.enabled)+"'>"+(u.enabled?"DISABLE":"ENABLE")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='control' data-value='"+(!u.can_control)+"'>"+(u.can_control?"CONTROL OFF":"CONTROL ON")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='manage' data-value='"+(!u.can_manage_users)+"'>"+(u.can_manage_users?"MANAGE OFF":"MANAGE ON")+"</button> <button class='mini' data-user='"+esc(u.id)+"' data-action='name'>EDIT NAME</button> <button class='mini dangerMini' data-user='"+esc(u.id)+"' data-action='password' data-username='"+esc(u.username)+"'>RESET PASSWORD</button></td></tr>").join("")+"</table>";
 }
-
 async function userAction(el){
 const id=el.dataset.user,action=el.dataset.action;let body={};
 if(action==="toggle")body.enabled=el.dataset.value==="true";
@@ -1126,8 +1113,6 @@ initMobileNav();
 addLog("UI",light?"Light theme enabled":"Dark theme enabled");
 recordActivity("THEME_CHANGED",light?"Light theme enabled":"Dark theme enabled");
 }
-
-
 function loadDashboardAudit(){
 const el=$("dashboardAuditTable");if(!el)return;
 if(!me||me.role!=="admin"){el.innerHTML="<div class='empty'>Admin.</div>";return}
@@ -1229,7 +1214,6 @@ panel.setAttribute("aria-hidden",String(!open));btn.setAttribute("aria-expanded"
 });
 }
 }
-
 function initCameraObstacleSimulation(room){
 if(!room||room.dataset.obstaclesBound==="1")return;
 room.dataset.obstaclesBound="1";
@@ -1303,7 +1287,6 @@ applyTarget(!!d.detected,d.type||"object");
 window.addEventListener("roomobstacledestroy",()=>{});
 setTimeout(()=>applyTarget(!!window.ROVER_CAMERA_TARGET_STATE?.detected,window.ROVER_CAMERA_TARGET_STATE?.type),0);
 }
-
 function initCamera3DRoom(){
 const scene=$("camera3DScene"),room=$("camera3DRoom"),readout=$("camera360Heading");
 if(!scene||!room||scene.dataset.bound==="1")return;
@@ -1390,7 +1373,7 @@ document.querySelectorAll(".mapTab").forEach(b=>b.addEventListener("click",()=>s
 $("mapFollowBtn")?.addEventListener("click",()=>setMapFollow(!followRover));
 $("mapFullscreenBtn")?.addEventListener("click",toggleMapFullscreen);
 document.addEventListener("fullscreenchange",syncMapFullscreenUI);
-$("quickCenterBtn")?.addEventListener("click",centerRover);$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);$("screenShotBtn")?.addEventListener("click",captureScreen);
+$("quickFitBtn")?.addEventListener("click",fitTrack);$("quickSatBtn")?.addEventListener("click",()=>setMapMode(satelliteOn?"map":"satellite"));$("liveTrackBtn")?.addEventListener("click",setLiveTracking);$("nightModeBtn")?.addEventListener("click",toggleNightMode);
 $("camShotBtn")?.addEventListener("click",captureScreen);$("camRecordBtn")?.addEventListener("click",toggleCameraRecording);
 $("camFullscreenBtn")?.addEventListener("click",async()=>{
 const el=$("cameraViewport");if(!el)return;
@@ -1416,7 +1399,6 @@ window.addEventListener("error",()=>{if(me)setText("conn","● DEGRADED")});
 window.addEventListener("unhandledrejection",()=>{if(me)setText("conn","● DEGRADED")});
 window.addEventListener("offline",()=>{if(me)setText("conn","● DASHBOARD NETWORK OFFLINE")});
 window.addEventListener("online",()=>{if(me){setText("conn","● RECONNECTING");loadLastKnownLocation().catch(()=>{});loop()}});
-
 window.addEventListener("pageshow",event=>{
 if(event.persisted && me){
 setText("conn","● RECONNECTING");
@@ -1425,7 +1407,6 @@ loadBootstrap().then(()=>loadLastKnownLocation()).catch(()=>{});
 });
 async function bootDashboard(){
 const leftImg=$("leftRoverImage"); if(leftImg&&window.ROVER_LEFT_IMAGE) leftImg.src=window.ROVER_LEFT_IMAGE;
-
 bindUI();
 updateNotificationSoundUI();
 if(demoMode){

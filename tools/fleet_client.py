@@ -12,7 +12,6 @@ the integration tests, and as executable documentation of the protocol.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import hmac
 import json
 import os
@@ -161,3 +160,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

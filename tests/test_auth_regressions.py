@@ -122,5 +122,50 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("runtime_password_hashes = {}", source)
 
 
+class LoginErrorUniformityTests(unittest.TestCase):
+    """User-visible login errors must not reveal whether a login ID exists."""
+
+    def setUp(self):
+        self.client = rover_app.app.test_client()
+        rover_app.clear_login_failures("127.0.0.1")
+
+    def tearDown(self):
+        rover_app.clear_login_failures("127.0.0.1")
+
+    def test_unknown_id_and_wrong_admin_password_show_identical_error_text(self):
+        with patch.object(rover_app, "DATABASE_URL", None), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
+             patch.object(rover_app, "db_available", return_value=False), \
+             patch.object(rover_app, "ensure_db", return_value=None):
+            unknown = self.client.post("/api/login", json={"username": "NO-SUCH-ID", "password": "x" * 12})
+            wrong = self.client.post("/api/login", json={"username": rover_app.ADMIN_USERNAME, "password": "wrong-password-1"})
+        self.assertEqual(unknown.status_code, 401)
+        self.assertEqual(wrong.status_code, 401)
+        self.assertEqual(unknown.get_json()["error"], wrong.get_json()["error"])
+
+    def test_no_failure_path_uses_the_distinguishing_legacy_messages(self):
+        source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        self.assertNotIn('"error": "Invalid password."', source)
+        self.assertNotIn('"error": "Invalid login ID."', source)
+
+    def test_health_reports_whether_session_secret_is_dedicated(self):
+        body = self.client.get("/api/health").get_json()
+        self.assertIn("session_secret_dedicated", body)
+        self.assertIsInstance(body["session_secret_dedicated"], bool)
+        self.assertNotIn(os.environ["SESSION_SECRET"], str(body))
+
+    def test_derived_session_secret_is_reported_as_not_dedicated(self):
+        import json, subprocess
+        env = {k: v for k, v in os.environ.items() if k != "SESSION_SECRET"}
+        env.update(ADMIN_USERNAME="ROVERADMIN", ADMIN_PASSWORD="derived-secret-test-pw", PYTHONPATH=str(ROOT / "src"))
+        code = "import app,json;print(json.dumps(app.app.test_client().get('/api/health').get_json()))"
+        out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, cwd=ROOT, timeout=60)
+        self.assertIn("SECURITY WARNING", out.stdout)
+        body = json.loads(out.stdout.strip().splitlines()[-1])
+        self.assertTrue(body["session_configured"])
+        self.assertFalse(body["session_secret_dedicated"])
+        self.assertNotIn("derived-secret-test-pw", out.stdout + out.stderr)
+
+
 if __name__ == "__main__":
     unittest.main()

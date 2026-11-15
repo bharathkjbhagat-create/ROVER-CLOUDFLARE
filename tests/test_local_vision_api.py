@@ -4,9 +4,12 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-import cv2
-import numpy as np
-from fastapi.testclient import TestClient
+try:  # Optional local-AI stack (requirements-local-ai.txt). Skip explicitly - never error - when it is not installed.
+    import cv2
+    import numpy as np
+    from fastapi.testclient import TestClient
+except ImportError as exc:  # pragma: no cover - depends on the environment
+    raise unittest.SkipTest("optional local-AI dependencies not installed: %s" % exc)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "local_ai_server"))
@@ -126,3 +129,4 @@ class LocalVisionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

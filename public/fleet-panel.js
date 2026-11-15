@@ -115,16 +115,15 @@
     const saved = data.base ? "BASE SAVED ON SERVER · " + data.base.lat.toFixed(5) + ", " + data.base.lon.toFixed(5) : "BASE NOT SET";
     if (el && !/^RTB/.test(fsm) && !/FAILED|PAUSED/.test(fsm)) el.textContent = fsm === "RTB_ARRIVED" ? "ARRIVED · DEVICE CONFIRMED" : saved;
   }
-  let baseBtn, rtbBtn, cancelBtn, resetBtn, estopBtn;
+  let baseBtn, cancelBtn, resetBtn, estopBtn; // RETURN TO BASE lives only on the Return card (#returnToBaseBtn); a second button here duplicated it
   function buildActions() {
     estopBtn = btn("■ EMERGENCY STOP", "estop", () => command("EMERGENCY_STOP"));
     resetBtn = btn("RESET E-STOP", "", () => confirm("Reset the emergency stop? The rover will stay stopped until you give a new command.") && command("RESET_ESTOP"));
     baseBtn = btn("SAVE BASE = ROVER GPS", "", saveBaseFromRover);
-    rtbBtn = btn("↩ RETURN TO BASE", "", () => confirm("Start autonomous return to the saved base? Keep the area clear and be ready to press EMERGENCY STOP.") && returnToBase());
     cancelBtn = btn("CANCEL RETURN", "", () => command("CANCEL_RETURN"));
-    actions.append(estopBtn, resetBtn, cancelBtn, baseBtn, rtbBtn);
+    actions.append(estopBtn, resetBtn, cancelBtn, baseBtn);
   }
-  function actionsState(online) { estopBtn.disabled = false; /* E-STOP is never disabled; server queues it even offline */ const admin = me && me.role === "admin"; [resetBtn, rtbBtn, baseBtn].forEach(b => { b.disabled = !admin || !online; }); cancelBtn.disabled = false; }
+  function actionsState(online) { estopBtn.disabled = false; /* E-STOP is never disabled; server queues it even offline */ const admin = me && me.role === "admin"; [resetBtn, baseBtn].forEach(b => { b.disabled = !admin || !online; }); cancelBtn.disabled = false; }
   async function loadEvents() {
     try { const { r, j } = await api("/api/fleet/events?limit=12"); if (!r.ok) return; events.textContent = "";
       j.events.forEach(e => events.appendChild($("div", { className: e.severity, textContent: new Date((e.received_at || e.t) * 1000).toLocaleTimeString() + " " + e.device_id + " · " + e.type + (e.offline ? " [offline-recorded]" : "") + (e.message ? " · " + e.message : "") }))); } catch (_) {}
@@ -144,3 +143,4 @@
   fetch("/api/me", { credentials: "same-origin" }).then(r => r.json()).then(j => { me = j.user || j; actionsState(false); poll(true); }).catch(() => poll(true));
   window.DEFENX_FLEET = { active, command, returnToBase, saveBase, get primary() { return primary; } };
 })();
+
