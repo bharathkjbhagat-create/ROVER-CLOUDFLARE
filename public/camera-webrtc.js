@@ -7,6 +7,12 @@
   if (!("RTCPeerConnection" in window) || !("WebSocket" in window)) return;
 
   const $ = id => document.getElementById(id);
+  const demoMode = location.pathname === "/" || location.pathname === "/demo" || new URLSearchParams(location.search).get("demo") === "1";
+  if (demoMode) {
+    const sync = $("cameraSyncStatus");
+    if (sync) sync.textContent = "SIMULATED CAMERA • NO DEVICE SYNC";
+    return;
+  }
   const makePeerId = () => (window.crypto?.randomUUID?.() || (
     Array.from(crypto.getRandomValues(new Uint8Array(16))).map(x => x.toString(16).padStart(2, "0")).join("")
   )).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);

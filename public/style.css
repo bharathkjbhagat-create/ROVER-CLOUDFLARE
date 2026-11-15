@@ -650,7 +650,7 @@ img,canvas,video,iframe{max-width:100%}
     opacity:.8;
   }
   .cameraSceneLabel:after{
-    content:"LIVE FEED • 1080P • AI TRACKING";
+    content:"SIMULATED SCENE • NO LIVE VIDEO";
     font:700 6px/1 monospace;
     letter-spacing:1px;
     color:#7898a4;

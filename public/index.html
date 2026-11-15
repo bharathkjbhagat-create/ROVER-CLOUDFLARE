@@ -49,13 +49,13 @@
   <main class="dashboard" id="dashboardTop">
     <section class="missionBar">
       <div><span class="eyebrow">ROVER-01 • ADVANCED TRACKING & SURVEILLANCE</span><h1>Dashboard</h1></div>
-      <div class="missionLive"><span class="livePulse"></span><b>MISSION LIVE</b><small id="clock">--:--:--</small></div>
+      <div class="missionLive"><span class="livePulse"></span><b id="missionState">MISSION LIVE</b><small id="clock">--:--:--</small></div>
     </section>
 
     <section class="dashboardGrid">
       <section id="liveMap" class="card mapCard">
         <div class="cardHeader mapHeader">
-          <div><b>LIVE MAP</b><span id="mapMode">Hybrid</span></div>
+          <div><b id="mapHeaderTitle">LIVE MAP</b><span id="mapMode">Hybrid</span></div>
           <div class="mapControls">
             <div class="mapTabs" role="group" aria-label="Map layer">
               <button type="button" class="mapTab" data-mapmode="map">Street</button>
@@ -89,7 +89,7 @@
 
       <div class="rightStack">
         <section id="liveCamera" class="card cameraCard">
-          <div class="cardHeader"><b>LIVE CAMERA VIEW</b><span class="mvHeadRight"><span class="liveBadge mvOff"><i></i> CHECKING</span><button type="button" id="viewFullBtn" class="mvViewFull" title="Open full-screen monitor" aria-label="View full-screen monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>VIEW FULL</button></span></div>
+          <div class="cardHeader"><b id="cameraHeaderTitle">LIVE CAMERA VIEW</b><span class="mvHeadRight"><span class="liveBadge mvOff"><i></i> CHECKING</span><button type="button" id="viewFullBtn" class="mvViewFull" title="Open full-screen monitor" aria-label="View full-screen monitor"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>VIEW FULL</button></span></div>
           <div id="cameraSyncStatus" class="cameraSyncStatus" role="status" aria-live="polite">DEVICE SYNC CONNECTING</div>
           <div class="cameraViewport" id="cameraViewport">
             <div id="camPlaceholder" class="camPlaceholder" hidden><span id="camPlaceholderMsg">Checking camera…</span><button type="button" id="camPlaceholderRetry">Reconnect</button></div>
@@ -97,7 +97,7 @@
   <div class="camera3DRoom" id="camera3DRoom">
     <div class="roomPanel roomBack">
       <div class="roomWallGlow"></div>
-      <div class="roomWindow"><span></span><i></i><b>LIVE FEED</b></div>
+      <div class="roomWindow"><span></span><i></i><b>SIMULATED SCENE</b></div>
       <div class="roomShelf"><i></i><i></i><i></i></div>
       <div class="roomClock">03:42</div>
     </div>
@@ -271,6 +271,6 @@
 
 <script src="/phone-camera.js?v=20261107-07" defer></script>
 <script src="/camera-webrtc.js?v=20261114-online-01" defer></script>
-<script src="/phone-gps.js?v=20261114-01" defer></script><script src="/app.js?v=20261115-ui-02" defer></script><script src="/fleet-panel.js?v=20261115-ui-01" defer></script><script src="/sim-lab-loader.js?v=20261110-01" defer></script><script src="/vision-core.js?v=20261108-01" defer></script><script src="/browser-vision-sync.js?v=20261115-fix-01" defer></script><script src="/ai-vision.js?v=20261114-online-01" defer></script><script src="/local-vision.js?v=20261114-online-01" defer></script><script src="/face-recognition.js?v=20261108-01" defer></script><script src="/detection-events.js?v=20261108-01" defer></script><script src="/monitor.js?v=20261107-cam-04" defer></script><script src="/dashboard-layout.js?v=20261103-01" defer></script><script src="/dashboard-refinement.js?v=20261112-01" defer></script></body></html>
+<script src="/phone-gps.js?v=20261114-01" defer></script><script src="/app.js?v=20261115-ui-02" defer></script><script src="/fleet-panel.js?v=20261115-ui-01" defer></script><script src="/sim-lab-loader.js?v=20261110-01" defer></script><script src="/vision-core.js?v=20261108-01" defer></script><script src="/browser-vision-sync.js?v=20261115-fix-01" defer></script><script src="/ai-vision.js?v=20261114-online-01" defer></script><script src="/local-vision.js?v=20261114-online-01" defer></script><script src="/face-recognition.js?v=20261108-01" defer></script><script src="/detection-events.js?v=20261108-01" defer></script><script src="/monitor.js?v=20261107-cam-04" defer></script><script src="/dashboard-layout.js?v=20261103-01" defer></script><script src="/dashboard-refinement.js?v=20261112-01" defer></script><script src="/demo-status.js?v=20261115-01" defer></script></body></html>
 
 
