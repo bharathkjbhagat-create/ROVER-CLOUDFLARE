@@ -1413,15 +1413,8 @@ if(demoMode){
 me=null;
 updatePermissionUI();
 setText("who","DEMO VIEW · READ ONLY");
-$("missionState").textContent="DEMO PREVIEW";
-$("mapHeaderTitle").textContent="MAP PREVIEW";
-$("cameraHeaderTitle").textContent="CAMERA PREVIEW";
-setText("serverHeaderSub","DEMO • NO SERVER CONNECTION");
-setText("cameraSyncStatus","SIMULATED CAMERA • NO DEVICE SYNC");
-setText("cameraSceneLabel","SIMULATED SCENE • NO LIVE VIDEO");
-setText("conn","● DEMO • SIMULATED DATA");
 updateUI(demoTelemetry());
-setText("cameraStatus","SIMULATED PREVIEW");
+setText("conn","● DEMO • SIMULATED DATA");
 loadMapAsync();
 scheduleTelemetry();
 setInterval(tickClock,1000);
