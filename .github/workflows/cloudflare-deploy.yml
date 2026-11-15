@@ -245,13 +245,17 @@ jobs:
           base="$WORKER_URL"
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/index.html?demo=1" -o /tmp/defenx-online-vision-index.html
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/ai-vision.js" -o /tmp/defenx-ai-vision.js
+          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/face-recognition.js" -o /tmp/defenx-face-recognition.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/browser-vision-sync.js" -o /tmp/defenx-browser-vision-sync.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/local-vision.js" -o /tmp/defenx-local-vision.js
           grep -Fq 'ONLINE BROWSER AI • OBJECT + FACE' /tmp/defenx-online-vision-index.html
           grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'browser-vision-sync.js?v=20261115-fix-01' /tmp/defenx-online-vision-index.html
-          grep -Fq 'ai-vision.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
-          grep -Fq 'face-recognition.js' /tmp/defenx-online-vision-index.html
+          grep -Fq 'ai-vision.js?v=20261115-face-fast-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'face-recognition.js?v=20261115-face-feedback-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'Start frame analysis now' /tmp/defenx-ai-vision.js
+          grep -Fq 'MATCHING FACE' /tmp/defenx-face-recognition.js
+          grep -Fq 'ACTION ' /tmp/defenx-face-recognition.js
           grep -Fq 'window.DEFENX_VISION_SYNC.publish(result)' /tmp/defenx-browser-vision-sync.js
           grep -Fq 'defenx-remote-vision-snapshot' /tmp/defenx-local-vision.js
           ! grep -Eq '127\.0\.0\.1:8000|localhost:8000' /tmp/defenx-local-vision.js
