@@ -169,7 +169,7 @@
           id: tr.id, bbox: face.bbox, score: face.score, live, spoof, liveChallenge: d.live.prompt(),
           identity: resolved.identity, mask: resolved.mask, name: resolved.name, alerts: resolved.alerts,
           identityConfidence: identity.confidence || 0, maskConfidence: mask.confidence || 0,
-          reasons: resolved.reasons, possible: identity.possible || null, at: now
+          reasons: resolved.reasons, possible: identity.possible || (identity.state === "RECOGNIZED" && !live ? identity.name : null), at: now
         });
       }
       lastFaces = results;
@@ -210,7 +210,7 @@
       const conf = f.identity === STATUS.RECOGNIZED || f.identity === STATUS.UNKNOWN ? " • " + Math.round(f.identityConfidence * 100) + "%" : "";
       const promptLabel = { blink: "BLINK", mouth: "OPEN AND CLOSE MOUTH", turn_left: "TURN HEAD LEFT", turn_right: "TURN HEAD RIGHT" };
       const prompt = f.liveChallenge ? " • ACTION: " + (promptLabel[f.liveChallenge] || "FOLLOW PROMPT") : "";
-      const extra = (f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • live presence not established" : ""))) + prompt;
+      const extra = (f.spoof ? " • " + STATUS.PHOTO : (f.reasons && f.reasons.length ? " • " + f.reasons.join(", ") : (f.possible && f.identity === STATUS.UNVERIFIED && !f.live ? " • MATCH: " + f.possible + " • confirm live action" : ""))) + prompt;
       const maskText = f.mask + (f.mask === STATUS.NOT_CLEAR ? "" : " • " + Math.round(f.maskConfidence * 100) + "%");
       row.children[0].textContent = idLine + conf;
       row.children[1].textContent = maskText + extra;
