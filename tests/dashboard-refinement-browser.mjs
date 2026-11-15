@@ -239,7 +239,9 @@ try {
   assert.equal(await page.locator(".inlineFold").getAttribute("open"), "");
   assert.notEqual(await page.locator(".mapControls").evaluate(el => getComputedStyle(el).display), "none");
   await page.locator(".advancedRouteFold > summary").click();
-  await page.locator(".visionToolsFold > summary").click();
+  if (await page.locator(".visionToolsFold").getAttribute("open") === null) {
+    await page.locator(".visionToolsFold > summary").click();
+  }
   await page.locator(".detectionSettingsFold > summary").click();
 
   for (const id of [
