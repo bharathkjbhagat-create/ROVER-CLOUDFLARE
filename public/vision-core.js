@@ -22,10 +22,10 @@
   const T = {
     personScore: 0.55, vehicleScore: 0.5, objectScore: 0.6,
     screenContainment: 0.6, borderSideFraction: 0.6, maxFill: 0.85,
-    confirmHits: 3, trackMaxAgeMs: 4000, livenessHoldMs: 8000,
+    confirmHits: 3, trackMaxAgeMs: 4000, livenessHoldMs: 60000,
     ear: { closedRatio: 0.72, minOpen: 0.17 }, nonRigid: 0.03,
     faceMinWidth: 56, faceMinScore: 0.55, maxYaw: 0.45, minSharp: 25, lumaMin: 35, lumaMax: 235,
-    match: 0.5, unknown: 0.62, margin: 0.04,
+    match: 0.6, unknown: 0.62, margin: 0.04,
     maskMouthContrastNoMask: 7, maskMouthContrastMask: 4, maskDeltaE: 12, noMaskDeltaE: 14,
     graphicPalette: 0.85, graphicFlat: 0.6
   };

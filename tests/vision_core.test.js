@@ -174,7 +174,8 @@ test("liveness: randomized three-step challenge requires the requested actions i
   assert.equal(lv.challenge.length, 3);
   assert.equal(lv.prompt(), null);
   assert.equal(lv.verified(t), true);
-  assert.equal(lv.verified(t + 20000), false);
+  assert.equal(lv.verified(t + 20000), true); // do not force a new challenge every few seconds
+  assert.equal(lv.verified(t + 60001), false);
   assert.notEqual(lv.prompt(), null);
 });
 
@@ -218,7 +219,8 @@ test("identity: enrolled user recognised, stranger unknown, borderline unverifie
   const r = core.matchIdentity(near(alice.descriptor, 0.2), [alice, bob]);
   assert.equal(r.state, "RECOGNIZED"); assert.equal(r.name, "Alice");
   assert.equal(core.matchIdentity(vec(), [alice, bob]).state, "UNKNOWN");
-  assert.equal(core.matchIdentity(near(alice.descriptor, 0.56), [alice, bob]).state, "UNVERIFIED");
+  assert.equal(core.matchIdentity(near(alice.descriptor, 0.56), [alice, bob]).state, "RECOGNIZED");
+  assert.equal(core.matchIdentity(near(alice.descriptor, 0.61), [alice, bob]).state, "UNVERIFIED");
   assert.equal(core.matchIdentity(vec(), []).state, "UNKNOWN");
   const twin = { id: "t", name: "Twin", descriptor: near(alice.descriptor, 0.02) }; // ambiguous between two people
   assert.equal(core.matchIdentity(near(alice.descriptor, 0.2), [alice, twin]).state, "UNVERIFIED");
