@@ -150,6 +150,7 @@
       if (ai || face) {
         const fold = document.createElement("details");
         fold.className = "controlSubFold visionToolsFold";
+        fold.open = true; // Keep live face match and liveness instructions visible during scanning.
         const summary = document.createElement("summary");
         summary.textContent = "AI VISION & FACE SECURITY CONTROLS";
         fold.appendChild(summary);
