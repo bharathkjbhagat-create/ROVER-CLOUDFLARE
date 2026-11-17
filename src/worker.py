@@ -1281,13 +1281,11 @@ class Default(WorkerEntrypoint):
                 if int(asset_response.status) != 200:
                     return asset_response
 
-                # Return the native Assets Response intact. Re-wrapping its
-                # ReadableStream in workers.Response produced HTTP 200 with an
-                # empty body in the deployed Python Worker.
-                headers = asset_response.headers
-                headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-                headers.set("Pragma", "no-cache")
-                headers.set("Expires", "0")
+                # Keep the native Assets Response and its stream intact.
+                # Headers on a Response returned by fetch() can be immutable;
+                # mutating them here can terminate the Worker with error 1101.
+                # HTML is a versioned Worker asset; the smoke check adds a cache
+                # buster when it needs to verify the newly deployed version.
                 return asset_response
 
             return await wsgi.fetch(app, request, self.env)
