@@ -402,6 +402,22 @@ jobs:
           assert data.get("ok") is True, data
           PY
           echo "Valid-login/session checks: PASS"
+          db_code="$(curl -A 'Mozilla/5.0 (DEFENX read-only PostgreSQL check)' -sS -o /tmp/defenx-database-check.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/admin/database-check")"
+          echo "/api/admin/database-check -> HTTP $db_code"
+          if [ "$db_code" != "200" ]; then
+            cat /tmp/defenx-database-check.json
+            exit 1
+          fi
+          python - <<'PY'
+          import json
+          with open("/tmp/defenx-database-check.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is True, data
+          assert data.get("database") == "connected", data
+          assert data.get("test") == "SELECT 1", data
+          assert data.get("connection_path") in {"hyperdrive", "database_url"}, data
+          PY
+          echo "Read-only PostgreSQL connectivity check: PASS"
           crypto_code="$(curl -A 'Mozilla/5.0 (DEFENX AES-GCM runtime test)' -sS -o /tmp/defenx-face-crypto.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/face-enrollments/crypto-check")"
           echo "/api/face-enrollments/crypto-check -> HTTP $crypto_code"
           test "$crypto_code" = "200"
