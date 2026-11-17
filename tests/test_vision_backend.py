@@ -33,6 +33,7 @@ DESCRIPTOR = [round((i - 64) / 700, 6) for i in range(128)]
 class FakeDB:
     def __init__(self):
         self.faces, self.audit = [], []
+        self.legacy_table_exists = True
 
     def __enter__(self):
         return self
@@ -58,7 +59,7 @@ class FakeCursor:
         sql = " ".join(sql.split())
         db = self.db
         if sql.startswith("SELECT to_regclass('public.face_enrollments')"):
-            self.rows = [{"table_name": None}]
+            self.rows = [{"table_name": "face_enrollments" if db.legacy_table_exists else None}]
         elif sql.startswith("SELECT COUNT(*) FROM face_enrollments"):
             self.rows = [(len(db.faces),)]
         elif sql.startswith("INSERT INTO face_enrollments"):
@@ -160,6 +161,7 @@ class VisionBackendTests(unittest.TestCase):
         raise AssertionError("Unexpected face-store operation: " + str(op))
 
     def test_legacy_face_migration_does_not_bootstrap_unrelated_database_schema(self):
+        self.db.legacy_table_exists = False
         with patch.object(rover_app, "ensure_db", side_effect=AssertionError("global DB bootstrap must not run")):
             self.assertTrue(rover_app._migrate_legacy_face_enrollments("unused-test-key"))
 
