@@ -98,6 +98,14 @@ class AuthenticationRegressionTests(unittest.TestCase):
         )
         self.assertIn("if self._normalize_login(username) not in admin_aliases:", source)
 
+    def test_worker_injects_live_bindings_into_flask_before_wsgi(self):
+        source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
+        fetch_start = source.rindex("async def fetch(self, request)")
+        fetch_end = source.find("\\n    async def ", fetch_start + 1)
+        fetch_body = source[fetch_start:fetch_end if fetch_end >= 0 else len(source)]
+        self.assertIn("rover_app.CF_ENV = self.env", fetch_body)
+        self.assertLess(fetch_body.index("rover_app.CF_ENV = self.env"), fetch_body.index("wsgi.fetch"))
+
     def test_worker_signed_session_keeps_auth_source_metadata(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
         self.assertIn('def _session_cookie(user, auth_source="environment"):', source)
