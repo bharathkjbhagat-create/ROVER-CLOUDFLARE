@@ -625,7 +625,7 @@ def get_db():
         return None
     try:
         hd = _cf_hyperdrive()
-        if hd is not None and not DATABASE_URL:
+        if hd is not None:
             return psycopg.connect(
                 host=str(hd.host),
                 port=int(hd.port),
@@ -849,8 +849,8 @@ def require_control(fn):
         u = current_user()
         if not u:
             return jsonify({"ok": False, "error": "Login required"}), 401
-        # Every authenticated user is allowed to operate the rover control panel.
-        # User-management permissions remain separate and admin-only unless granted.
+        if u["role"] != "admin" and not u.get("can_control", False):
+            return jsonify({"ok": False, "error": "Rover-control permission required"}), 403
         return fn(*args, **kwargs)
     return wrapper
 
