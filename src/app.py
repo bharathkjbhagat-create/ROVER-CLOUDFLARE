@@ -894,7 +894,10 @@ def _asset_response(filename, mimetype=None):
         assets = getattr(env, "ASSETS", None) if env is not None else None
         if assets is not None and run_sync is not None:
             js = __import__("js")
-            asset_request = js.Request.new(str(request.url))
+            # Resolve the exact public asset path. Query parameters on the
+            # incoming dashboard URL belong to Flask routing, not asset lookup.
+            # The Cloudflare assets binding matches requests by pathname.
+            asset_request = js.Request.new(f"https://assets.local/{filename}")
             asset_response = run_sync(assets.fetch(asset_request))
             body = run_sync(asset_response.bytes())
             response = Response(body, status=int(asset_response.status), headers=asset_response.headers)
