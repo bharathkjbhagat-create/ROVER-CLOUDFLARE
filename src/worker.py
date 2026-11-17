@@ -792,12 +792,6 @@ class Default(WorkerEntrypoint):
 
     def _local_authenticate(self, env, username, password):
         key = self._normalize_login(username)
-        database_configured = bool(self._env_value(env, "DATABASE_URL"))
-        if not database_configured:
-            try:
-                database_configured = getattr(env, "HYPERDRIVE", None) is not None
-            except Exception:
-                database_configured = False
         admin_name = self._env_value(env, "ADMIN_USERNAME", ADMIN_USERNAME).strip().upper() or "ADMIN"
         admin_password = self._env_value(env, "ADMIN_PASSWORD")
         admin_hash = self._env_value(env, "ADMIN_PASSWORD_HASH")
@@ -806,7 +800,10 @@ class Default(WorkerEntrypoint):
             "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
             "ADMINUSER", "ADMINUSERID",
         }
-        if not database_configured and key in admin_aliases:
+        # A configured admin secret must remain a valid admin credential even
+        # when Hyperdrive is bound. A binding may exist before Neon is reachable;
+        # its presence must not silently disable the environment admin account.
+        if key in admin_aliases:
             valid = bool(admin_password) and hmac.compare_digest(password, admin_password)
             if not valid and admin_hash:
                 try:
