@@ -57,18 +57,118 @@ def _config(name, default=None):
             pass
     return default
 
+# Cloudflare Python Workers run on Pyodide, which does not ship libpq.
+# psycopg therefore cannot initialize its protocol wrapper there. pg8000 is a
+# pure-Python PostgreSQL driver supported by Cloudflare Hyperdrive.
 psycopg = None
 _psycopg_loaded = False
+_DICT_ROW = object()
+
+class _Pg8000Cursor:
+    def __init__(self, cursor, dict_rows=False):
+        self._cursor = cursor
+        self._dict_rows = dict_rows
+
+    def __getattr__(self, name):
+        return getattr(self._cursor, name)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._cursor.close()
+        return False
+
+    def _convert(self, row):
+        if row is None or not self._dict_rows:
+            return row
+        description = self._cursor.description or ()
+        return {column[0]: value for column, value in zip(description, row)}
+
+    def fetchone(self):
+        return self._convert(self._cursor.fetchone())
+
+    def fetchall(self):
+        return [self._convert(row) for row in self._cursor.fetchall()]
+
+    def fetchmany(self, size=None):
+        rows = self._cursor.fetchmany() if size is None else self._cursor.fetchmany(size)
+        return [self._convert(row) for row in rows]
+
+
+class _Pg8000Connection:
+    def __init__(self, connection):
+        self._connection = connection
+
+    def __getattr__(self, name):
+        return getattr(self._connection, name)
+
+    def cursor(self, row_factory=None):
+        return _Pg8000Cursor(self._connection.cursor(), dict_rows=row_factory is _DICT_ROW)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        try:
+            if exc_type is None:
+                self._connection.commit()
+            else:
+                self._connection.rollback()
+        finally:
+            self._connection.close()
+        return False
+
+
+class _Pg8000Compat:
+    class rows:
+        dict_row = _DICT_ROW
+
+    def __init__(self, driver):
+        self._driver = driver
+
+    def connect(self, *args, **kwargs):
+        from urllib.parse import unquote, urlparse, parse_qs
+
+        if args and isinstance(args[0], str):
+            parsed = urlparse(args[0])
+            if parsed.scheme not in {"postgres", "postgresql"}:
+                raise ValueError("DATABASE_URL must use postgres:// or postgresql://")
+            query = parse_qs(parsed.query)
+            kwargs.update({
+                "host": parsed.hostname,
+                "port": parsed.port or 5432,
+                "user": unquote(parsed.username or ""),
+                "password": unquote(parsed.password or ""),
+                "database": unquote(parsed.path.lstrip("/")),
+            })
+            if "connect_timeout" not in kwargs and query.get("connect_timeout"):
+                kwargs["connect_timeout"] = query["connect_timeout"][0]
+
+        kwargs.pop("sslmode", None)
+        autocommit = bool(kwargs.pop("autocommit", False))
+        timeout = kwargs.pop("connect_timeout", kwargs.pop("timeout", 10))
+        if "dbname" in kwargs:
+            kwargs["database"] = kwargs.pop("dbname")
+        kwargs["ssl_context"] = None
+        kwargs["timeout"] = float(timeout)
+
+        connection = self._driver.connect(**kwargs)
+        connection.autocommit = autocommit
+        return _Pg8000Connection(connection)
+
 
 def get_psycopg():
     global psycopg, _psycopg_loaded
     if not _psycopg_loaded:
         _psycopg_loaded = True
         try:
-            import psycopg as _psycopg
-            psycopg = _psycopg
-        except Exception:
-            # PostgreSQL is optional for the Cloudflare demo/auth fallback path.
+            import pg8000.dbapi as pg8000
+            psycopg = _Pg8000Compat(pg8000)
+        except Exception as exc:
+            # Keep the no-database demo/auth fallback available, but expose the
+            # import failure in Worker logs instead of silently masking it.
+            print(f"DEFENX PostgreSQL driver unavailable: {type(exc).__name__}: {exc}")
             psycopg = None
     return psycopg
 
