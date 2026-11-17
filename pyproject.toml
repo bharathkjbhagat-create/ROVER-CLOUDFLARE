@@ -5,7 +5,7 @@ description = "DEFENX Flask application running on Cloudflare Workers"
 requires-python = ">=3.12"
 dependencies = [
     "flask>=3.0,<4.0",
-    "psycopg>=3.2,<4.0",
+    "pg8000>=1.31,<2.0",
 ]
 
 [dependency-groups]
