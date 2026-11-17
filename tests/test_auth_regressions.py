@@ -113,13 +113,16 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("self._needs_revocation_check(url.path)", source)
         self.assertIn("if await self.is_session_revoked(session_hash):", source)
 
-    def test_database_cleanup_preserves_one_admin_and_removes_other_users(self):
+    def test_database_initialization_preserves_existing_accounts(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn("DELETE FROM users", source)
-        self.assertIn("UPPER(username)=UPPER(%s)", source)
-        self.assertIn("role='admin',enabled=TRUE", source)
-        self.assertIn("runtime_users = {}", source)
-        self.assertIn("runtime_password_hashes = {}", source)
+        start = source.index("def ensure_db():")
+        end = source.index("\\ndef client_ip():", start)
+        initializer = source[start:end]
+        self.assertNotIn("DELETE FROM users", initializer)
+        self.assertIn("Preserve all existing accounts", initializer)
+        self.assertIn("UPPER(username)=UPPER(%s)", initializer)
+        self.assertIn("role='admin',enabled=TRUE", initializer)
+        self.assertIn("INSERT INTO users", initializer)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):
