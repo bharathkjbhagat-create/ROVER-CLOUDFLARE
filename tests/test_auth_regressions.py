@@ -121,11 +121,16 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("self._needs_revocation_check(url.path)", source)
         self.assertIn("if await self.is_session_revoked(session_hash):", source)
 
-    def test_database_cleanup_preserves_one_admin_and_removes_other_users(self):
+    def test_database_initialization_preserves_existing_users_and_admin(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn("DELETE FROM users", source)
+        # Startup must never delete existing accounts as an automatic migration.
+        self.assertNotIn("DELETE FROM users", source)
+        self.assertIn("Preserve existing accounts during first-time database initialization", source)
         self.assertIn("UPPER(username)=UPPER(%s)", source)
         self.assertIn("role='admin',enabled=TRUE", source)
+        self.assertIn("elif len(admin_matches) == 1", source)
+        self.assertIn("elif len(admin_matches) == 0", source)
+        self.assertIn("multiple case-variant admin rows exist", source)
         self.assertIn("runtime_users = {}", source)
         self.assertIn("runtime_password_hashes = {}", source)
 
