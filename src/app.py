@@ -736,7 +736,10 @@ def current_user():
         except Exception:
             mark_db_unavailable()
             user = None
-    elif auth_source in {"legacy", "environment"} and (
+    elif (
+        auth_source in {"legacy", "environment"}
+        or (auth_source is None and not database_configured)
+    ) and (
         str(cached.get("role") or "").strip().lower() == "admin"
         and str(cached.get("username") or "").strip().upper() == ADMIN_USERNAME.upper()
         and bool(cached.get("enabled", True))
