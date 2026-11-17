@@ -1139,6 +1139,12 @@ class Default(WorkerEntrypoint):
         # as an opaque platform HTTP 500.
         url = urlparse(request.url)
         try:
+            # Pass this request's actual Cloudflare bindings into the Flask
+            # module. The module-level workers.env proxy is not reliable in
+            # every Python Worker runtime context; without this assignment,
+            # Flask cannot see HYPERDRIVE and reports the database as unconfigured.
+            import app as rover_app
+            rover_app.CF_ENV = self.env
             self._configure_app_secret()
 
             # Signed Flask cookies are stateless; revoke them in Durable Object
