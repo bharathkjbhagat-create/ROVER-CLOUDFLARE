@@ -33,6 +33,7 @@ DESCRIPTOR = [round((i - 64) / 700, 6) for i in range(128)]
 class FakeDB:
     def __init__(self):
         self.faces, self.audit = [], []
+        self.legacy_table_exists = True
 
     def __enter__(self):
         return self
@@ -57,14 +58,16 @@ class FakeCursor:
     def execute(self, sql, params=()):
         sql = " ".join(sql.split())
         db = self.db
-        if sql.startswith("SELECT COUNT(*) FROM face_enrollments"):
+        if sql.startswith("SELECT to_regclass('public.face_enrollments')"):
+            self.rows = [{"table_name": "face_enrollments" if db.legacy_table_exists else None}]
+        elif sql.startswith("SELECT COUNT(*) FROM face_enrollments"):
             self.rows = [(len(db.faces),)]
         elif sql.startswith("INSERT INTO face_enrollments"):
             ident, name, descriptor, photo, created_by = params
             assert "TRUE" in sql  # consent is only ever stored as granted
             db.faces.append({"id": ident, "name": name, "descriptor": descriptor, "photo_b64": photo,
                              "created_by": created_by, "created_at": datetime.now(timezone.utc)})
-        elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
+        elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM public.face_enrollments") or sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
         elif sql.startswith("SELECT id,name,descriptor,photo_b64,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
@@ -156,6 +159,11 @@ class VisionBackendTests(unittest.TestCase):
                 raise RuntimeError("not_found")
             return {"ok": True, "enrollment": dict(row)}
         raise AssertionError("Unexpected face-store operation: " + str(op))
+
+    def test_legacy_face_migration_does_not_bootstrap_unrelated_database_schema(self):
+        self.db.legacy_table_exists = False
+        with patch.object(rover_app, "ensure_db", side_effect=AssertionError("global DB bootstrap must not run")):
+            self.assertTrue(rover_app._migrate_legacy_face_enrollments("unused-test-key"))
 
     # ---------- access control ----------
     def test_everything_requires_an_admin_session(self):
