@@ -22,7 +22,8 @@ class FakeJsProxy:
     def __init__(self, value):
         self.value = value
 
-    def to_py(self):
+    def to_py(self, depth=1):
+        self.depth = depth
         return self.value
 
 
@@ -40,6 +41,13 @@ class FakeStub:
 
 
 class DurableObjectRpcBridgeTests(unittest.TestCase):
+
+    def test_recursive_conversion_requests_unbounded_proxy_depth(self):
+        proxy = FakeJsProxy({"enrollments": [{"id": "one", "blob": "ciphertext"}]})
+        converted = rover_app._to_native_python(proxy)
+        self.assertEqual(converted, {"enrollments": [{"id": "one", "blob": "ciphertext"}]})
+        self.assertEqual(proxy.depth, -1)
+
     def test_generic_realtime_call_converts_pyodide_proxy(self):
         stub = FakeStub(None)
         expected = {"lat": 12.9, "lon": 77.5, "sync_version": "live-test"}
