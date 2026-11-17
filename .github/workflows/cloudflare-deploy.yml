@@ -234,7 +234,11 @@ jobs:
           echo "Public health checks: PASS"
           camera_code="$(curl -A 'Mozilla/5.0 (DEFENX camera sync asset check)' -sS -o /tmp/defenx-camera-sync.js -w '%{http_code}' "$base/camera-webrtc.js")"
           test "$camera_code" = "200"
-          grep -Fq 'new RTCPeerConnection' /tmp/defenx-camera-sync.js
+          if ! grep -Fq 'RTCPeerConnection' /tmp/defenx-camera-sync.js; then
+            echo "Camera asset returned HTTP $camera_code but did not contain the WebRTC API marker."
+            sed -n '1,20p' /tmp/defenx-camera-sync.js
+            exit 1
+          fi
           curl -fsS -A 'Mozilla/5.0 (DEFENX camera sync HTML check)' "$base/index.html?demo=1" -o /tmp/defenx-camera-sync-index.html
           grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-camera-sync-index.html
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
