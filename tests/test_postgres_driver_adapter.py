@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-import sys
 import os
+import sys
 import unittest
 from pathlib import Path
+
 os.environ.setdefault("SESSION_SECRET", "defenx-vision-backend-test-session")
 os.environ.setdefault("ADMIN_USERNAME", "ROVERADMIN")
 os.environ.setdefault("ADMIN_PASSWORD", "test-only-admin-password")
-from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
