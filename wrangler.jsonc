@@ -44,5 +44,11 @@
       ]
     }
   ],
-  "keep_vars": true
+  "keep_vars": true,
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "5fc226adbd6347dfb1694c19a64256ee"
+    }
+  ]
 }
