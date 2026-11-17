@@ -2152,7 +2152,7 @@ def _migrate_legacy_face_enrollments(key):
                     return True
                 cur.execute(
                     "SELECT id,name,consent,descriptor,photo_b64,created_by,created_at "
-                    "FROM public.face_enrollments ORDER BY created_at ASC"
+                    "FROM face_enrollments ORDER BY created_at ASC"
                 )
                 rows = cur.fetchall()
 
