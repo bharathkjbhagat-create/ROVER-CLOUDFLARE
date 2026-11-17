@@ -57,7 +57,9 @@ class FakeCursor:
     def execute(self, sql, params=()):
         sql = " ".join(sql.split())
         db = self.db
-        if sql.startswith("SELECT COUNT(*) FROM face_enrollments"):
+        if sql.startswith("SELECT to_regclass('public.face_enrollments')"):
+            self.rows = [{"table_name": None}]
+        elif sql.startswith("SELECT COUNT(*) FROM face_enrollments"):
             self.rows = [(len(db.faces),)]
         elif sql.startswith("INSERT INTO face_enrollments"):
             ident, name, descriptor, photo, created_by = params
@@ -156,6 +158,10 @@ class VisionBackendTests(unittest.TestCase):
                 raise RuntimeError("not_found")
             return {"ok": True, "enrollment": dict(row)}
         raise AssertionError("Unexpected face-store operation: " + str(op))
+
+    def test_legacy_face_migration_does_not_bootstrap_unrelated_database_schema(self):
+        with patch.object(rover_app, "ensure_db", side_effect=AssertionError("global DB bootstrap must not run")):
+            self.assertTrue(rover_app._migrate_legacy_face_enrollments("unused-test-key"))
 
     # ---------- access control ----------
     def test_everything_requires_an_admin_session(self):
