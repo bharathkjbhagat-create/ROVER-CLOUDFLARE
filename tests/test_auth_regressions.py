@@ -116,7 +116,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
     def test_database_initialization_preserves_existing_accounts(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
         start = source.index("def ensure_db():")
-        end = source.index("\\ndef client_ip():", start)
+        end = source.index("\ndef client_ip():", start)
         initializer = source[start:end]
         self.assertNotIn("DELETE FROM users", initializer)
         self.assertIn("Preserve all existing accounts", initializer)
