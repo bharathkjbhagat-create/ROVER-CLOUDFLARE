@@ -91,6 +91,14 @@ class _Pg8000Cursor:
     def fetchall(self):
         return [self._convert(row) for row in self._cursor.fetchall()]
 
+    def execute(self, *args, **kwargs):
+        self._cursor.execute(*args, **kwargs)
+        return self
+
+    def executemany(self, *args, **kwargs):
+        self._cursor.executemany(*args, **kwargs)
+        return self
+
     def fetchmany(self, size=None):
         rows = self._cursor.fetchmany() if size is None else self._cursor.fetchmany(size)
         return [self._convert(row) for row in rows]
@@ -127,6 +135,22 @@ class _Pg8000Compat:
     def __init__(self, driver):
         self._driver = driver
 
+    @staticmethod
+    def _ssl_context_for_mode(mode):
+        import ssl
+
+        mode = str(mode or "prefer").strip().lower()
+        if mode == "disable":
+            return None
+        if mode not in {"allow", "prefer", "require", "verify-ca", "verify-full"}:
+            raise ValueError(f"Unsupported PostgreSQL sslmode: {mode}")
+        context = ssl.create_default_context()
+        if mode in {"allow", "require", "verify-ca"}:
+            # pg8000 cannot reproduce libpq's opportunistic TLS negotiation;
+            # prefer encrypted transport and retain CA validation.
+            context.check_hostname = False
+        return context
+
     def connect(self, *args, **kwargs):
         from urllib.parse import unquote, urlparse, parse_qs
 
@@ -144,13 +168,23 @@ class _Pg8000Compat:
             })
             if "connect_timeout" not in kwargs and query.get("connect_timeout"):
                 kwargs["connect_timeout"] = query["connect_timeout"][0]
+            kwargs.setdefault(
+                "ssl_context",
+                self._ssl_context_for_mode((query.get("sslmode") or ["prefer"])[0]),
+            )
 
-        kwargs.pop("sslmode", None)
+        sslmode = kwargs.pop("sslmode", None)
+        if sslmode is not None:
+            kwargs["ssl_context"] = self._ssl_context_for_mode(sslmode)
+        else:
+            # Hyperdrive's Python Workers examples connect to the binding with
+            # TLS disabled on the Worker-to-Hyperdrive socket.
+            kwargs.setdefault("ssl_context", None)
+
         autocommit = bool(kwargs.pop("autocommit", False))
         timeout = kwargs.pop("connect_timeout", kwargs.pop("timeout", 10))
         if "dbname" in kwargs:
             kwargs["database"] = kwargs.pop("dbname")
-        kwargs["ssl_context"] = None
         kwargs["timeout"] = float(timeout)
 
         connection = self._driver.connect(**kwargs)
