@@ -2138,12 +2138,21 @@ def _migrate_legacy_face_enrollments(key):
     if not db_available():
         return True
     try:
-        ensure_db()
+        # Do not call ensure_db() here. That function initializes the entire
+        # application schema (users, devices, audit tables, etc.) and can fail
+        # on unrelated DDL permissions even when the face registry's
+        # Durable Object is healthy. A read of the face registry must not
+        # depend on global database bootstrap.
         with get_db() as conn:
             with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                cur.execute("SELECT to_regclass('public.face_enrollments') AS table_name")
+                table_state = cur.fetchone()
+                if not table_state or not table_state.get("table_name"):
+                    # No legacy plaintext table exists; there is nothing to migrate.
+                    return True
                 cur.execute(
                     "SELECT id,name,consent,descriptor,photo_b64,created_by,created_at "
-                    "FROM face_enrollments ORDER BY created_at ASC"
+                    "FROM public.face_enrollments ORDER BY created_at ASC"
                 )
                 rows = cur.fetchall()
 
@@ -2204,7 +2213,10 @@ def _migrate_legacy_face_enrollments(key):
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM face_enrollments")
         return True
-    except Exception:
+    except Exception as exc:
+        # Keep migration fail-closed: never expose or delete legacy plaintext
+        # records when their encrypted Durable Object copy cannot be verified.
+        print(f"DEFENX legacy face enrollment migration failed: {type(exc).__name__}: {exc}")
         return False
 
 
