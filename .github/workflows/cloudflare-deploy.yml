@@ -232,22 +232,38 @@ jobs:
           printf '%s\n' "$health" | grep -q '"auth_path_configured":true'
           printf '%s\n' "$health" | grep -q '"realtime_bound":true'
           echo "Public health checks: PASS"
-          camera_code="$(curl -A 'Mozilla/5.0 (DEFENX camera sync asset check)' -sS -o /tmp/defenx-camera-sync.js -w '%{http_code}' "$base/camera-webrtc.js")"
-          test "$camera_code" = "200"
-          if ! grep -Fq 'RTCPeerConnection' /tmp/defenx-camera-sync.js; then
-            echo "Camera asset returned HTTP $camera_code but did not contain the WebRTC API marker."
-            sed -n '1,20p' /tmp/defenx-camera-sync.js
-            exit 1
-          fi
-          curl -fsS -A 'Mozilla/5.0 (DEFENX camera sync HTML check)' "$base/index.html?demo=1" -o /tmp/defenx-camera-sync-index.html
-          grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-camera-sync-index.html
+          # Static assets can become visible at different edge locations just after
+          # a Worker deployment. Retry the HTTP + content assertion, not only curl.
+          fetch_until_marker() {
+            label="$1"
+            path="$2"
+            marker="$3"
+            output="$4"
+            attempts=0
+            while [ "$attempts" -lt 10 ]; do
+              attempts=$((attempts + 1))
+              code="$(curl --connect-timeout 10 --max-time 25 -A 'Mozilla/5.0 (DEFENX deployment verification)' -sS -o "$output" -w '%{http_code}' "$base$path" || true)"
+              if [ "$code" = "200" ] && grep -Fq "$marker" "$output"; then
+                echo "$label -> HTTP 200 and expected content found (attempt $attempts/10)"
+                return 0
+              fi
+              echo "$label -> HTTP $code; expected content not ready (attempt $attempts/10)"
+              if [ "$attempts" -lt 10 ]; then sleep 3; fi
+            done
+            echo "ERROR: $label did not return the expected content."
+            echo "Response preview:"
+            sed -n '1,30p' "$output" || true
+            return 1
+          }
+          fetch_until_marker "Camera WebRTC JavaScript" "/camera-webrtc.js?ci=$GITHUB_RUN_ID" "RTCPeerConnection" "/tmp/defenx-camera-sync.js"
+          fetch_until_marker "Dashboard HTML camera loader" "/index.html?demo=1&ci=$GITHUB_RUN_ID" "camera-webrtc.js?v=20261114-online-01" "/tmp/defenx-camera-sync-index.html"
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
 
       - name: Verify deployed online browser vision integration
         run: |
           set -euo pipefail
           base="$WORKER_URL"
-          curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/index.html?demo=1" -o /tmp/defenx-online-vision-index.html
+          curl --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 30 -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/index.html?demo=1&ci=$GITHUB_RUN_ID" -o /tmp/defenx-online-vision-index.html
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/ai-vision.js" -o /tmp/defenx-ai-vision.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/face-recognition.js" -o /tmp/defenx-face-recognition.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX online vision integration check)' "$base/browser-vision-sync.js" -o /tmp/defenx-browser-vision-sync.js
@@ -269,7 +285,7 @@ jobs:
         run: |
           set -euo pipefail
           base="$WORKER_URL"
-          curl -fsS -A 'Mozilla/5.0 (DEFENX warning-controls live test)' "$base/index.html?demo=1" -o /tmp/defenx-live-index.html
+          curl --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 30 -fsS -A 'Mozilla/5.0 (DEFENX warning-controls live test)' "$base/index.html?demo=1&ci=$GITHUB_RUN_ID" -o /tmp/defenx-live-index.html
           curl -fsS -A 'Mozilla/5.0 (DEFENX warning-controls live test)' "$base/app.js" -o /tmp/defenx-live-app.js
           for id in warningOnBtn warningOffBtn warningToggleBtn; do
             grep -Fq "id=\"$id\"" /tmp/defenx-live-index.html || { echo "Missing deployed warning button: $id"; exit 1; }
@@ -284,7 +300,7 @@ jobs:
         run: |
           set -euo pipefail
           base="$WORKER_URL"
-          curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/index.html?demo=1" -o /tmp/defenx-map-index.html
+          curl --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 30 -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/index.html?demo=1&ci=$GITHUB_RUN_ID" -o /tmp/defenx-map-index.html
           curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/app.js" -o /tmp/defenx-map-app.js
           curl -fsS -A 'Mozilla/5.0 (DEFENX map verification)' "$base/map-enhancements.css" -o /tmp/defenx-map.css
           for id in map mapFollowBtn mapFullscreenBtn mapTileStatus recenterCrossBtn; do
