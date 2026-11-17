@@ -380,20 +380,27 @@ def _realtime_stub():
     except Exception:
         return None
 
+def _to_native_python(value):
+    """Recursively unwrap Pyodide proxies, including nested arrays and objects."""
+    if hasattr(value, "to_py"):
+        try:
+            return value.to_py(depth=-1)
+        except TypeError:
+            # Test doubles and older Pyodide builds may expose to_py() without
+            # the depth keyword. Keep a compatible fallback.
+            return value.to_py()
+    return value
+
+
 def _realtime_call(method, *args):
     stub = _realtime_stub()
     if stub is None:
         return None
     try:
         result = run_sync(getattr(stub, method)(*args))
-        # Durable Object RPC objects cross the Workers JS/Python boundary as
-        # PyProxy values in Pyodide. Convert structured results before Python
-        # callers perform isinstance checks or dictionary/list operations.
-        if hasattr(result, "to_py"):
-            result = result.to_py()
-        return result
+        return _to_native_python(result)
     except Exception as exc:
-        print(f"DEFENX Durable Object RPC {method} failed: {type(exc).__name__}")
+        print(f"DEFENX Durable Object RPC {method} failed: {type(exc).__name__}: {exc}")
         return None
 
 def _shared_state_payload(version, source="system"):
@@ -2084,9 +2091,9 @@ def _face_store(operation):
             raise RuntimeError("face_store_unavailable")
         try:
             result = run_sync(stub.face_enrollment_op(json.dumps(operation, separators=(",", ":"))))
-            if hasattr(result, "to_py"):
-                result = result.to_py()
+            result = _to_native_python(result)
         except Exception as exc:
+            print(f"DEFENX face enrollment Durable Object RPC failed: {type(exc).__name__}: {exc}")
             raise RuntimeError("face_store_unavailable") from exc
         if not isinstance(result, dict) or result.get("ok") is not True:
             code = result.get("error") if isinstance(result, dict) else "face_store_unavailable"
@@ -2256,7 +2263,8 @@ def face_enrollments_list():
         return _biometric_json({"ok": True, "storage": "durable-object-encrypted", "enrollments": items})
     except BiometricCryptoError:
         return _face_storage_unavailable("A biometric record failed AES-GCM authentication. No record was returned.")
-    except Exception:
+    except Exception as exc:
+        print(f"DEFENX face enrollment list failed: {type(exc).__name__}: {exc}")
         return _face_storage_unavailable("Encrypted Durable Object storage is unavailable.")
 
 
