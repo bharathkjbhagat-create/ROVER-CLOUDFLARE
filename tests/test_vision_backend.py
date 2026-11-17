@@ -67,7 +67,7 @@ class FakeCursor:
             assert "TRUE" in sql  # consent is only ever stored as granted
             db.faces.append({"id": ident, "name": name, "descriptor": descriptor, "photo_b64": photo,
                              "created_by": created_by, "created_at": datetime.now(timezone.utc)})
-        elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
+        elif sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM public.face_enrollments") or sql.startswith("SELECT id,name,consent,descriptor,photo_b64,created_by,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
         elif sql.startswith("SELECT id,name,descriptor,photo_b64,created_at FROM face_enrollments"):
             self.rows = [dict(f) for f in db.faces]
