@@ -1189,16 +1189,14 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Only the configured administrator may authenticate. Reject signed legacy
-    # user payloads and every other username before any fallback can run.
+    # Environment/legacy fallback is administrator-only. Other login IDs
+    # continue to the database lookup so managed viewer accounts can sign in.
     if login_key not in admin_login_ids:
         fast_user = None
-        record_login_failure(ip)
-        return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
-
-    # Every accepted alias represents the configured administrator, not a separate DB user.
-    username = ADMIN_USERNAME
-    canonical_username = ADMIN_USERNAME
+    else:
+        # Every accepted admin alias maps to the configured administrator row.
+        username = ADMIN_USERNAME
+        canonical_username = ADMIN_USERNAME
     if fast_user and (
         str(fast_user.get("role") or "").lower() != "admin"
         or normalize_login_id(fast_user.get("username")) not in admin_login_ids
