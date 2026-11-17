@@ -803,32 +803,42 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Permanently remove every non-admin account and duplicate
-                    # case-variant admin rows, retaining one configured administrator.
+                    # Preserve existing accounts during first-time database initialization.
+                    # Never delete user rows as an automatic startup migration.
                     cur.execute(
-                        """DELETE FROM users
-                           WHERE id NOT IN (
-                               SELECT id FROM users
-                               WHERE UPPER(username)=UPPER(%s)
-                               ORDER BY (username=%s) DESC, created_at ASC, id ASC
-                               LIMIT 1
-                           )""",
-                        (ADMIN_USERNAME, ADMIN_USERNAME),
+                        """SELECT id, username FROM users
+                           WHERE UPPER(username)=UPPER(%s)
+                           ORDER BY created_at ASC, id ASC""",
+                        (ADMIN_USERNAME,),
                     )
-                    cur.execute(
-                        """UPDATE users SET username=%s,role='admin',enabled=TRUE,
-                           can_control=TRUE,can_manage_users=TRUE
-                           WHERE UPPER(username)=UPPER(%s)""",
-                        (ADMIN_USERNAME, ADMIN_USERNAME),
+                    admin_matches = cur.fetchall()
+                    exact_admin = next(
+                        (row for row in admin_matches if str(row[1]) == ADMIN_USERNAME),
+                        None,
                     )
-                    cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
-                    if not cur.fetchone():
+                    if exact_admin:
+                        cur.execute(
+                            """UPDATE users SET role='admin',enabled=TRUE,
+                               can_control=TRUE,can_manage_users=TRUE
+                               WHERE id=%s""",
+                            (exact_admin[0],),
+                        )
+                    elif len(admin_matches) == 1:
+                        cur.execute(
+                            """UPDATE users SET username=%s,role='admin',enabled=TRUE,
+                               can_control=TRUE,can_manage_users=TRUE
+                               WHERE id=%s""",
+                            (ADMIN_USERNAME, admin_matches[0][0]),
+                        )
+                    elif len(admin_matches) == 0:
                         cur.execute(
                             """INSERT INTO users
                             (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
                             VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
                             (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator", generate_password_hash(ADMIN_PASSWORD)),
                         )
+                    # If multiple case-variant admin rows exist, preserve them and
+                    # require explicit manual reconciliation rather than guessing.
                     cur.execute("SELECT id FROM devices WHERE device_code=%s", ("ROVER-01",))
                     if not cur.fetchone():
                         cur.execute(
