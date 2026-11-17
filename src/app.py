@@ -655,18 +655,8 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Permanently remove every non-admin account and duplicate
-                    # case-variant admin rows, retaining one configured administrator.
-                    cur.execute(
-                        """DELETE FROM users
-                           WHERE id NOT IN (
-                               SELECT id FROM users
-                               WHERE UPPER(username)=UPPER(%s)
-                               ORDER BY (username=%s) DESC, created_at ASC, id ASC
-                               LIMIT 1
-                           )""",
-                        (ADMIN_USERNAME, ADMIN_USERNAME),
-                    )
+                    # Preserve all existing accounts. Initialization must never
+                    # delete viewer or other user records.
                     cur.execute(
                         """UPDATE users SET username=%s,role='admin',enabled=TRUE,
                            can_control=TRUE,can_manage_users=TRUE
@@ -1464,9 +1454,10 @@ def create_user():
     display_name = str(data.get("display_name", "")).strip() or username
     password = str(data.get("password", ""))
     role = str(data.get("role", "user")).lower()
-    # All active users receive rover-control access by design.
-    can_control = True
-    can_manage_users = bool(data.get("can_manage_users"))
+    # Admins always retain full access; regular users receive only
+    # the permissions explicitly selected by the administrator.
+    can_control = role == "admin" or bool(data.get("can_control"))
+    can_manage_users = role == "admin" or bool(data.get("can_manage_users"))
     if len(username) < 3 or len(password) < 10:
         return jsonify({"ok": False, "error": "Login ID needs 3+ characters and password needs 10+ characters"}), 400
     if role not in {"user", "admin"}:
@@ -1501,8 +1492,10 @@ def update_user(user_id):
             if str(target["id"]) == str(actor["id"]) and not bool(data["enabled"]):
                 return jsonify({"ok": False, "error": "You cannot disable your own account"}), 400
             target["enabled"] = bool(data["enabled"])
+        if "can_control" in data:
+            target["can_control"] = bool(data["can_control"]) or target.get("role") == "admin"
         if "can_manage_users" in data:
-            target["can_manage_users"] = bool(data["can_manage_users"])
+            target["can_manage_users"] = bool(data["can_manage_users"]) or target.get("role") == "admin"
         audit("USER_UPDATED", f"Updated {target['username']}", actor)
         return jsonify({"ok": True, "db_connected": False,
                         "warning": "User changes are active for the running application instance."})
@@ -1520,9 +1513,8 @@ def update_user(user_id):
                 return jsonify({"ok": False, "error": "Only an admin can promote to admin"}), 403
             display_name = str(data.get("display_name", target["display_name"])).strip() or target["display_name"]
             enabled = bool(data.get("enabled", target["enabled"]))
-            # Rover control is available to every active user; only user-management remains permissioned.
-            can_control = True
-            can_manage_users = bool(data.get("can_manage_users", target["can_manage_users"]))
+            can_control = role == "admin" or bool(data.get("can_control", target["can_control"]))
+            can_manage_users = role == "admin" or bool(data.get("can_manage_users", target["can_manage_users"]))
             if str(target["id"]) == str(actor["id"]) and not enabled:
                 return jsonify({"ok": False, "error": "You cannot disable your own account"}), 400
             cur.execute("""UPDATE users SET display_name=%s,role=%s,enabled=%s,can_control=%s,can_manage_users=%s,
