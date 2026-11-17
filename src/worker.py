@@ -784,8 +784,8 @@ class Default(WorkerEntrypoint):
             "display_name": str(display_name or username)[:120],
             "role": role,
             "enabled": True,
-            "can_control": True,
-            "can_manage_users": bool(can_manage_users),
+            "can_control": role == "admin",
+            "can_manage_users": role == "admin" or bool(can_manage_users),
             "created_at": None,
             "last_login_at": None,
         }
