@@ -724,7 +724,10 @@ def current_user():
         user = dict(cached)
         database_configured = bool(DATABASE_URL or _cf_hyperdrive())
         if database_configured:
-            if session.get("auth_source") == "legacy":
+            # Environment admin credentials remain authoritative when
+            # Hyperdrive is merely bound or the database is unavailable.
+            # Database-backed sessions still require a live, matching DB row.
+            if session.get("auth_source") in {"legacy", "environment"}:
                 pass
             elif session.get("auth_source") != "database":
                 user = None
