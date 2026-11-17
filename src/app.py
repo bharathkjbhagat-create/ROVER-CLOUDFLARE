@@ -699,56 +699,54 @@ def current_user():
     if hasattr(g, "_rover_user_loaded"):
         return g._rover_user
 
-    # Older signed sessions may contain only fallback_user (without user_cache).
-    # Validate either representation before granting access.
+    # Database sessions may belong to admins or ordinary viewer accounts.
+    # Environment and legacy fallback sessions remain administrator-only.
     cached = session.get("user_cache") or fallback_user()
-    if cached and (
-        str(cached.get("role") or "").strip().lower() != "admin"
-        or str(cached.get("username") or "").strip().upper() != ADMIN_USERNAME.upper()
-        or not bool(cached.get("enabled", True))
-    ):
-        session.clear()
-        cached = None
-
-    if cached and cached.get("username"):
-        user = dict(cached)
-        database_configured = bool(DATABASE_URL or _cf_hyperdrive())
-        if database_configured:
-            if session.get("auth_source") == "legacy":
-                pass
-            elif session.get("auth_source") != "database":
+    auth_source = session.get("auth_source")
+    database_configured = bool(DATABASE_URL or _cf_hyperdrive())
+    if not cached or not cached.get("username"):
+        user = None
+    elif auth_source == "database":
+        try:
+            ensure_db()
+            if not db_available():
                 user = None
             else:
-                try:
-                    ensure_db()
-                    if not db_available():
-                        user = None
-                    else:
-                        with get_db() as conn:
-                            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                                cur.execute(
-                                    "SELECT id,username,display_name,role,enabled,can_control,can_manage_users,auth_version FROM users WHERE id=%s",
-                                    (str(cached.get("id") or ""),),
-                                )
-                                current = cur.fetchone()
-                        if (not current or not current["enabled"]
-                                or str(current["role"] or "").strip().lower() != "admin"
-                                or str(current["username"] or "").strip().upper() != ADMIN_USERNAME.upper()
-                                or int(current["auth_version"]) != int(session.get("auth_version", -1))):
-                            session.clear()
-                            user = None
-                        else:
-                            user = {
-                                "id": str(current["id"]), "username": current["username"],
-                                "display_name": current["display_name"], "role": current["role"],
-                                "enabled": current["enabled"], "can_control": current["can_control"],
-                                "can_manage_users": current["can_manage_users"],
-                            }
-                            session["user_cache"] = user
-                except Exception:
-                    mark_db_unavailable()
+                with get_db() as conn:
+                    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                        cur.execute(
+                            "SELECT id,username,display_name,role,enabled,can_control,can_manage_users,auth_version FROM users WHERE id=%s",
+                            (str(cached.get("id") or ""),),
+                        )
+                        current = cur.fetchone()
+                current_role = str((current or {}).get("role") or "").strip().lower()
+                if (not current or not current["enabled"] or current_role not in {"admin", "user"}
+                        or not str(current.get("username") or "").strip()
+                        or int(current["auth_version"]) != int(session.get("auth_version", -1))):
+                    session.clear()
                     user = None
+                else:
+                    user = {
+                        "id": str(current["id"]), "username": current["username"],
+                        "display_name": current["display_name"], "role": current_role,
+                        "enabled": current["enabled"], "can_control": bool(current["can_control"]),
+                        "can_manage_users": bool(current["can_manage_users"]),
+                    }
+                    session["user_cache"] = user
+        except Exception:
+            mark_db_unavailable()
+            user = None
+    elif auth_source in {"legacy", "environment"} and (
+        str(cached.get("role") or "").strip().lower() == "admin"
+        and str(cached.get("username") or "").strip().upper() == ADMIN_USERNAME.upper()
+        and bool(cached.get("enabled", True))
+    ):
+        if database_configured and auth_source == "environment":
+            user = None
+        else:
+            user = dict(cached)
     else:
+        session.clear()
         user = None
 
     g._rover_user_loaded = True
@@ -1291,10 +1289,10 @@ def login():
                         record_login_failure(ip)
                         audit("LOGIN_FAILED", "Invalid login attempt")
                         return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "password"}), 401
+                    # Keep administrator-managed role and permissions intact.
+                    # A successful viewer login must never grant rover control.
                     cur.execute(
-                        """UPDATE users SET display_name=%s,role='user',
-                           enabled=TRUE,can_control=TRUE,can_manage_users=FALSE,
-                           last_login_at=NOW()
+                        """UPDATE users SET display_name=%s,last_login_at=NOW()
                            WHERE id=%s""",
                         (friend_config.get("display_name") or username, user["id"]),
                     )
@@ -1320,7 +1318,7 @@ def login():
                     cur.execute(
                         """INSERT INTO users
                            (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users,last_login_at)
-                           VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE,NOW())""",
+                           VALUES (%s,%s,%s,%s,'user',TRUE,FALSE,FALSE,NOW())""",
                         (
                             friend_id,
                             username,
