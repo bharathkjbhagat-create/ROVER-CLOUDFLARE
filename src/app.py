@@ -1058,6 +1058,51 @@ def health():
         "realtime_bound": bool(_realtime_stub()),
     })
 
+@app.get("/api/admin/database-check")
+@require_admin
+def admin_database_check():
+    """Admin-only, read-only PostgreSQL connectivity check via the configured store."""
+    connection_path = "database_url" if DATABASE_URL else (
+        "hyperdrive" if _cf_hyperdrive() is not None else "not_configured"
+    )
+    if connection_path == "not_configured" or not get_psycopg():
+        return jsonify({
+            "ok": False,
+            "database": "unavailable",
+            "connection_path": connection_path,
+            "error": "Database connection is not configured.",
+        }), 503
+    try:
+        conn = get_db()
+        if conn is None:
+            return jsonify({
+                "ok": False,
+                "database": "unavailable",
+                "connection_path": connection_path,
+                "error": "Database connection is not available.",
+            }), 503
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                result = cur.fetchone()
+        if not result or result[0] != 1:
+            raise RuntimeError("Database test query returned an unexpected result")
+        return jsonify({
+            "ok": True,
+            "database": "connected",
+            "connection_path": connection_path,
+            "test": "SELECT 1",
+        }), 200
+    except Exception:
+        mark_db_unavailable()
+        return jsonify({
+            "ok": False,
+            "database": "connection_failed",
+            "connection_path": connection_path,
+            "error": "The database connection test failed. Check Hyperdrive and Neon connection settings.",
+        }), 503
+
+
 @app.get("/api/ping")
 def ping():
     # Public, lightweight warm-up endpoint used by the static sign-in screen.
