@@ -1265,10 +1265,31 @@ class Default(WorkerEntrypoint):
                     )
                 return await self._handle_login(request)
 
-            # Route dashboard requests through Flask so its session gate protects
-            # the normal dashboard while explicitly requested demo=1 remains read-only.
-            # The Flask asset helper still serves static files with the correct headers.
+            # Flask owns the dashboard access decision, but serving the HTML
+            # body through its synchronous WSGI asset bridge can produce an
+            # empty response in the deployed Python Worker. Use Flask as the
+            # authorization gate, then stream the same-version asset directly
+            # from the ASSETS binding.
+            if url.path in {"/", "/index.html"} and str(request.method).upper() == "GET":
+                flask_response = await wsgi.fetch(app, request, self.env)
+                if int(flask_response.status) != 200:
+                    return flask_response
 
+                asset_response = await self.env.ASSETS.fetch(
+                    js.Request.new("https://assets.local/index.html")
+                )
+                if int(asset_response.status) != 200:
+                    return asset_response
+
+                headers = asset_response.headers
+                headers.set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+                headers.set("Pragma", "no-cache")
+                headers.set("Expires", "0")
+                return Response(
+                    asset_response.body,
+                    status=int(asset_response.status),
+                    headers=headers,
+                )
 
             return await wsgi.fetch(app, request, self.env)
         except BaseException as exc:
