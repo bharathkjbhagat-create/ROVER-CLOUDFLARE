@@ -385,8 +385,15 @@ def _realtime_call(method, *args):
     if stub is None:
         return None
     try:
-        return run_sync(getattr(stub, method)(*args))
-    except Exception:
+        result = run_sync(getattr(stub, method)(*args))
+        # Durable Object RPC objects cross the Workers JS/Python boundary as
+        # PyProxy values in Pyodide. Convert structured results before Python
+        # callers perform isinstance checks or dictionary/list operations.
+        if hasattr(result, "to_py"):
+            result = result.to_py()
+        return result
+    except Exception as exc:
+        print(f"DEFENX Durable Object RPC {method} failed: {type(exc).__name__}")
         return None
 
 def _shared_state_payload(version, source="system"):
@@ -2077,6 +2084,8 @@ def _face_store(operation):
             raise RuntimeError("face_store_unavailable")
         try:
             result = run_sync(stub.face_enrollment_op(json.dumps(operation, separators=(",", ":"))))
+            if hasattr(result, "to_py"):
+                result = result.to_py()
         except Exception as exc:
             raise RuntimeError("face_store_unavailable") from exc
         if not isinstance(result, dict) or result.get("ok") is not True:
