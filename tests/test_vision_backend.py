@@ -124,6 +124,7 @@ class VisionBackendTests(unittest.TestCase):
         with self.client.session_transaction() as s:
             s["fallback_user"] = dict(admin)
             s["user_cache"] = dict(admin)
+            s["auth_source"] = "legacy"
             s["dashboard_entry"] = True
             s["audit_session_id"] = "vision-test"
 

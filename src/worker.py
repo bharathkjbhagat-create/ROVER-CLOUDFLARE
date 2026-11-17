@@ -784,8 +784,8 @@ class Default(WorkerEntrypoint):
             "display_name": str(display_name or username)[:120],
             "role": role,
             "enabled": True,
-            "can_control": True,
-            "can_manage_users": bool(can_manage_users),
+            "can_control": role == "admin",
+            "can_manage_users": role == "admin" or bool(can_manage_users),
             "created_at": None,
             "last_login_at": None,
         }
@@ -1055,10 +1055,12 @@ class Default(WorkerEntrypoint):
                 "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
                 "ADMINUSER", "ADMINUSERID",
             }
-            if self._normalize_login(username) not in admin_aliases:
-                return self._login_response(None)
-
-            user = self._local_authenticate(self.env, username, password)
+            # Environment-based fast authentication is administrator-only.
+            # Other usernames must reach Flask's PostgreSQL lookup so managed
+            # database viewer accounts can authenticate through Hyperdrive.
+            user = None
+            if self._normalize_login(username) in admin_aliases:
+                user = self._local_authenticate(self.env, username, password)
             if user:
                 response = self._login_response(user)
                 if int(response.status) == 200:

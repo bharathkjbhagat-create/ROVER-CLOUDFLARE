@@ -36,6 +36,7 @@ class SecurityRegressionTests(unittest.TestCase):
         }
         with self.client.session_transaction() as session:
             session["fallback_user"] = dict(admin)
+            session["auth_source"] = "legacy"
             if include_user_cache:
                 session["user_cache"] = dict(admin)
             session["dashboard_entry"] = True

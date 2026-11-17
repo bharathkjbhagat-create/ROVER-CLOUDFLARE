@@ -625,7 +625,7 @@ def get_db():
         return None
     try:
         hd = _cf_hyperdrive()
-        if hd is not None and not DATABASE_URL:
+        if hd is not None:
             return psycopg.connect(
                 host=str(hd.host),
                 port=int(hd.port),
@@ -655,18 +655,8 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Permanently remove every non-admin account and duplicate
-                    # case-variant admin rows, retaining one configured administrator.
-                    cur.execute(
-                        """DELETE FROM users
-                           WHERE id NOT IN (
-                               SELECT id FROM users
-                               WHERE UPPER(username)=UPPER(%s)
-                               ORDER BY (username=%s) DESC, created_at ASC, id ASC
-                               LIMIT 1
-                           )""",
-                        (ADMIN_USERNAME, ADMIN_USERNAME),
-                    )
+                    # Preserve all existing accounts. Initialization must never
+                    # delete viewer or other user records.
                     cur.execute(
                         """UPDATE users SET username=%s,role='admin',enabled=TRUE,
                            can_control=TRUE,can_manage_users=TRUE
@@ -709,56 +699,57 @@ def current_user():
     if hasattr(g, "_rover_user_loaded"):
         return g._rover_user
 
-    # Older signed sessions may contain only fallback_user (without user_cache).
-    # Validate either representation before granting access.
+    # Database sessions may belong to admins or ordinary viewer accounts.
+    # Environment and legacy fallback sessions remain administrator-only.
     cached = session.get("user_cache") or fallback_user()
-    if cached and (
-        str(cached.get("role") or "").strip().lower() != "admin"
-        or str(cached.get("username") or "").strip().upper() != ADMIN_USERNAME.upper()
-        or not bool(cached.get("enabled", True))
-    ):
-        session.clear()
-        cached = None
-
-    if cached and cached.get("username"):
-        user = dict(cached)
-        database_configured = bool(DATABASE_URL or _cf_hyperdrive())
-        if database_configured:
-            if session.get("auth_source") == "legacy":
-                pass
-            elif session.get("auth_source") != "database":
+    auth_source = session.get("auth_source")
+    database_configured = bool(DATABASE_URL or _cf_hyperdrive())
+    if not cached or not cached.get("username"):
+        user = None
+    elif auth_source == "database":
+        try:
+            ensure_db()
+            if not db_available():
                 user = None
             else:
-                try:
-                    ensure_db()
-                    if not db_available():
-                        user = None
-                    else:
-                        with get_db() as conn:
-                            with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
-                                cur.execute(
-                                    "SELECT id,username,display_name,role,enabled,can_control,can_manage_users,auth_version FROM users WHERE id=%s",
-                                    (str(cached.get("id") or ""),),
-                                )
-                                current = cur.fetchone()
-                        if (not current or not current["enabled"]
-                                or str(current["role"] or "").strip().lower() != "admin"
-                                or str(current["username"] or "").strip().upper() != ADMIN_USERNAME.upper()
-                                or int(current["auth_version"]) != int(session.get("auth_version", -1))):
-                            session.clear()
-                            user = None
-                        else:
-                            user = {
-                                "id": str(current["id"]), "username": current["username"],
-                                "display_name": current["display_name"], "role": current["role"],
-                                "enabled": current["enabled"], "can_control": current["can_control"],
-                                "can_manage_users": current["can_manage_users"],
-                            }
-                            session["user_cache"] = user
-                except Exception:
-                    mark_db_unavailable()
+                with get_db() as conn:
+                    with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+                        cur.execute(
+                            "SELECT id,username,display_name,role,enabled,can_control,can_manage_users,auth_version FROM users WHERE id=%s",
+                            (str(cached.get("id") or ""),),
+                        )
+                        current = cur.fetchone()
+                current_role = str((current or {}).get("role") or "").strip().lower()
+                if (not current or not current["enabled"] or current_role not in {"admin", "user"}
+                        or not str(current.get("username") or "").strip()
+                        or int(current["auth_version"]) != int(session.get("auth_version", -1))):
+                    session.clear()
                     user = None
+                else:
+                    user = {
+                        "id": str(current["id"]), "username": current["username"],
+                        "display_name": current["display_name"], "role": current_role,
+                        "enabled": current["enabled"], "can_control": bool(current["can_control"]),
+                        "can_manage_users": bool(current["can_manage_users"]),
+                    }
+                    session["user_cache"] = user
+        except Exception:
+            mark_db_unavailable()
+            user = None
+    elif (
+        auth_source in {"legacy", "environment"}
+        or (auth_source is None and not database_configured)
+    ) and (
+        str(cached.get("role") or "").strip().lower() == "admin"
+        and str(cached.get("username") or "").strip().upper() == ADMIN_USERNAME.upper()
+        and bool(cached.get("enabled", True))
+    ):
+        if database_configured and auth_source == "environment":
+            user = None
+        else:
+            user = dict(cached)
     else:
+        session.clear()
         user = None
 
     g._rover_user_loaded = True
@@ -859,8 +850,8 @@ def require_control(fn):
         u = current_user()
         if not u:
             return jsonify({"ok": False, "error": "Login required"}), 401
-        # Every authenticated user is allowed to operate the rover control panel.
-        # User-management permissions remain separate and admin-only unless granted.
+        if u["role"] != "admin" and not u.get("can_control", False):
+            return jsonify({"ok": False, "error": "Rover-control permission required"}), 403
         return fn(*args, **kwargs)
     return wrapper
 
@@ -1199,16 +1190,14 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Only the configured administrator may authenticate. Reject signed legacy
-    # user payloads and every other username before any fallback can run.
+    # Environment/legacy fallback is administrator-only. Other login IDs
+    # continue to the database lookup so managed viewer accounts can sign in.
     if login_key not in admin_login_ids:
         fast_user = None
-        record_login_failure(ip)
-        return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
-
-    # Every accepted alias represents the configured administrator, not a separate DB user.
-    username = ADMIN_USERNAME
-    canonical_username = ADMIN_USERNAME
+    else:
+        # Every accepted admin alias maps to the configured administrator row.
+        username = ADMIN_USERNAME
+        canonical_username = ADMIN_USERNAME
     if fast_user and (
         str(fast_user.get("role") or "").lower() != "admin"
         or normalize_login_id(fast_user.get("username")) not in admin_login_ids
@@ -1303,10 +1292,10 @@ def login():
                         record_login_failure(ip)
                         audit("LOGIN_FAILED", "Invalid login attempt")
                         return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "password"}), 401
+                    # Keep administrator-managed role and permissions intact.
+                    # A successful viewer login must never grant rover control.
                     cur.execute(
-                        """UPDATE users SET display_name=%s,role='user',
-                           enabled=TRUE,can_control=TRUE,can_manage_users=FALSE,
-                           last_login_at=NOW()
+                        """UPDATE users SET display_name=%s,last_login_at=NOW()
                            WHERE id=%s""",
                         (friend_config.get("display_name") or username, user["id"]),
                     )
@@ -1332,7 +1321,7 @@ def login():
                     cur.execute(
                         """INSERT INTO users
                            (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users,last_login_at)
-                           VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE,NOW())""",
+                           VALUES (%s,%s,%s,%s,'user',TRUE,FALSE,FALSE,NOW())""",
                         (
                             friend_id,
                             username,
@@ -1464,9 +1453,10 @@ def create_user():
     display_name = str(data.get("display_name", "")).strip() or username
     password = str(data.get("password", ""))
     role = str(data.get("role", "user")).lower()
-    # All active users receive rover-control access by design.
-    can_control = True
-    can_manage_users = bool(data.get("can_manage_users"))
+    # Admins always retain full access; regular users receive only
+    # the permissions explicitly selected by the administrator.
+    can_control = role == "admin" or bool(data.get("can_control"))
+    can_manage_users = role == "admin" or bool(data.get("can_manage_users"))
     if len(username) < 3 or len(password) < 10:
         return jsonify({"ok": False, "error": "Login ID needs 3+ characters and password needs 10+ characters"}), 400
     if role not in {"user", "admin"}:
@@ -1501,8 +1491,10 @@ def update_user(user_id):
             if str(target["id"]) == str(actor["id"]) and not bool(data["enabled"]):
                 return jsonify({"ok": False, "error": "You cannot disable your own account"}), 400
             target["enabled"] = bool(data["enabled"])
+        if "can_control" in data:
+            target["can_control"] = bool(data["can_control"]) or target.get("role") == "admin"
         if "can_manage_users" in data:
-            target["can_manage_users"] = bool(data["can_manage_users"])
+            target["can_manage_users"] = bool(data["can_manage_users"]) or target.get("role") == "admin"
         audit("USER_UPDATED", f"Updated {target['username']}", actor)
         return jsonify({"ok": True, "db_connected": False,
                         "warning": "User changes are active for the running application instance."})
@@ -1520,9 +1512,8 @@ def update_user(user_id):
                 return jsonify({"ok": False, "error": "Only an admin can promote to admin"}), 403
             display_name = str(data.get("display_name", target["display_name"])).strip() or target["display_name"]
             enabled = bool(data.get("enabled", target["enabled"]))
-            # Rover control is available to every active user; only user-management remains permissioned.
-            can_control = True
-            can_manage_users = bool(data.get("can_manage_users", target["can_manage_users"]))
+            can_control = role == "admin" or bool(data.get("can_control", target["can_control"]))
+            can_manage_users = role == "admin" or bool(data.get("can_manage_users", target["can_manage_users"]))
             if str(target["id"]) == str(actor["id"]) and not enabled:
                 return jsonify({"ok": False, "error": "You cannot disable your own account"}), 400
             cur.execute("""UPDATE users SET display_name=%s,role=%s,enabled=%s,can_control=%s,can_manage_users=%s,

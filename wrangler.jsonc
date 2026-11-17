@@ -6,6 +6,12 @@
     "python_workers",
     "enable_ctx_exports"
   ],
+  "hyperdrive": [
+    {
+      "binding": "HYPERDRIVE",
+      "id": "5fc226adbd6347dfb1694c19a64256ee"
+    }
+  ],
   "assets": {
     "directory": "./public",
     "binding": "ASSETS",

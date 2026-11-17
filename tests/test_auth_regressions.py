@@ -87,6 +87,66 @@ class AuthenticationRegressionTests(unittest.TestCase):
             })
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
 
+    def test_database_viewer_session_is_loaded_with_current_permissions(self):
+        from types import SimpleNamespace
+
+        viewer = {
+            "id": "viewer-123",
+            "username": "DHANUSH",
+            "display_name": "Dhanush",
+            "role": "user",
+            "enabled": True,
+            "can_control": False,
+            "can_manage_users": False,
+            "auth_version": 3,
+        }
+
+        class FakeCursor:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def execute(self, *args, **kwargs):
+                return None
+            def fetchone(self):
+                return viewer
+
+        class FakeConnection:
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def cursor(self, **kwargs):
+                return FakeCursor()
+
+        with self.client.session_transaction() as session:
+            session["user_id"] = viewer["id"]
+            session["user_cache"] = dict(viewer)
+            session["auth_source"] = "database"
+            session["auth_version"] = 3
+
+        with patch.object(rover_app, "DATABASE_URL", "postgresql://test.invalid/db"), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
+             patch.object(rover_app, "db_available", return_value=True), \
+             patch.object(rover_app, "ensure_db", return_value=None), \
+             patch.object(rover_app, "get_db", return_value=FakeConnection()), \
+             patch.object(rover_app, "psycopg", SimpleNamespace(rows=SimpleNamespace(dict_row=object()))):
+            response = self.client.get("/api/me")
+
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertEqual(response.get_json()["user"]["username"], "DHANUSH")
+        self.assertFalse(response.get_json()["user"]["can_control"])
+        self.assertFalse(response.get_json()["user"]["can_manage_users"])
+
+    def test_viewer_login_never_upgrades_permissions(self):
+        source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        start = source.index("friend_config = next(")
+        end = source.index("elif not user:", start)
+        friend_login = source[start:end]
+        self.assertNotIn("can_control=TRUE", friend_login)
+        self.assertNotIn("can_manage_users=FALSE", friend_login)
+        self.assertIn("VALUES (%s,%s,%s,%s,'user',TRUE,FALSE,FALSE,NOW())", friend_login)
+
     def test_worker_checks_database_auth_before_legacy_auth(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
         start = source.index("async def _handle_login")
@@ -96,7 +156,9 @@ class AuthenticationRegressionTests(unittest.TestCase):
             handler.index("fallback_response = await wsgi.fetch"),
             handler.index("legacy_user = await self._legacy_authenticate"),
         )
-        self.assertIn("if self._normalize_login(username) not in admin_aliases:", source)
+        self.assertNotIn("if self._normalize_login(username) not in admin_aliases:", handler)
+        self.assertIn("fallback_response = await wsgi.fetch", handler)
+        self.assertIn("if self._normalize_login(username) in admin_aliases:", handler)
 
     def test_worker_signed_session_keeps_auth_source_metadata(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
@@ -113,13 +175,16 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("self._needs_revocation_check(url.path)", source)
         self.assertIn("if await self.is_session_revoked(session_hash):", source)
 
-    def test_database_cleanup_preserves_one_admin_and_removes_other_users(self):
+    def test_database_initialization_preserves_existing_accounts(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn("DELETE FROM users", source)
-        self.assertIn("UPPER(username)=UPPER(%s)", source)
-        self.assertIn("role='admin',enabled=TRUE", source)
-        self.assertIn("runtime_users = {}", source)
-        self.assertIn("runtime_password_hashes = {}", source)
+        start = source.index("def ensure_db():")
+        end = source.index("\ndef client_ip():", start)
+        initializer = source[start:end]
+        self.assertNotIn("DELETE FROM users", initializer)
+        self.assertIn("Preserve all existing accounts", initializer)
+        self.assertIn("UPPER(username)=UPPER(%s)", initializer)
+        self.assertIn("role='admin',enabled=TRUE", initializer)
+        self.assertIn("INSERT INTO users", initializer)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):

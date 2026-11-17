@@ -406,38 +406,3 @@ jobs:
               assert "photo" not in row, "Reference photograph must remain protected"
           print("Encrypted registry read and safe legacy migration check: PASS")
           PY
-
-      - name: Verify regular-user logins remain disabled
-        env:
-          WORKER_URL: https://defenx.bindukjagadish.workers.dev
-        run: |
-          set -euo pipefail
-          python - <<'PY'
-          import json
-          import os
-          import subprocess
-          import tempfile
-
-          accounts = ["MAHANTESH", "DHANUSH", "ANIRUDH", "MAMLESHWAR"]
-          base = os.environ["WORKER_URL"]
-          for username in accounts:
-              with tempfile.TemporaryDirectory() as tmp:
-                  login_path = os.path.join(tmp, "login.json")
-                  cookie_path = os.path.join(tmp, "cookies.txt")
-                  payload = json.dumps({"username": username, "password": "disabled-account-check"})
-                  login = subprocess.run([
-                      "curl", "--max-time", "15", "-sS", "-o", login_path, "-w", "%{http_code}",
-                      "-c", cookie_path, "-H", "Content-Type: application/json",
-                      "-H", "Accept: application/json", "--data", payload,
-                      base + "/api/login"
-                  ], capture_output=True, text=True, check=True)
-                  status = login.stdout.strip()
-                  if status != "401":
-                      raise SystemExit(f"{username}: expected HTTP 401, received HTTP {status}")
-                  with open(login_path, encoding="utf-8") as handle:
-                      body = json.load(handle)
-                  if body.get("ok") is True:
-                      raise SystemExit(f"{username}: server unexpectedly accepted a regular-user login")
-                  print(f"{username}: PASS (regular-user login rejected)")
-          print("Admin-only login policy checks: PASS")
-          PY
