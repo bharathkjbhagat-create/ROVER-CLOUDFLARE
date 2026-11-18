@@ -229,7 +229,7 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
   .dashboardGrid .cameraCard { grid-area: camera !important; }
   .dashboardGrid .controlCard { grid-area: control !important; }
   .dashboardGrid .deviceCard { grid-area: device !important; }
-  .dashboardGrid .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
   .dashboardGrid .simLabCard { grid-area: simulation !important; }
 
   .lowerGrid {
@@ -302,7 +302,7 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
     margin: 0 !important;
     align-self: stretch !important;
   }
-  .dashboardGrid .recentCard {
+  .dashboardGrid > .recentCard {
     grid-area: recent !important;
     width: 100% !important;
     min-width: 0 !important;
