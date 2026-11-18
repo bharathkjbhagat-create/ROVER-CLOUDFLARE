@@ -21,4 +21,21 @@
   } else {
     applyApprovedLayout();
   }
+
+  document.addEventListener("click", function (event) {
+    var item = event.target.closest(".navItem[data-action='simlab']");
+    var back = event.target.closest("#simLabBackBtn");
+    if (!item && !back) return;
+    var page = document.getElementById("simLabPage");
+    if (!page) return;
+    page.hidden = !item;
+    document.body.classList.toggle("simLabOpen", !!item);
+    if (back) {
+      document.querySelectorAll(".navItem").forEach(function (node) { node.classList.remove("active"); });
+      var dashboard = document.querySelector('.navItem[data-scroll="dashboardTop"]');
+      if (dashboard) dashboard.classList.add("active");
+      var top = document.getElementById("dashboardTop");
+      if (top) top.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  });
 })();
