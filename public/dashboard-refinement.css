@@ -309,3 +309,19 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
     height: fit-content !important;
   }
 }
+
+
+/* Place Recent Activity and Event Log together at the top of the lower dashboard. */
+@media (min-width: 651px) {
+  .lowerGrid {
+    grid-template-areas:
+      "recent eventlog"
+      "status target" !important;
+    align-items: start !important;
+    grid-auto-rows: max-content !important;
+  }
+  .lowerGrid > .recentCard { grid-area: recent !important; }
+  .lowerGrid > .adminLogCard { grid-area: eventlog !important; }
+  .lowerGrid > .statusCard { grid-area: status !important; }
+  .lowerGrid > .targetCard { grid-area: target !important; }
+}
