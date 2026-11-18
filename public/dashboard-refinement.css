@@ -282,60 +282,25 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
 @media (max-width: 520px) { .fleetCard { width: 100% !important; max-width: 100% !important; } }
 
 
-/* Compact card placement: prevent stretched cards and unused dashboard slots. */
-@media (min-width: 651px) {
-  .dashboardGrid {
-    grid-template-areas:
-      "map camera"
-      "control device"
-      "fleet fleet" !important;
-    align-items: start !important;
-    row-gap: 14px !important;
-  }
-  .dashboardGrid .fleetCard {
-    grid-area: fleet !important;
-    width: min(100%, 430px) !important;
-    max-width: 430px !important;
-    justify-self: start !important;
-    align-self: start !important;
-  }
-  .lowerGrid {
-    align-items: start !important;
-    grid-auto-rows: max-content !important;
-    row-gap: 14px !important;
-  }
-  .lowerGrid > .card {
-    align-self: start !important;
-    height: fit-content !important;
-  }
-}
-
-
-/* Place Recent Activity and Event Log together at the top of the lower dashboard. */
-@media (min-width: 651px) {
-  .lowerGrid {
-    grid-template-areas:
-      "recent eventlog"
-      "status target" !important;
-    align-items: start !important;
-    grid-auto-rows: max-content !important;
-  }
-  .lowerGrid > .recentCard { grid-area: recent !important; }
-  .lowerGrid > .adminLogCard { grid-area: eventlog !important; }
-  .lowerGrid > .statusCard { grid-area: status !important; }
-  .lowerGrid > .targetCard { grid-area: target !important; }
-}
-
-
-/* Requested dashboard pairing:
-   Recent Activity sits beside Fleet & Autonomy.
-   Event Log sits beside Target Information. */
+/* Desktop dashboard pairing requested:
+   Recent Activity beside Fleet & Autonomy.
+   Event Log beside Target Information, with Device Status above. */
 @media (min-width: 651px) {
   .dashboardGrid {
     grid-template-areas:
       "map camera"
       "control device"
       "fleet recent" !important;
+    align-items: stretch !important;
+    row-gap: 14px !important;
+  }
+  .dashboardGrid .fleetCard {
+    grid-area: fleet !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
   }
   .dashboardGrid .recentCard {
     grid-area: recent !important;
@@ -350,6 +315,8 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
       "status status"
       "target event" !important;
     align-items: stretch !important;
+    grid-auto-rows: max-content !important;
+    row-gap: 14px !important;
   }
   .lowerGrid > .statusCard { grid-area: status !important; }
   .lowerGrid > .targetCard { grid-area: target !important; }
