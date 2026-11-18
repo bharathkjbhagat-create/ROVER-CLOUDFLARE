@@ -229,7 +229,7 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
   .dashboardGrid .cameraCard { grid-area: camera !important; }
   .dashboardGrid .controlCard { grid-area: control !important; }
   .dashboardGrid .deviceCard { grid-area: device !important; }
-  .dashboardGrid .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
   .dashboardGrid .simLabCard { grid-area: simulation !important; }
 
   .lowerGrid {
@@ -280,3 +280,45 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
 .fleetPrimaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 7px !important; }
 .fleetPrimaryGrid > div { min-height: 42px !important; padding: 7px 9px !important; }
 @media (max-width: 520px) { .fleetCard { width: 100% !important; max-width: 100% !important; } }
+
+
+/* Desktop dashboard pairing requested:
+   Recent Activity beside Fleet & Autonomy.
+   Event Log beside Target Information, with Device Status above. */
+@media (min-width: 651px) {
+  .dashboardGrid {
+    grid-template-areas:
+      "map camera"
+      "control device"
+      "fleet recent" !important;
+    align-items: stretch !important;
+    row-gap: 14px !important;
+  }
+  .dashboardGrid .fleetCard {
+    grid-area: fleet !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+  .dashboardGrid .recentCard {
+    grid-area: recent !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+  .lowerGrid {
+    grid-template-areas:
+      "status status"
+      "target event" !important;
+    align-items: stretch !important;
+    grid-auto-rows: max-content !important;
+    row-gap: 14px !important;
+  }
+  .lowerGrid > .statusCard { grid-area: status !important; }
+  .lowerGrid > .targetCard { grid-area: target !important; }
+  .lowerGrid > .adminLogCard { grid-area: event !important; }
+}

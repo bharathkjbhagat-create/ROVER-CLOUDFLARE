@@ -78,13 +78,12 @@ try {
           </div>
         </section>
         <section class="card fleetCard">FLEET</section>
-        <section class="card simLabCard">SIMULATION</section>
+        <section class="card recentCard">RECENT ACTIVITY</section>
       </div>
     </section>
     <section class="lowerGrid">
       <section class="card statusCard">STATUS</section>
       <section class="card targetCard">TARGET</section>
-      <section class="card recentCard">RECENT</section>
       <section class="card adminLogCard">AUDIT</section>
     </section>
   </main>
@@ -121,34 +120,43 @@ try {
     const control = rect(".controlCard");
     const device = rect(".deviceCard");
     const fleet = rect(".fleetCard");
-    const simulation = rect(".simLabCard");
+    const recent = rect(".recentCard");
     const status = rect(".statusCard");
     const target = rect(".targetCard");
+    const eventLog = rect(".adminLogCard");
     return {
       mapCameraEqual: Math.abs(map.width - camera.width) < 1,
       controlDeviceEqual: Math.abs(control.width - device.width) < 1,
-      fleetSimulationEqual: Math.abs(fleet.width - simulation.width) < 1,
-      lowerCardsEqual: Math.abs(status.width - target.width) < 1,
-      firstRowEqualHeight: Math.abs(map.height - camera.height) < 1,
-      secondRowEqualHeight: Math.abs(control.height - device.height) < 1,
-      thirdRowEqualHeight: Math.abs(fleet.height - simulation.height) < 1,
+      fleetRecentEqual: Math.abs(fleet.width - recent.width) < 1,
+      fleetRecentSameRow: Math.abs(fleet.top - recent.top) < 1,
+      statusFullWidth: Math.abs(status.width - (target.width + eventLog.width + 16)) < 2,
+      targetEventSameRow: Math.abs(target.top - eventLog.top) < 1,
+      targetBeforeEvent: target.left < eventLog.left,
+      statusAboveLowerPair: status.top < target.top,
       mapArea: getComputedStyle(document.querySelector(".mapCard")).gridArea,
       cameraArea: getComputedStyle(document.querySelector(".cameraCard")).gridArea,
       fleetArea: getComputedStyle(document.querySelector(".fleetCard")).gridArea,
-      simulationArea: getComputedStyle(document.querySelector(".simLabCard")).gridArea
+      recentArea: getComputedStyle(document.querySelector(".recentCard")).gridArea,
+      statusArea: getComputedStyle(document.querySelector(".statusCard")).gridArea,
+      targetArea: getComputedStyle(document.querySelector(".targetCard")).gridArea,
+      eventArea: getComputedStyle(document.querySelector(".adminLogCard")).gridArea
     };
   });
   assert.equal(desktopGrid.mapCameraEqual, true, "map and camera cards must have equal width");
   assert.equal(desktopGrid.controlDeviceEqual, true, "control and device cards must have equal width");
-  assert.equal(desktopGrid.fleetSimulationEqual, true, "fleet and simulation cards must have equal width");
-  assert.equal(desktopGrid.lowerCardsEqual, true, "lower dashboard cards must have equal width");
-  assert.equal(desktopGrid.firstRowEqualHeight, true, "map and camera row must stretch to equal height");
-  assert.equal(desktopGrid.secondRowEqualHeight, true, "control and device row must stretch to equal height");
-  assert.equal(desktopGrid.thirdRowEqualHeight, true, "fleet and simulation row must stretch to equal height");
+  assert.equal(desktopGrid.fleetRecentEqual, true, "fleet and recent activity must have equal width");
+  assert.equal(desktopGrid.fleetRecentSameRow, true, "recent activity must sit beside fleet & autonomy");
+  assert.equal(desktopGrid.statusFullWidth, true, "device status must span above target and event log");
+  assert.equal(desktopGrid.targetEventSameRow, true, "target information and event log must share a row");
+  assert.equal(desktopGrid.targetBeforeEvent, true, "target information must be left of event log");
+  assert.equal(desktopGrid.statusAboveLowerPair, true, "device status must sit above target and event log");
   assert.match(desktopGrid.mapArea, /map/);
   assert.match(desktopGrid.cameraArea, /camera/);
   assert.match(desktopGrid.fleetArea, /fleet/);
-  assert.match(desktopGrid.simulationArea, /simulation/);
+  assert.match(desktopGrid.recentArea, /recent/);
+  assert.match(desktopGrid.statusArea, /status/);
+  assert.match(desktopGrid.targetArea, /target/);
+  assert.match(desktopGrid.eventArea, /event/);
 
   await page.setViewportSize({ width: 768, height: 900 });
   const tabletWidths = await page.evaluate(() => {
