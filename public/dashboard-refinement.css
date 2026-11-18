@@ -325,3 +325,33 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
   .lowerGrid > .statusCard { grid-area: status !important; }
   .lowerGrid > .targetCard { grid-area: target !important; }
 }
+
+
+/* Requested dashboard pairing:
+   Recent Activity sits beside Fleet & Autonomy.
+   Event Log sits beside Target Information. */
+@media (min-width: 651px) {
+  .dashboardGrid {
+    grid-template-areas:
+      "map camera"
+      "control device"
+      "fleet recent" !important;
+  }
+  .dashboardGrid .recentCard {
+    grid-area: recent !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin: 0 !important;
+    align-self: stretch !important;
+  }
+  .lowerGrid {
+    grid-template-areas:
+      "status status"
+      "target event" !important;
+    align-items: stretch !important;
+  }
+  .lowerGrid > .statusCard { grid-area: status !important; }
+  .lowerGrid > .targetCard { grid-area: target !important; }
+  .lowerGrid > .adminLogCard { grid-area: event !important; }
+}
