@@ -1388,8 +1388,7 @@ $("userTable")?.addEventListener("click",e=>{const b=e.target.closest("button[da
 $("usersTabBtn")?.addEventListener("click",async()=>{show("usersTab");hide("auditTab");await loadUsers()});
 $("devicesTabBtn")?.addEventListener("click",async()=>{closeModal("adminModal");await openDevices()});
 $("auditTabBtn")?.addEventListener("click",async()=>{hide("usersTab");show("auditTab");await loadAudit()});
-document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){openQuickSettings();return}if(a==="simlab"){const page=document.getElementById("simLabPage");if(page){page.hidden=false;document.body.classList.add("simLabOpen");}return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
-document.getElementById("simLabBackBtn")?.addEventListener("click",()=>{const page=document.getElementById("simLabPage");if(page)page.hidden=true;document.body.classList.remove("simLabOpen");document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));document.querySelector('.navItem[data-scroll="dashboardTop"]')?.classList.add("active");scrollToSection("dashboardTop")});
+document.querySelectorAll(".navItem").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll(".navItem").forEach(x=>x.classList.remove("active"));b.classList.add("active");const a=b.dataset.action;if(a==="users"){openModal("adminModal");loadUsers();return}if(a==="devices"){openDevices();return}if(a==="settings"){openQuickSettings();return}if(b.dataset.scroll)scrollToSection(b.dataset.scroll)}));
 initMobileNav();
 initCamera3DRoom();
 initRealCameraStream();
