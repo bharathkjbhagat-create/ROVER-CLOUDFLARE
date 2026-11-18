@@ -49,7 +49,7 @@ class FrontendControlTests(unittest.TestCase):
 
     def test_fleet_defaults_to_essential_status_and_hides_management_details(self):
         fleet = (ROOT / "public" / "fleet-panel.js").read_text(encoding="utf-8")
-        self.assertIn('["CONNECTION", "STATE", "BATTERY", "AUTONOMY"]', fleet)
+        self.assertIn('["CONNECTION", "STATE"]', fleet)
         self.assertIn('DEVICE DETAILS & MANAGEMENT', fleet)
         self.assertIn('" · ID " + d.id', fleet)
 
