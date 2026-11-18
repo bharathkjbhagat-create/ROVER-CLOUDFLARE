@@ -15,10 +15,10 @@
   const banner = $("div", { className: "fleetBanner" });
   const cells = {}; const grid = $("div", { className: "fleetGrid fleetPrimaryGrid" });
   const detailGrid = $("div", { className: "fleetGrid fleetDetailGrid" });
-  ["CONNECTION", "STATE", "BATTERY", "AUTONOMY"].forEach(k => {
+  ["CONNECTION", "STATE"].forEach(k => {
     const b = $("b", { textContent: "—" }); cells[k] = b; grid.appendChild($("div", {}, [$("span", { textContent: k }), b]));
   });
-  ["GPS", "OBSTACLE", "CAMERA", "RETURN TO BASE", "OFFLINE QUEUE"].forEach(k => {
+  ["BATTERY", "AUTONOMY", "GPS", "OBSTACLE", "CAMERA", "RETURN TO BASE", "OFFLINE QUEUE"].forEach(k => {
     const b = $("b", { textContent: "—" }); cells[k] = b; detailGrid.appendChild($("div", {}, [$("span", { textContent: k }), b]));
   });
   const msg = $("div", { className: "fleetBanner", id: "fleetMsg" });
