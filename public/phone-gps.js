@@ -116,11 +116,6 @@ window.DEFENX_PHONE_GPS_RENDER=render;
 window.DEFENX_PHONE_GPS_SYNC=()=>{if(watchId!==null&&latest){publish(true);}};
 window.DEFENX_PHONE_GPS_REMOTE=showRemote;
 window.addEventListener("visibilitychange",()=>{if(!document.hidden&&watchId!==null&&latest){publish(true);}});
-window.addEventListener("DOMContentLoaded",()=>{
- const button=gpsButton();
- button?.addEventListener("click",()=>watchId===null?start():stop());
- 
-});
 window.addEventListener("pagehide",stop);
 })();
 
