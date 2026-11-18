@@ -29,6 +29,7 @@
     <div class="sideTitle">COMMAND CENTRE</div>
     <nav class="sideNav">
       <button type="button" class="navItem active" data-scroll="dashboardTop"><span>⌂</span>Dashboard</button>
+      <button type="button" class="navItem" data-action="simlab">Simulation Lab</button>
       <button type="button" class="navItem" data-scroll="liveMap"><span>⌖</span>Live Map</button>
       <button type="button" class="navItem" data-scroll="liveCamera"><span>▣</span>Camera View</button>
       <button type="button" class="navItem" data-scroll="trackingSection"><span>✥</span>Tracking</button>
@@ -201,7 +202,7 @@
 
         <section id="fleetMount" class="card fleetCard" aria-live="polite"></section>
 
-        <section id="simLabMount" class="card simLabCard" aria-live="polite"></section>
+        <section id="simLabPage" class="simLabPage" hidden><div class="simLabPageHeader"><div><b>SIMULATION LAB</b><small>Practice with a virtual rover. This does not control your physical rover.</small></div><button type="button" id="simLabBackBtn">← BACK TO DASHBOARD</button></div><section id="simLabMount" class="card simLabCard" aria-live="polite"></section></section>
       </div>
     </section>
 
