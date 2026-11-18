@@ -39,6 +39,20 @@ class FrontendControlTests(unittest.TestCase):
         duplicates = [key for key, count in Counter(parser.ids).items() if count > 1]
         self.assertEqual(duplicates, [], f"Duplicate HTML IDs: {duplicates}")
 
+
+    def test_simulation_lab_is_sidebar_only_and_has_back_navigation(self):
+        self.assertIn('data-action="simlab"', self.html)
+        self.assertIn('id="simLabPage" class="simLabPage" hidden', self.html)
+        self.assertIn('id="simLabBackBtn"', self.html)
+        self.assertIn('navItem[data-action=\'simlab\']', (ROOT / "public" / "dashboard-layout.js").read_text(encoding="utf-8"))
+        self.assertIn('simLabBackBtn', (ROOT / "public" / "dashboard-layout.js").read_text(encoding="utf-8"))
+
+    def test_fleet_defaults_to_essential_status_and_hides_management_details(self):
+        fleet = (ROOT / "public" / "fleet-panel.js").read_text(encoding="utf-8")
+        self.assertIn('["CONNECTION", "STATE"]', fleet)
+        self.assertIn('DEVICE DETAILS & MANAGEMENT', fleet)
+        self.assertIn('" · ID " + d.id', fleet)
+
     def test_devices_tab_opens_registered_devices_panel(self):
         self.assertIn(
             '$("devicesTabBtn")?.addEventListener("click",async()=>{closeModal("adminModal");await openDevices()});',

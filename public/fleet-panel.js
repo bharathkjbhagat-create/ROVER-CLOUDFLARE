@@ -13,9 +13,13 @@
 
   const conn = $("span", { className: "fleetConn", textContent: "CONNECTING" }); conn.dataset.s = "connecting";
   const banner = $("div", { className: "fleetBanner" });
-  const cells = {}; const grid = $("div", { className: "fleetGrid" });
-  ["LINK", "STATE", "GPS", "OBSTACLE", "BATTERY", "CAMERA", "RETURN TO BASE", "OFFLINE QUEUE"].forEach(k => {
+  const cells = {}; const grid = $("div", { className: "fleetGrid fleetPrimaryGrid" });
+  const detailGrid = $("div", { className: "fleetGrid fleetDetailGrid" });
+  ["CONNECTION", "STATE"].forEach(k => {
     const b = $("b", { textContent: "—" }); cells[k] = b; grid.appendChild($("div", {}, [$("span", { textContent: k }), b]));
+  });
+  ["BATTERY", "AUTONOMY", "GPS", "OBSTACLE", "CAMERA", "RETURN TO BASE", "OFFLINE QUEUE"].forEach(k => {
+    const b = $("b", { textContent: "—" }); cells[k] = b; detailGrid.appendChild($("div", {}, [$("span", { textContent: k }), b]));
   });
   const msg = $("div", { className: "fleetBanner", id: "fleetMsg" });
   const actions = $("div", { className: "fleetActions" });
@@ -26,10 +30,12 @@
   const addName = $("input", { placeholder: "Name", maxLength: 60 });
   const addRole = $("select"); ["rover", "phone", "sensor", "camera"].forEach(r => addRole.appendChild($("option", { value: r, textContent: r.toUpperCase() })));
   const addForm = $("div", { className: "fleetAdd" }, [addId, addName, addRole, btn("REGISTER DEVICE", "", registerDevice)]);
+  const advanced = $("details", { className: "fleetAdvanced" });
+  advanced.append($("summary", { textContent: "DEVICE DETAILS & MANAGEMENT" }), detailGrid, list, secretBox, addForm,
+    $("div", { className: "cardHeader" }, [$("b", { textContent: "RECENT DEVICE EVENTS" })]), events,
+    $("div", { className: "fleetList" }, [$("small", { textContent: "Device IDs, registration and security actions are kept here." })]));
   mount.className = "card fleetCard"; mount.id = "fleetSection";
-  mount.append($("div", { className: "cardHeader" }, [$("b", { textContent: "FLEET & AUTONOMY" }), conn]), banner, grid, msg, actions, list, secretBox, addForm,
-    $("div", { className: "cardHeader" }, [$("b", { textContent: "DEVICE EVENTS (PERSISTED)" })]), events,
-    $("div", { className: "fleetList" }, [$("small", { textContent: "Phones join via /device-client.html. Device secrets are shown once." })]));
+  mount.append($("div", { className: "cardHeader" }, [$("b", { textContent: "FLEET & AUTONOMY" }), conn]), banner, grid, msg, actions, advanced);
 
   async function api(path, opts) {
     const r = await fetch(path, Object.assign({ credentials: "same-origin", cache: "no-store" }, opts || {}, opts && opts.body ? { headers: { "Content-Type": "application/json" } } : {}));
@@ -83,7 +89,7 @@
     list.textContent = "";
     (data.devices || []).forEach(d => {
       const st = d.status, row = $("div", { className: "fleetDev" });
-      const left = $("span", {}, [$("b", { textContent: d.id }), $("small", { textContent: " " + d.role.toUpperCase() + (st && st.sim ? " · SIMULATOR" : "") })]);
+      const left = $("span", {}, [$("b", { textContent: d.name || d.id }), $("small", { textContent: " · ID " + d.id + " · " + d.role.toUpperCase() + (st && st.sim ? " · SIMULATOR" : "") })]);
       const mid = $("span", { className: d.online ? "on" : "off", textContent: d.online ? "● ONLINE" : "● OFFLINE" });
       const info = $("small", { textContent: st ? (st.battery !== undefined ? Math.round(st.battery) + "% · " : "") + (st.gps_valid ? st.lat.toFixed(4) + "," + st.lon.toFixed(4) : "no GPS") + " · " + Math.round(st.age_s) + "s ago" : "never connected" });
       const ctl = $("span");
@@ -95,8 +101,9 @@
     else banner.className = "fleetBanner";
     if (!r || !s) { Object.keys(cells).forEach(k => set(k, r ? "NO DATA YET" : "—", "warn")); actionsState(false); return; }
     const online = r.online, fsm = s.fsm || "UNKNOWN";
-    set("LINK", !online ? "ROVER OFFLINE" : (s.offline_autonomy ? "OFFLINE AUTONOMY (" + (s.link || "no server") + ")" : "ONLINE"), !online ? "bad" : (s.offline_autonomy ? "warn" : "ok"));
+    set("CONNECTION", online ? "ONLINE" : "OFFLINE", online ? "ok" : "bad");
     set("STATE", s.estop ? "EMERGENCY STOP" : fsm.replace(/_/g, " "), s.estop || /FAILED|PAUSED/.test(fsm) ? "bad" : (/RTB/.test(fsm) ? "warn" : "ok"));
+    set("AUTONOMY", s.offline_autonomy ? "OFFLINE AUTONOMY" : (s.caps && s.caps.autonomous_navigation === true ? "AVAILABLE" : "NOT CONFIRMED"), s.offline_autonomy ? "warn" : (s.caps && s.caps.autonomous_navigation === true ? "ok" : "warn"));
     set("GPS", s.gps_valid ? ("FIX · ±" + (s.accuracy_m !== undefined ? s.accuracy_m.toFixed(1) : "?") + " m · " + (s.gps_sats !== undefined ? s.gps_sats : "?") + " sats") : "GPS UNAVAILABLE", s.gps_valid ? "ok" : "bad");
     const o = s.obstacle || {}, f = o.front, fcap = s.caps && s.caps.obstacle_sensor_healthy;
     set("OBSTACLE", !f || !f.valid || fcap === false ? "SENSOR FAULT / NO DATA" : "F " + Math.round(f.cm) + " cm" + (o.left && o.left.valid ? " · L " + Math.round(o.left.cm) : "") + (o.right && o.right.valid ? " · R " + Math.round(o.right.cm) : ""), (!f || !f.valid || fcap === false) ? "bad" : (f.cm < 40 ? "warn" : "ok"));
