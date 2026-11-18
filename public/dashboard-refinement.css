@@ -280,3 +280,32 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
 .fleetPrimaryGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 7px !important; }
 .fleetPrimaryGrid > div { min-height: 42px !important; padding: 7px 9px !important; }
 @media (max-width: 520px) { .fleetCard { width: 100% !important; max-width: 100% !important; } }
+
+
+/* Compact card placement: prevent stretched cards and unused dashboard slots. */
+@media (min-width: 651px) {
+  .dashboardGrid {
+    grid-template-areas:
+      "map camera"
+      "control device"
+      "fleet fleet" !important;
+    align-items: start !important;
+    row-gap: 14px !important;
+  }
+  .dashboardGrid .fleetCard {
+    grid-area: fleet !important;
+    width: min(100%, 430px) !important;
+    max-width: 430px !important;
+    justify-self: start !important;
+    align-self: start !important;
+  }
+  .lowerGrid {
+    align-items: start !important;
+    grid-auto-rows: max-content !important;
+    row-gap: 14px !important;
+  }
+  .lowerGrid > .card {
+    align-self: start !important;
+    height: fit-content !important;
+  }
+}
