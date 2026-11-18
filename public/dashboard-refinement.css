@@ -302,7 +302,7 @@ body.defenx-drawer-open .defenx-drawer-backdrop {
     margin: 0 !important;
     align-self: stretch !important;
   }
-  .dashboardGrid > .recentCard {
+  .dashboardGrid .recentCard {
     grid-area: recent !important;
     width: 100% !important;
     min-width: 0 !important;
