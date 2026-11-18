@@ -97,6 +97,7 @@ async function start(){
    track.addEventListener("ended",()=>{
     if(active){
      stream=null;active=false;setButton();restoreElement();
+     window.DEFENX_PHONE_GPS_CONTROL?.(false);
      window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
      label("cameraSceneLabel","PHONE CAMERA DISCONNECTED");label("cameraStatus","Camera disconnected");
     }
@@ -108,6 +109,8 @@ async function start(){
   stream=acquired;active=true;
   const scene=$("camera3DScene");if(scene)scene.style.display="none";
   window.__defenxSetPhoneCameraActive?.(true);
+  // Phone GPS follows the phone camera; the browser will request location permission if needed.
+  window.DEFENX_PHONE_GPS_CONTROL?.(true);
   window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:acquired,active:true}}));
   setButton();
   try{await created.play();}catch(playError){
@@ -139,6 +142,7 @@ async function start(){
    else created.remove();
   }
   stream=null;active=false;videoNode=null;originalSource=null;
+  window.DEFENX_PHONE_GPS_CONTROL?.(false);
   window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
   window.__defenxSetPhoneCameraActive?.(false);
   const message=error?.name==="NotAllowedError"?"ALLOW CAMERA PERMISSION IN CHROME":
@@ -159,6 +163,7 @@ function stop(){
  if(playRetryTimer){clearTimeout(playRetryTimer);playRetryTimer=null;}
  stopTracks(stream);stream=null;active=false;pending=false;
  restoreElement();
+ window.DEFENX_PHONE_GPS_CONTROL?.(false);
  window.dispatchEvent(new CustomEvent("defenx-camera-stream",{detail:{stream:null,active:false}}));
  window.__defenxSetPhoneCameraActive?.(false);
  const scene=$("camera3DScene");if(scene)scene.style.display="";
