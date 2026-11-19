@@ -260,7 +260,7 @@ ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().
 LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "0")).strip().lower() not in {"0", "false", "no", "off"}
 LEGACY_AUTH_URL = str(_config("LEGACY_AUTH_URL", "https://rover-ten-weld.vercel.app/api/login")).strip()
 
-KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMLESHWAR")
+KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "MAMALESHWAR")
 
 FRIEND_ACCOUNTS = [
     {
@@ -276,16 +276,10 @@ FRIEND_ACCOUNTS = [
         "display_name": "DHANUSH",
     },
     {
-        "username": "ANIRUDH",
-        "password": _config("FRIEND_ANIRUDH_PASSWORD"),
-        "password_hash": _config("FRIEND_ANIRUDH_PASSWORD_HASH"),
-        "display_name": "ANIRUDH",
-    },
-    {
-        "username": "MAMLESHWAR",
-        "password": _config("FRIEND4_PASSWORD"),
-        "password_hash": _config("FRIEND4_PASSWORD_HASH"),
-        "display_name": "MAMLESHWAR",
+        "username": "MAMALESHWAR",
+        "password": _config("FRIEND_MAMALESHWAR_PASSWORD"),
+        "password_hash": _config("FRIEND_MAMALESHWAR_PASSWORD_HASH"),
+        "display_name": "MAMALESHWAR",
     },
 ]
 FRIEND_ACCOUNTS = [x for x in FRIEND_ACCOUNTS if x.get("password_hash") or x.get("password")]
@@ -669,10 +663,8 @@ state = {
 track = []
 recent_actions = []
 
-# When PostgreSQL is intentionally not connected, keep Admin-managed friend
-# accounts in the running application instance so password resets still work.
-# This avoids requiring Neon/PostgreSQL for the live demonstration.
-# DEFENX is now admin-only. No regular-user accounts are loaded into memory.
+# Regular-user accounts are stored durably in PostgreSQL. Do not create
+# per-isolate runtime accounts because they would disappear across Worker requests.
 runtime_users = {}
 runtime_password_hashes = {}
 
@@ -803,17 +795,17 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Permanently remove every non-admin account and duplicate
-                    # case-variant admin rows, retaining one configured administrator.
+                    # Retain approved regular users across deployments. Remove only
+                    # the explicitly retired account and duplicate admin rows.
+                    cur.execute("DELETE FROM users WHERE UPPER(username)='ANIRUDH'")
                     cur.execute(
                         """DELETE FROM users
-                           WHERE id NOT IN (
-                               SELECT id FROM users
-                               WHERE UPPER(username)=UPPER(%s)
-                               ORDER BY (username=%s) DESC, created_at ASC, id ASC
-                               LIMIT 1
-                           )""",
-                        (ADMIN_USERNAME, ADMIN_USERNAME),
+                           WHERE UPPER(username)=UPPER(%s)
+                             AND id NOT IN (
+                               SELECT id FROM users WHERE UPPER(username)=UPPER(%s)
+                               ORDER BY (username=%s) DESC, created_at ASC, id ASC LIMIT 1
+                             )""",
+                        (ADMIN_USERNAME, ADMIN_USERNAME, ADMIN_USERNAME),
                     )
                     cur.execute(
                         """UPDATE users SET username=%s,role='admin',enabled=TRUE,
@@ -860,11 +852,11 @@ def current_user():
     # Older signed sessions may contain only fallback_user (without user_cache).
     # Validate either representation before granting access.
     cached = session.get("user_cache") or fallback_user()
-    if cached and (
-        str(cached.get("role") or "").strip().lower() != "admin"
-        or str(cached.get("username") or "").strip().upper() != ADMIN_USERNAME.upper()
-        or not bool(cached.get("enabled", True))
-    ):
+    cached_name = str((cached or {}).get("username") or "").strip().upper()
+    cached_role = str((cached or {}).get("role") or "").strip().lower()
+    approved_user = cached_name in KNOWN_FRIEND_USERNAMES and cached_role == "user"
+    approved_admin = cached_role == "admin" and cached_name == ADMIN_USERNAME.upper()
+    if cached and (not (approved_admin or approved_user) or not bool(cached.get("enabled", True))):
         session.clear()
         cached = None
 
@@ -875,7 +867,7 @@ def current_user():
             # Environment admin credentials remain authoritative when
             # Hyperdrive is merely bound or the database is unavailable.
             # Database-backed sessions still require a live, matching DB row.
-            if session.get("auth_source") in {"legacy", "environment"}:
+            if session.get("auth_source") in {"legacy", "environment"} and approved_admin:
                 pass
             elif session.get("auth_source") != "database":
                 user = None
@@ -893,8 +885,9 @@ def current_user():
                                 )
                                 current = cur.fetchone()
                         if (not current or not current["enabled"]
-                                or str(current["role"] or "").strip().lower() != "admin"
-                                or str(current["username"] or "").strip().upper() != ADMIN_USERNAME.upper()
+                                or str(current["role"] or "").strip().lower() not in {"admin", "user"}
+                                or (str(current["role"] or "").strip().lower() == "admin" and str(current["username"] or "").strip().upper() != ADMIN_USERNAME.upper())
+                                or (str(current["role"] or "").strip().lower() == "user" and str(current["username"] or "").strip().upper() not in KNOWN_FRIEND_USERNAMES)
                                 or int(current["auth_version"]) != int(session.get("auth_version", -1))):
                             session.clear()
                             user = None
@@ -1396,16 +1389,22 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Only the configured administrator may authenticate. Reject signed legacy
-    # user payloads and every other username before any fallback can run.
-    if login_key not in admin_login_ids:
+    # Only the configured administrator and the three explicitly approved
+    # rover users may authenticate. No other regular-user ID is accepted.
+    approved_friend = next((name for name in KNOWN_FRIEND_USERNAMES if normalize_login_id(name) == login_key), None)
+    is_admin_login = login_key in admin_login_ids
+    if not is_admin_login and not approved_friend:
         fast_user = None
         record_login_failure(ip)
         return jsonify({"ok": False, "error": "Invalid login ID or password.", "field": "username"}), 401
 
-    # Every accepted alias represents the configured administrator, not a separate DB user.
-    username = ADMIN_USERNAME
-    canonical_username = ADMIN_USERNAME
+    # Admin aliases map to the configured admin; friend IDs remain canonical.
+    if is_admin_login:
+        username = ADMIN_USERNAME
+        canonical_username = ADMIN_USERNAME
+    else:
+        username = approved_friend
+        canonical_username = approved_friend
     if fast_user and (
         str(fast_user.get("role") or "").lower() != "admin"
         or normalize_login_id(fast_user.get("username")) not in admin_login_ids
@@ -1413,7 +1412,7 @@ def login():
         fast_user = None
     # Fast authentication path: configured Admin credentials are checked locally
     # before touching PostgreSQL, so a slow database cannot hold sign-in hostage.
-    if not database_configured and ADMIN_USERNAME and ADMIN_PASSWORD and login_key in admin_login_ids and _safe_equal(password, ADMIN_PASSWORD):
+    if is_admin_login and not database_configured and ADMIN_USERNAME and ADMIN_PASSWORD and _safe_equal(password, ADMIN_PASSWORD):
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
