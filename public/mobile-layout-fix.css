@@ -194,3 +194,96 @@
   .lowerGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
   .lowerGrid > .adminLogCard { grid-column: 1 / -1 !important; }
 }
+
+
+/* DEFENX mobile readability + camera-control overflow correction (2026-11-20).
+   Keep the established light/dark themes; improve only the low-contrast camera
+   status copy and make the phone camera controls wrap inside the viewport. */
+@media (max-width: 700px) {
+  .dashboardGrid .cameraCard,
+  .dashboardGrid .cameraCard > *,
+  .dashboardGrid .cameraCard .cameraFooter,
+  .dashboardGrid .cameraCard .aiVisionBar,
+  .dashboardGrid .cameraCard .faceScanBar,
+  .dashboardGrid .cameraCard .detectionEventsPanel {
+    box-sizing: border-box !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+  .dashboardGrid .cameraCard .cameraFooter {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(42px, 1fr)) !important;
+    align-items: center !important;
+    justify-items: stretch !important;
+    gap: 7px !important;
+    padding: 9px 10px !important;
+    overflow: hidden !important;
+  }
+  .dashboardGrid .cameraCard .cameraFooter > button {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    white-space: normal !important;
+    padding-inline: 5px !important;
+    font-size: 10px !important;
+  }
+  .dashboardGrid .cameraCard .cameraFooter > span {
+    grid-column: 1 / -1 !important;
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    text-align: center !important;
+    overflow-wrap: anywhere !important;
+    color: #b8cbd5 !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+  .dashboardGrid .cameraCard .aiVisionLead,
+  .dashboardGrid .cameraCard .faceScanInfo,
+  .dashboardGrid .cameraCard .aiVisionLead > span,
+  .dashboardGrid .cameraCard .faceScanInfo > span {
+    min-width: 0 !important;
+  }
+  .dashboardGrid .cameraCard .aiVisionLead b,
+  .dashboardGrid .cameraCard .faceScanInfo b,
+  .dashboardGrid .cameraCard .detectionEventsHead > b {
+    color: #f0f6fa !important;
+    opacity: 1 !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+  .dashboardGrid .cameraCard #aiVisionState,
+  .dashboardGrid .cameraCard #faceScanState,
+  .dashboardGrid .cameraCard #detectionAlertStatus,
+  .dashboardGrid .cameraCard .detectionEmpty,
+  .dashboardGrid .cameraCard .detectionEvent small {
+    color: #b6c8d2 !important;
+    opacity: 1 !important;
+    font-size: 10px !important;
+    line-height: 1.5 !important;
+  }
+  .dashboardGrid .cameraCard .faceScanCount {
+    color: #c2d2da !important;
+    opacity: 1 !important;
+  }
+  .dashboardGrid .cameraCard .detectionEventsPanel {
+    padding: 12px !important;
+  }
+  .dashboardGrid .cameraCard .detectionEventsHead {
+    align-items: flex-start !important;
+  }
+  .dashboardGrid .cameraCard .detectionEventsActions {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .dashboardGrid .cameraCard .detectionEventsActions button {
+    max-width: 100% !important;
+    overflow-wrap: anywhere !important;
+    font-size: 9px !important;
+  }
+  .dashboardGrid .cameraCard .detectionEvent {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+  }
+}
