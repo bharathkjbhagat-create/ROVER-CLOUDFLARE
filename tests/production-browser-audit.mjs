@@ -8,6 +8,24 @@ await fs.mkdir(outDir, { recursive: true });
 
 const results = [];
 const failures = [];
+
+const removedDashboardCopy = [
+  [
+    "Browser analysis needs no PC AI service",
+    " • camera frames and face data stay in the active browser",
+  ].join(""),
+  [
+    "UNVERIFIED means face match or live action is pending",
+    " • follow the on-screen BLINK / TURN / MOUTH prompt",
+    " • use 2-3 clear, front-facing enrollment photos for better matching",
+    " • frames stay in this browser",
+  ].join(""),
+  [
+    "Each alert records category, time, status, confidence, camera and GPS",
+    " (with accuracy, or “unavailable”). No images or face data are stored in alerts;",
+    " administrators can review them across sessions.",
+  ].join(""),
+];
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1365, height: 900 } });
 
@@ -58,6 +76,15 @@ try {
     if (!text) throw new Error("Dashboard body is empty");
     if (!/DEFENX|ROVER|MAP|DASHBOARD/i.test(text)) throw new Error("Expected dashboard content not found");
     return "HTTP " + response.status() + "; visible dashboard text " + text.slice(0, 220).replace(/\s+/g, " ");
+  });
+
+  await check("Removed explanatory sentences are absent from production dashboard", async () => {
+    const bodyText = await demo.locator("body").evaluate(node => node.textContent || "");
+    const visibleAgain = removedDashboardCopy.filter(sentence => bodyText.includes(sentence));
+    if (visibleAgain.length) {
+      throw new Error(visibleAgain.length + " removed sentence(s) found in production dashboard DOM");
+    }
+    return "All three removed sentences are absent from the production dashboard DOM";
   });
 
   await check("Demo dashboard has no uncaught JavaScript errors", async () => {
