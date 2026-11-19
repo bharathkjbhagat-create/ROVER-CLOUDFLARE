@@ -259,6 +259,22 @@ jobs:
           fetch_until_marker "Camera WebRTC JavaScript" "/camera-webrtc.js?ci=$GITHUB_RUN_ID" "RTCPeerConnection" "/tmp/defenx-camera-sync.js"
           fetch_until_marker "Dashboard HTML camera loader" "/index.html?demo=1&ci=$GITHUB_RUN_ID" "camera-webrtc.js?v=20261114-online-01" "/tmp/defenx-camera-sync-index.html"
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
+          # Explicitly verify the live Worker response never republishes the removed dashboard copy.
+          copy_audit_file="/tmp/defenx-removed-copy-audit.html"
+          curl --retry 8 --retry-all-errors --retry-delay 2 --retry-max-time 30 -fsS -A 'Mozilla/5.0 (DEFENX removed-copy audit)' "$base/index.html?demo=1&copy_audit=$GITHUB_RUN_ID" -o "$copy_audit_file"
+          if grep -Fq 'Browser analysis needs no PC AI service • camera frames and face data stay in the active browser' "$copy_audit_file"; then
+            echo "ERROR: removed browser-analysis sentence is still present in the deployed dashboard."
+            exit 1
+          fi
+          if grep -Fq 'UNVERIFIED means face match or live action is pending • follow the on-screen BLINK / TURN / MOUTH prompt • use 2-3 clear, front-facing enrollment photos for better matching • frames stay in this browser' "$copy_audit_file"; then
+            echo "ERROR: removed face-verification sentence is still present in the deployed dashboard."
+            exit 1
+          fi
+          if grep -Fq 'Each alert records category, time, status, confidence, camera and GPS (with accuracy, or “unavailable”). No images or face data are stored in alerts; administrators can review them across sessions.' "$copy_audit_file"; then
+            echo "ERROR: removed alert-explanation sentence is still present in the deployed dashboard."
+            exit 1
+          fi
+          echo "Removed dashboard copy audit: PASS (all three sentences absent from deployed HTML)"
 
       - name: Verify deployed online browser vision integration
         run: |
