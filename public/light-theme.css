@@ -333,3 +333,55 @@ body.light .deviceMetrics>div { text-shadow:none!important; }
     animation:none!important; transition:none!important;
   }
 }
+
+/* Button colour system: quiet neutrals, muted primary actions, clear safety states. */
+body.light button, body.light .button, body.light select {
+  background-color:#f5f7f5!important; color:#46564f!important;
+  border-color:#dce5de!important; box-shadow:none!important;
+}
+body.light button:hover:not(:disabled), body.light .button:hover:not(:disabled) {
+  background-color:#edf2ee!important; color:#354d43!important;
+  border-color:#c7d6cb!important;
+}
+/* Main actions use a restrained sage fill, not bright teal. */
+body.light #saveProfileBtn, body.light #createDeviceBtn, body.light #createUserBtn,
+body.light #faceEnrollBtn, body.light #faceEnrollLiveBtn,
+body.light #enableAlertsBtn, body.light #phoneCameraBtn,
+body.light .primaryBtn, body.light .buttonPrimary {
+  background:#718f82!important; color:#fff!important; border-color:#718f82!important;
+}
+body.light #saveProfileBtn:hover:not(:disabled), body.light #createDeviceBtn:hover:not(:disabled),
+body.light #createUserBtn:hover:not(:disabled), body.light #faceEnrollBtn:hover:not(:disabled),
+body.light #faceEnrollLiveBtn:hover:not(:disabled), body.light #enableAlertsBtn:hover:not(:disabled),
+body.light #phoneCameraBtn:hover:not(:disabled), body.light .primaryBtn:hover:not(:disabled),
+body.light .buttonPrimary:hover:not(:disabled) {
+  background:#5e7c6f!important; color:#fff!important; border-color:#5e7c6f!important;
+}
+/* Rover movement controls retain clear, restrained action meanings. */
+body.light .drivePad .control.forward, body.light .drivePad .control.reverse {
+  background:#e8f0eb!important; color:#426653!important; border-color:#cbdcd0!important;
+}
+body.light .drivePad .control.left, body.light .drivePad .control.right {
+  background:#edf1f4!important; color:#496273!important; border-color:#d3dfe5!important;
+}
+body.light .drivePad .control.stop, body.light .emergency,
+body.light #warningOffBtn {
+  background:#f8e9e9!important; color:#9a454b!important; border-color:#e8c5c7!important;
+}
+body.light .drivePad .control.forward:hover:not(:disabled),
+body.light .drivePad .control.reverse:hover:not(:disabled) {background:#dce9e0!important;color:#355b45!important;}
+body.light .drivePad .control.left:hover:not(:disabled),
+body.light .drivePad .control.right:hover:not(:disabled) {background:#e4ebef!important;color:#3d596b!important;}
+body.light .drivePad .control.stop:hover:not(:disabled), body.light .emergency:hover:not(:disabled) {
+  background:#f2dede!important;color:#87383f!important;border-color:#dcaeb2!important;
+}
+/* Selected modes and tabs are softly filled, with readable text. */
+body.light .modeBtn.active, body.light .adminTabs button.active,
+body.light .adminTabs button[aria-selected="true"] {
+  background:#e6eee8!important;color:#3f5c4b!important;border-color:#c9d8cd!important;
+}
+/* Warning controls are toned down without hiding their safety meaning. */
+body.light .warningButtonRow #warningOnBtn {background:#e6f0e9!important;color:#426b50!important;border-color:#c7ddce!important;}
+body.light .warningButtonRow #warningOffBtn {background:#f8e9e9!important;color:#98464b!important;border-color:#e8c5c7!important;}
+body.light .warningButtonRow #warningToggleBtn {background:#eef1ef!important;color:#4d5b55!important;border-color:#d7dfd9!important;}
+body.light button:disabled {background:#f0f2f0!important;color:#a0aaa4!important;border-color:#e5e9e5!important;opacity:1!important;}
