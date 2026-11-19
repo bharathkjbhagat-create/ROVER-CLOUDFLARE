@@ -1,0 +1,212 @@
+/* DEFENX light theme refinement — isolated overrides; dark theme is untouched. */
+body.light{
+  color-scheme:light;
+  --bg:#f3f6f8;--card:#ffffff;--line:#dce5ea;--text:#1c303a;--muted:#617681;
+  --rc-bg:#f3f6f8;--rc-bg2:#f8fafb;--rc-panel:#ffffff;--rc-panel2:#f7fafb;
+  --rc-line:#dce5ea;--rc-line2:#c7d5dc;--rc-text:#1c303a;--rc-muted:#617681;
+  --ui-text:#1c303a;--ui-muted:#617681;
+  background:#f3f6f8!important;color:#1c303a!important;
+}
+body.light,
+body.light .appShell,
+body.light .dashboard,
+body.light main{background-color:#f3f6f8!important;color:#1c303a}
+body.light .topbar,
+body.light .sidebar{
+  background:#fff!important;color:#1c303a!important;
+  border-color:#dce5ea!important;box-shadow:0 2px 12px rgba(25,48,60,.06)!important;
+}
+body.light .topbar{backdrop-filter:blur(12px)}
+body.light .card,
+body.light .modalbox,
+body.light .quickCard,
+body.light .foldCard,
+body.light .sidePromo,
+body.light .missionBar{
+  color:#1c303a!important;background:#fff!important;
+  border:1px solid #dce5ea!important;
+  box-shadow:0 5px 18px rgba(25,48,60,.065)!important;
+}
+body.light .card:hover{box-shadow:0 7px 22px rgba(25,48,60,.09)!important}
+body.light .cardHeader,
+body.light .cardhead,
+body.light .modalhead,
+body.light .adminTabs{
+  color:#263d48!important;background:#f7fafb!important;
+  border-color:#e0e8ed!important;
+}
+body.light .cardHeader b,
+body.light .cardhead b,
+body.light .missionBar h1,
+body.light .brandName,
+body.light .profileWords b{color:#203742!important}
+body.light .cardHeader span,
+body.light .cardhead span,
+body.light .eyebrow,
+body.light .muted,
+body.light .tiny,
+body.light .sideTitle,
+body.light .missionBar small{color:#657b85!important}
+body.light p,
+body.light .dashboard label,
+body.light .statusBlock,
+body.light .targetData span,
+body.light .recentItem,
+body.light .navItem{color:#526b76}
+body.light .sidebar .navItem{color:#526b76!important}
+body.light .sidebar .navItem:hover{background:#edf5f6!important;color:#176c62!important}
+body.light .sidebar .navItem.active,
+body.light .sidebar .navItem.active span{
+  background:#147d70!important;color:#fff!important;
+}
+body.light .sidebar .navItem.active{box-shadow:0 3px 9px rgba(20,125,112,.18)!important}
+body.light .brandSub,
+body.light .profileWords span{color:#71858e!important}
+body.light button,
+body.light .button,
+body.light select{
+  color:#29424d;background:#f1f6f8;border:1px solid #d1dee4;
+  box-shadow:none;
+}
+body.light button:hover:not(:disabled){
+  color:#126c60;background:#e8f4f2;border-color:#91c8bd;
+}
+body.light button:focus-visible,
+body.light input:focus-visible,
+body.light select:focus-visible,
+body.light textarea:focus-visible{
+  outline:3px solid rgba(20,125,112,.2);outline-offset:1px;border-color:#268d7d;
+}
+body.light button:disabled{opacity:.48}
+body.light input,
+body.light select,
+body.light textarea,
+body.light .deviceNotes,
+body.light .modalbox input,
+body.light .modalbox select,
+body.light .modalbox textarea{
+  color:#203742!important;background:#fbfcfd!important;border:1px solid #d3dfe5!important;
+}
+body.light input::placeholder,
+body.light textarea::placeholder{color:#91a1a9!important}
+body.light .statusBlocks>div,
+body.light .coordsTiny>span,
+body.light .deviceChips span,
+body.light .permissionNotice,
+body.light .returnBaseControls,
+body.light .mapReadout,
+body.light .mapReadout>div,
+body.light .missiongrid>div,
+body.light .statusBlock,
+body.light .metric,
+body.light .deviceMetrics>div{
+  color:#425d68!important;background:#f5f9fa!important;border-color:#dce5ea!important;
+}
+body.light .statusBlocks b,
+body.light .coordsTiny b,
+body.light .targetData b,
+body.light .missiongrid strong,
+body.light .deviceMetrics b,
+body.light .deviceChips b,
+body.light .returnBaseStatus{color:#203b46!important}
+body.light .statusBlocks small,
+body.light .coordsTiny small,
+body.light .deviceMetrics span,
+body.light .deviceChips span,
+body.light .storageBar>span,
+body.light .returnBaseControls small{color:#617984!important}
+body.light .card :where(.panelTitle,.sectionLabel,.fieldLabel){color:#58717c!important}
+body.light .tablewrap,
+body.light .adminLogTable,
+body.light .tableContainer{border-color:#dce5ea!important}
+body.light .tablewrap th,
+body.light .adminLogTable th{
+  color:#435d68!important;background:#edf3f6!important;border-color:#dce5ea!important;
+}
+body.light .tablewrap td,
+body.light .adminLogTable td{
+  color:#29434e!important;background:#fff;border-color:#e5ecef!important;
+}
+body.light .tablewrap tr:nth-child(even) td,
+body.light .adminLogTable tr:nth-child(even) td{background:#f8fafb!important}
+body.light .tablewrap td small{color:#71858e!important}
+body.light .alertbar,
+body.light .recentItem,
+body.light .quickGrid button,
+body.light .returnBaseActions button{
+  color:#38545f!important;background:#f5f9fa!important;border-color:#dce5ea!important;
+}
+body.light .recentItem span,
+body.light .recentItem time{color:#607781!important}
+body.light .mapfallback{
+  color:#607781!important;
+  background:repeating-linear-gradient(0deg,#f1f6f8 0,#f1f6f8 29px,#e7eff3 30px),repeating-linear-gradient(90deg,#f1f6f8 0,#f1f6f8 29px,#e7eff3 30px)!important;
+}
+body.light .mapToolRail button,
+body.light .mapTab,
+body.light .mapControl,
+body.light .camera360Controls button{background:#fff;color:#29434e;border-color:#d1dee4}
+body.light .mapTab.active,
+body.light .mapTab[aria-selected="true"]{background:#147d70;color:#fff;border-color:#147d70}
+body.light .greenPill,
+body.light .onlineLabel,
+body.light .targetPill{filter:saturate(.9)}
+body.light .safetyStrip,
+body.light .safetyStrip>div{border-color:#dce5ea!important}
+body.light .safetyStrip>div{background:#fff;color:#29434e}
+body.light .safetyStrip>div>b{color:#29434e}
+body.light .safetyStrip>div>small{color:#617984}
+body.light .modal{background:rgba(20,38,48,.38)!important}
+body.light .modalbox{background:#fff!important}
+body.light .adminTabs{border-bottom-color:#dce5ea}
+body.light .adminTabs button[aria-selected="true"],
+body.light .adminTabs button.active{background:#147d70!important;color:#fff!important}
+body.light .empty,
+body.light .emptyState{color:#71858e!important}
+body.light .bar,
+body.light .storageBar>i{background:#e4ecef!important}
+body.light .coordsTiny,
+body.light .deviceMetrics,
+body.light .missiongrid,
+body.light .statusBlocks{border-color:#dce5ea!important}
+body.light footer{color:#748791!important}
+body.light .loginToast{background:#fff;color:#203742;border-color:#a8cfc6;box-shadow:0 12px 30px rgba(25,48,60,.14)}
+body.light .loginToast span{color:#29434e}
+body.light .loginToast b{color:#147d70}
+/* Keep media, maps, camera previews, and status colors visually meaningful. */
+body.light .mapArea,
+body.light #map,
+body.light .cameraViewport,
+body.light .camera3DScene,
+body.light .videobox,
+body.light .deviceView,
+body.light .devicephoto,
+body.light .heroRings,
+body.light .heroGrid{isolation:isolate}
+body.light .roverHero{
+  background:linear-gradient(125deg,#e6f2f4 0%,#f8fbfc 54%,#e5f0f4 100%)!important;
+  border-color:#c9dce2!important;box-shadow:0 7px 20px rgba(25,48,60,.07)!important;
+}
+body.light .roverHero:before{opacity:.28}
+body.light .heroKicker{color:#55727d!important}
+body.light .heroText h1{color:#1b3b46!important;text-shadow:none!important}
+body.light .heroText p{color:#617984!important}
+body.light .heroMeta b{background:rgba(255,255,255,.82)!important;color:#42616c!important;border-color:#c9dce2!important}
+body.light .heroReadout{background:rgba(255,255,255,.9)!important;border-color:#c9dce2!important}
+body.light .heroReadout span,
+body.light .heroReadout em{color:#657e88!important}
+body.light .heroReadout b{color:#087d69!important;text-shadow:none!important}
+body.light .deviceTag{background:rgba(255,255,255,.9)!important;color:#126c60!important;border-color:#b8d9d0!important}
+body.light .deviceChips span{background:#f5f9fa!important}
+body.light .alertbar{background:#f5f9fa!important}
+body.light .alertbar button{background:#fff!important}
+body.light .returnBaseStatus{color:#126c60!important}
+body.light .returnBaseActions .returnBaseBtn{background:#e9f6f1!important;color:#126c60!important;border-color:#b9ded1!important}
+body.light .returnBaseActions .selectBaseBtn{background:#edf5f8!important;color:#31596a!important;border-color:#c5dbe4!important}
+body.light .emergency{background:#fff0f1!important;color:#a52f3c!important;border-color:#e6aeb5!important}
+body.light .lastKnownRecent{background:#fff5f5!important;border-color:#e8b9bf!important}
+body.light .lastKnownRecent>div:nth-child(2)>b{color:#a52f3c!important}
+body.light .lastKnownRecent>div:nth-child(2)>span{color:#394e57!important}
+body.light .lastKnownRecent>div:nth-child(2)>small,
+body.light .lastKnownActions time{color:#71858e!important}
+@media(prefers-reduced-motion:reduce){body.light *{animation:none!important;transition:none!important}}
