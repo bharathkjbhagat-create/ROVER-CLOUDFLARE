@@ -1600,11 +1600,13 @@ def profile():
         return jsonify({"ok": False, "error": "New password must be at least 10 characters"}), 400
 
     if not db_available():
+        if new_password:
+            return jsonify({"ok": False, "error": "Password changes require the account database. No password was changed; please retry when the database is available."}), 503
         u["display_name"] = display_name
         session["fallback_user"] = dict(u)
         session["user_cache"] = dict(u)
         return jsonify({"ok": True, "user": u, "db_connected": False,
-                        "warning": "Profile display name is session-only until DATABASE_URL is connected."})
+                        "warning": "Profile display name is session-only until the account database is available."})
 
     with get_db() as conn:
         with conn.cursor() as cur:
