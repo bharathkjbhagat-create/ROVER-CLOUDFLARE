@@ -1098,6 +1098,13 @@ class Default(WorkerEntrypoint):
             if local_error.get("field") != "username":
                 return fallback_response
 
+            # Approved rover accounts are authenticated only by the durable
+            # PostgreSQL account store. Never send them to the legacy provider:
+            # it is admin-only, and an unavailable legacy endpoint must not
+            # turn an ordinary invalid rover password into HTTP 503.
+            if normalized_username in approved_user_ids:
+                return fallback_response
+
             legacy_user = await self._legacy_authenticate(username, password)
             if legacy_user:
                 if legacy_user.get("_auth_unavailable"):
