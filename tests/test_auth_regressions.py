@@ -129,6 +129,9 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn('KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "MAMALESHWAR")', source)
         self.assertIn("runtime_users = {}", source)
         self.assertIn("runtime_password_hashes = {}", source)
+        self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
+        self.assertIn("ON CONFLICT (username) DO NOTHING", source)
+        self.assertIn("generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex)", source)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):
