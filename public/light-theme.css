@@ -385,3 +385,115 @@ body.light .warningButtonRow #warningOnBtn {background:#e6f0e9!important;color:#
 body.light .warningButtonRow #warningOffBtn {background:#f8e9e9!important;color:#98464b!important;border-color:#e8c5c7!important;}
 body.light .warningButtonRow #warningToggleBtn {background:#eef1ef!important;color:#4d5b55!important;border-color:#d7dfd9!important;}
 body.light button:disabled {background:#f0f2f0!important;color:#a0aaa4!important;border-color:#e5e9e5!important;opacity:1!important;}
+
+
+/* ACCESSIBILITY FIX: keep every sidebar navigation label visible at tablet/mobile widths. */
+body.light .sidebar .sideTitle {font-size:10px!important;line-height:1.3!important;color:#46565d!important;}
+body.light .sidebar .sideNav {display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:5px!important;}
+body.light .sidebar .navItem,
+body.light .sidebar .navItem:link,
+body.light .sidebar .navItem:visited {
+  display:flex!important;flex-direction:row!important;justify-content:flex-start!important;
+  align-items:center!important;gap:10px!important;width:100%!important;min-width:0!important;
+  height:auto!important;min-height:43px!important;padding:8px 11px!important;
+  font-size:12px!important;line-height:1.25!important;font-weight:700!important;
+  white-space:normal!important;text-align:left!important;overflow:visible!important;
+  color:#34454c!important;-webkit-text-fill-color:#34454c!important;
+}
+body.light .sidebar .navItem span {
+  display:grid!important;place-items:center!important;flex:0 0 22px!important;
+  width:22px!important;min-width:22px!important;height:22px!important;
+  padding:0!important;margin:0!important;font-size:19px!important;line-height:1!important;
+  color:#526c63!important;-webkit-text-fill-color:#526c63!important;background:transparent!important;
+}
+body.light .sidebar .navItem:hover {background:#edf2ee!important;color:#263d34!important;-webkit-text-fill-color:#263d34!important;}
+body.light .sidebar .navItem.active,
+body.light .sidebar .navItem.active span {
+  background:#e5eee8!important;color:#304f40!important;-webkit-text-fill-color:#304f40!important;
+  border-color:#cbd9cf!important;box-shadow:none!important;
+}
+body.light .sidebar .sideLogout {font-size:12px!important;color:#42544b!important;}
+body.light .sidebar .sideLogout span {font-size:12px!important;}
+
+/* At tablet widths retain a real text sidebar instead of the icon-only 72px rail. */
+@media (max-width:900px) {
+  body.light .appShell {grid-template-columns:190px minmax(0,1fr)!important;}
+  body.light .sidebar {width:auto!important;min-width:0!important;padding:12px 9px!important;}
+}
+@media (max-width:650px) {
+  body.light .appShell {grid-template-columns:minmax(0,1fr)!important;}
+  body.light .sidebar {
+    position:relative!important;top:auto!important;height:auto!important;max-height:none!important;
+    display:flex!important;flex-direction:column!important;overflow:visible!important;
+    padding:8px!important;border-right:0!important;border-bottom:1px solid #e1e7e2!important;
+  }
+  body.light .sidebar .sideNav {
+    display:flex!important;flex-direction:row!important;align-items:stretch!important;
+    overflow-x:auto!important;overflow-y:hidden!important;padding:2px 0 6px!important;
+    scrollbar-width:thin!important;
+  }
+  body.light .sidebar .navItem {
+    flex:0 0 auto!important;width:auto!important;min-width:122px!important;
+    min-height:42px!important;padding:7px 9px!important;font-size:11px!important;
+  }
+  body.light .sidebar .sideTitle {display:block!important;font-size:10px!important;}
+}
+
+/* Improve contrast inside dashboard information panels without changing camera/map imagery. */
+body.light .dashboard .cardHeader span,
+body.light .dashboard .cardhead span,
+body.light .dashboard .targetData span,
+body.light .dashboard .deviceMetrics span,
+body.light .dashboard .deviceChips span,
+body.light .dashboard .statusBlocks small,
+body.light .dashboard .coordsTiny small,
+body.light .dashboard .storageBar>span,
+body.light .dashboard .returnBaseControls small,
+body.light .dashboard .recentItem span,
+body.light .dashboard .recentItem time,
+body.light .dashboard .permissionNotice,
+body.light .dashboard .mapReadout span,
+body.light .dashboard .missionBar small,
+body.light .dashboard .eyebrow,
+body.light .dashboard .panelTitle,
+body.light .dashboard .detectionEventsPanel small,
+body.light .dashboard .aiVisionBar small,
+body.light .dashboard .faceScanBar small,
+body.light .dashboard .safetyStrip small {
+  color:#59676d!important;
+}
+body.light .dashboard .targetData b,
+body.light .dashboard .deviceMetrics b,
+body.light .dashboard .deviceChips b,
+body.light .dashboard .statusBlocks b,
+body.light .dashboard .coordsTiny b,
+body.light .dashboard .storageBar b,
+body.light .dashboard .mapReadout b,
+body.light .dashboard .recentItem b,
+body.light .dashboard .cardHeader b,
+body.light .dashboard .cardhead b,
+body.light .dashboard .safetyStrip b,
+body.light .dashboard .missionBar h1 {
+  color:#26383e!important;
+}
+body.light .dashboard .statusBlocks>div,
+body.light .dashboard .deviceMetrics>div,
+body.light .dashboard .deviceChips span,
+body.light .dashboard .targetData>div,
+body.light .dashboard .mapReadout>div,
+body.light .dashboard .coordsTiny>span,
+body.light .dashboard .recentItem,
+body.light .dashboard .missiongrid>div,
+body.light .dashboard .metric,
+body.light .dashboard .permissionNotice,
+body.light .dashboard .returnBaseControls {
+  color:#4b5b61!important;
+}
+body.light .dashboard .tablewrap td,
+body.light .dashboard .adminLogTable td,
+body.light .dashboard .tablewrap th,
+body.light .dashboard .adminLogTable th {
+  color:#35464d!important;
+}
+body.light .dashboard .tablewrap td small,
+body.light .dashboard .adminLogTable td small {color:#59676d!important;}
