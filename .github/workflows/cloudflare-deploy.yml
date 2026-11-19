@@ -17,6 +17,11 @@ on:
 permissions:
   contents: read
 
+# Prevent overlapping Worker deployments from racing at the production URL.
+concurrency:
+  group: defenx-cloudflare-production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
@@ -479,15 +484,31 @@ jobs:
                   login_path = os.path.join(tmp, "login.json")
                   cookie_path = os.path.join(tmp, "cookies.txt")
                   payload = json.dumps({"username": username, "password": "disabled-account-check"})
-                  login = subprocess.run([
-                      "curl", "--max-time", "15", "-sS", "-o", login_path, "-w", "%{http_code}",
-                      "-c", cookie_path, "-H", "Content-Type: application/json",
-                      "-H", "Accept: application/json", "--data", payload,
-                      base + "/api/login"
-                  ], capture_output=True, text=True, check=True)
-                  status = login.stdout.strip()
+                  status = ""
+                  for attempt in range(1, 6):
+                      login = subprocess.run([
+                          "curl", "--max-time", "15", "-sS", "-o", login_path, "-w", "%{http_code}",
+                          "-c", cookie_path, "-H", "Content-Type: application/json",
+                          "-H", "Accept: application/json", "--data", payload,
+                          base + "/api/login"
+                      ], capture_output=True, text=True, check=True)
+                      status = login.stdout.strip()
+                      if status != "503":
+                          break
+                      print(f"{username}: transient HTTP 503 (attempt {attempt}/5); retrying")
+                      if attempt < 5:
+                          import time
+                          time.sleep(attempt * 2)
                   if status != "401":
-                      raise SystemExit(f"{username}: expected HTTP 401, received HTTP {status}")
+                      try:
+                          with open(login_path, encoding="utf-8") as handle:
+                              response_body = handle.read()
+                      except OSError:
+                          response_body = "<response body unavailable>"
+                      raise SystemExit(
+                          f"{username}: expected HTTP 401 after transient retries, "
+                          f"received HTTP {status}; response: {response_body[:1000]}"
+                      )
                   with open(login_path, encoding="utf-8") as handle:
                       body = json.load(handle)
                   if body.get("ok") is True:
