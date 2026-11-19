@@ -39,6 +39,27 @@ class FrontendControlTests(unittest.TestCase):
         duplicates = [key for key, count in Counter(parser.ids).items() if count > 1]
         self.assertEqual(duplicates, [], f"Duplicate HTML IDs: {duplicates}")
 
+    def test_removed_explanatory_copy_stays_absent_from_dashboard_source(self):
+        removed_copy = (
+            "".join((
+                "Browser analysis needs no PC AI service",
+                " • camera frames and face data stay in the active browser",
+            )),
+            "".join((
+                "UNVERIFIED means face match or live action is pending",
+                " • follow the on-screen BLINK / TURN / MOUTH prompt",
+                " • use 2-3 clear, front-facing enrollment photos for better matching",
+                " • frames stay in this browser",
+            )),
+            "".join((
+                "Each alert records category, time, status, confidence, camera and GPS",
+                " (with accuracy, or “unavailable”). No images or face data are stored in alerts;",
+                " administrators can review them across sessions.",
+            )),
+        )
+        for sentence in removed_copy:
+            self.assertNotIn(sentence, self.html)
+
 
     def test_simulation_lab_is_sidebar_only_and_has_back_navigation(self):
         self.assertIn('data-action="simlab"', self.html)
