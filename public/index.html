@@ -147,7 +147,7 @@
             <div id="cameraSceneLabel" class="cameraSceneLabel">DEMO CAMERA VIEW • SIMULATION</div>
           </div>
           <div class="cameraFooter"><button type="button" id="camShotBtn" title="Save screenshot" aria-label="Save screenshot">▣</button><button type="button" id="camRecordBtn" title="Record camera" aria-label="Record camera">●</button><button type="button" id="camFullscreenBtn" title="Toggle camera fullscreen" aria-label="Toggle camera fullscreen">⛶</button><button type="button" id="phoneCameraBtn" class="phoneCameraBtn">USE PHONE CAMERA</button><span>AI tracking • target lock • low-latency preview</span></div>
-          <div class="aiVisionBar" id="aiVisionBar" data-state="waiting" aria-live="polite"><div class="aiVisionLead"><span class="aiVisionDot"></span><span><b>ONLINE BROWSER AI • OBJECT + FACE</b><small id="aiVisionState">WAITING FOR AUTHENTICATED ROVER CAMERA</small></span></div><div class="aiVisionCounts"><span>HUMAN <b id="aiHumanCount">0</b></span><span>VEHICLE <b id="aiVehicleCount">0</b></span></div><button type="button" id="aiVisionToggle" disabled>AI STARTING</button><small class="aiVisionNote">Browser analysis needs no PC AI service • camera frames and face data stay in the active browser</small></div>
+          <div class="aiVisionBar" id="aiVisionBar" data-state="waiting" aria-live="polite"><div class="aiVisionLead"><span class="aiVisionDot"></span><span><b>ONLINE BROWSER AI • OBJECT + FACE</b><small id="aiVisionState">WAITING FOR AUTHENTICATED ROVER CAMERA</small></span></div><div class="aiVisionCounts"><span>HUMAN <b id="aiHumanCount">0</b></span><span>VEHICLE <b id="aiVehicleCount">0</b></span></div><button type="button" id="aiVisionToggle" disabled>AI STARTING</button></div>
           <section class="faceScanBar" id="faceScanBar" data-state="waiting" aria-live="polite">
             <div class="faceScanInfo">
               <span class="faceScanDot" aria-hidden="true"></span>
@@ -156,13 +156,13 @@
             <span class="faceScanCount">FACES <b id="faceScanCount">0</b></span>
             <button type="button" id="faceScanToggle" disabled>STOP FACE ID</button>
             <div class="faceStatusList" id="faceStatusList" aria-live="polite"></div>
-            <small class="faceScanNote">UNVERIFIED means face match or live action is pending • follow the on-screen BLINK / TURN / MOUTH prompt • use 2-3 clear, front-facing enrollment photos for better matching • frames stay in this browser</small>
+            
           </section>
           <section class="detectionEventsPanel" id="detectionEventsPanel" aria-live="polite">
             <div class="detectionEventsHead"><b>DETECTION EVENTS &amp; ALERTS</b><div class="detectionEventsActions"><button type="button" id="detectionAlertToggle" aria-pressed="false">ALERTS OFF</button><button type="button" id="detectionVehicleToggle" aria-pressed="false">VEHICLE ALERTS OFF</button><button type="button" id="detectionObjectToggle" aria-pressed="false">OBJECT ALERTS OFF</button><button type="button" id="detectionPermissionBtn">ENABLE BROWSER NOTIFICATIONS</button><button type="button" id="detectionClearBtn">CLEAR LOCAL HISTORY</button></div></div>
             <small id="detectionAlertStatus">Event logging active • notifications disabled</small>
             <div id="detectionEventList"><div class="detectionEmpty">Waiting for on-device AI detection events.</div></div>
-            <small class="faceScanNote">Each alert records category, time, status, confidence, camera and GPS (with accuracy, or “unavailable”). No images or face data are stored in alerts; administrators can review them across sessions.</small>
+            
           </section>
         </section>
 
