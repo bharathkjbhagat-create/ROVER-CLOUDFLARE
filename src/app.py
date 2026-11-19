@@ -277,8 +277,8 @@ FRIEND_ACCOUNTS = [
     },
     {
         "username": "MAMALESHWAR",
-        "password": _config("FRIEND_MAMALESHWAR_PASSWORD"),
-        "password_hash": _config("FRIEND_MAMALESHWAR_PASSWORD_HASH"),
+        "password": _config("FRIEND_MAMALESHWAR_PASSWORD", _config("FRIEND4_PASSWORD")),
+        "password_hash": _config("FRIEND_MAMALESHWAR_PASSWORD_HASH", _config("FRIEND4_PASSWORD_HASH")),
         "display_name": "MAMALESHWAR",
     },
 ]
