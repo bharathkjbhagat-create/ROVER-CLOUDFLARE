@@ -497,3 +497,70 @@ body.light .dashboard .adminLogTable th {
 }
 body.light .dashboard .tablewrap td small,
 body.light .dashboard .adminLogTable td small {color:#59676d!important;}
+
+/* Phone-first dashboard layout: prevent desktop columns from being squeezed on narrow screens.
+   Light-theme only; leave the dark theme and dashboard functionality untouched. */
+@media (max-width:700px) {
+  body.light .dashboardGrid,
+  body.light .lowerGrid {
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;
+  }
+  body.light .rightStack {
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    gap:10px!important;
+  }
+  body.light .dashboardGrid > *,
+  body.light .lowerGrid > *,
+  body.light .rightStack > * {
+    grid-column:1/-1!important;
+    min-width:0!important;
+    width:100%!important;
+  }
+  body.light .mapCard,
+  body.light .cameraCard,
+  body.light .controlCard,
+  body.light .deviceCard,
+  body.light .fleetCard,
+  body.light .recentCard,
+  body.light .statusCard,
+  body.light .targetCard,
+  body.light .adminLogCard {
+    min-width:0!important;
+    max-width:100%!important;
+  }
+  body.light .mapCard #map,
+  body.light .mapArea {
+    height: min(88vw,390px)!important;
+    min-height:260px!important;
+    max-height:390px!important;
+  }
+  body.light .cameraViewport {
+    height: min(62vw,280px)!important;
+    min-height:210px!important;
+    max-height:280px!important;
+  }
+  body.light .mapReadout {
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    height:auto!important;
+  }
+  body.light .safetyStrip {
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+  }
+  body.light .tablewrap,
+  body.light .adminLogTable {
+    max-width:100%!important;
+    overflow-x:auto!important;
+  }
+}
+@media (max-width:390px) {
+  body.light .dashboard {padding:7px!important;}
+  body.light .cardhead,
+  body.light .cardHeader {padding-left:9px!important;padding-right:9px!important;}
+  body.light .mapCard #map,
+  body.light .mapArea {height:84vw!important;min-height:235px!important;}
+  body.light .safetyStrip {grid-template-columns:minmax(0,1fr)!important;}
+}
+
