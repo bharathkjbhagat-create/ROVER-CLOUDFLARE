@@ -1052,9 +1052,14 @@ class Default(WorkerEntrypoint):
                 "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
                 "ADMINUSER", "ADMINUSERID",
             }
-            if self._normalize_login(username) not in admin_aliases:
+            approved_users = {"MAHANTESH", "DHANUSH", "MAMALESHWAR"}
+            normalized_username = self._normalize_login(username)
+            approved_user_ids = {self._normalize_login(name) for name in approved_users}
+            if normalized_username not in admin_aliases and normalized_username not in approved_user_ids:
                 return self._login_response(None)
 
+            # Admin credentials may be checked locally. Approved rover users
+            # continue through Flask's durable PostgreSQL authentication path.
             user = self._local_authenticate(self.env, username, password)
             if user:
                 response = self._login_response(user)
