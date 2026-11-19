@@ -1,0 +1,196 @@
+/* DEFENX — phone-first dashboard layout correction.
+   Structural overrides only; theme colours and application behaviour stay untouched. */
+@media (max-width: 700px) {
+  .dashboard {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 10px 10px 22px !important;
+  }
+  .dashboardGrid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas:
+      "map"
+      "camera"
+      "control"
+      "device"
+      "fleet"
+      "recent" !important;
+    grid-auto-flow: row !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+  .dashboardGrid > .rightStack { display: contents !important; }
+  .dashboardGrid > .mapCard,
+  .dashboardGrid .cameraCard,
+  .dashboardGrid .controlCard,
+  .dashboardGrid .deviceCard,
+  .dashboardGrid .fleetCard,
+  .dashboardGrid .recentCard {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    justify-self: stretch !important;
+  }
+  .dashboardGrid > .mapCard { grid-area: map !important; }
+  .dashboardGrid .cameraCard { grid-area: camera !important; }
+  .dashboardGrid .controlCard { grid-area: control !important; }
+  .dashboardGrid .deviceCard { grid-area: device !important; }
+  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid .recentCard { grid-area: recent !important; }
+
+  .dashboardGrid > .mapCard {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  .dashboardGrid > .mapCard > .mapArea {
+    flex: none !important;
+    width: 100% !important;
+    height: clamp(270px, 78vw, 350px) !important;
+    min-height: 270px !important;
+    max-height: 350px !important;
+  }
+  .dashboardGrid > .mapCard > .mapArea #map,
+  .dashboardGrid > .mapCard > .mapArea #mapFrame {
+    height: 100% !important;
+    min-height: 0 !important;
+  }
+  .dashboardGrid > .mapCard > .mapReadout {
+    flex: none !important;
+    min-height: 62px !important;
+    height: auto !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    padding: 8px !important;
+  }
+  .dashboardGrid > .mapCard > .mapReadout > div { min-width: 0 !important; }
+
+  .dashboardGrid .cameraCard {
+    display: flex !important;
+    flex-direction: column !important;
+    height: auto !important;
+    min-height: 0 !important;
+  }
+  .dashboardGrid .cameraCard .cameraViewport {
+    flex: none !important;
+    width: 100% !important;
+    height: clamp(210px, 64vw, 280px) !important;
+    min-height: 210px !important;
+    max-height: 280px !important;
+  }
+  .dashboardGrid .cameraCard .cameraFooter {
+    flex-wrap: wrap !important;
+    gap: 7px !important;
+  }
+  .dashboardGrid .cameraCard .cameraFooter > span {
+    flex: 1 1 100% !important;
+    white-space: normal !important;
+  }
+  .dashboardGrid .cameraCard .aiVisionBar,
+  .dashboardGrid .cameraCard .faceScanBar,
+  .dashboardGrid .cameraCard .detectionEventsPanel {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .dashboardGrid .controlCard,
+  .dashboardGrid .deviceCard,
+  .dashboardGrid .fleetCard,
+  .dashboardGrid .recentCard { align-self: stretch !important; }
+  .dashboardGrid .controlCard .drivePad {
+    width: min(100%, 340px) !important;
+    max-width: 340px !important;
+    margin-inline: auto !important;
+  }
+  .dashboardGrid .controlCard .modeRow {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+  .dashboardGrid .controlCard .modeRow button {
+    min-width: 0 !important;
+    min-height: 40px !important;
+    padding-inline: 5px !important;
+  }
+
+  .lowerGrid {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "status" "target" "event" !important;
+    gap: 12px !important;
+    margin-top: 12px !important;
+  }
+  .lowerGrid > .card {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+  }
+  .lowerGrid > .statusCard { grid-area: status !important; }
+  .lowerGrid > .targetCard { grid-area: target !important; }
+  .lowerGrid > .adminLogCard { grid-area: event !important; }
+  .adminLogTable,
+  .tablewrap,
+  .tableContainer {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  .adminLogTable table,
+  .tablewrap table { min-width: 560px !important; }
+  .adminLogTable { height: auto !important; max-height: 260px !important; }
+
+  .safetyStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+  .safetyStrip > div {
+    min-width: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid var(--line) !important;
+    padding: 9px !important;
+  }
+  .safetyStrip > div:nth-last-child(-n+2) { border-bottom: 0 !important; }
+  .quickGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+
+  .missionBar { align-items: flex-start !important; }
+  .missionBar h1 { font-size: clamp(19px, 5vw, 24px) !important; }
+  .cardHeader { min-width: 0 !important; flex-wrap: wrap !important; }
+  .cardHeader b { font-size: 11px !important; }
+  .dashboard button { min-height: 36px; }
+  .dashboard .mapControls button,
+  .dashboard .cameraFooter button { min-height: 36px !important; }
+  .dashboard .targetData,
+  .dashboard .deviceMetrics,
+  .dashboard .statusBlocks { min-width: 0 !important; }
+}
+
+@media (min-width: 701px) and (max-width: 900px) {
+  .dashboardGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-areas:
+      "map map"
+      "camera camera"
+      "control device"
+      "fleet recent" !important;
+    gap: 14px !important;
+  }
+  .dashboardGrid > .rightStack { display: contents !important; }
+  .dashboardGrid > .mapCard { grid-area: map !important; }
+  .dashboardGrid .cameraCard { grid-area: camera !important; }
+  .dashboardGrid .controlCard { grid-area: control !important; }
+  .dashboardGrid .deviceCard { grid-area: device !important; }
+  .dashboardGrid > .fleetCard { grid-area: fleet !important; }
+  .dashboardGrid .recentCard { grid-area: recent !important; }
+  .dashboardGrid > .mapCard > .mapArea { height: 380px !important; min-height: 380px !important; }
+  .dashboardGrid .cameraCard .cameraViewport { height: 320px !important; min-height: 320px !important; }
+  .lowerGrid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .lowerGrid > .adminLogCard { grid-column: 1 / -1 !important; }
+}
