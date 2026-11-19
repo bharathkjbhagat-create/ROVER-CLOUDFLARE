@@ -863,7 +863,10 @@ def current_user():
     if cached and cached.get("username"):
         user = dict(cached)
         database_configured = bool(DATABASE_URL or _cf_hyperdrive())
-        if database_configured:
+        if cached_role == "user" and not database_configured:
+            session.clear()
+            user = None
+        elif database_configured:
             # Environment admin credentials remain authoritative when
             # Hyperdrive is merely bound or the database is unavailable.
             # Database-backed sessions still require a live, matching DB row.
