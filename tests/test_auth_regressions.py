@@ -68,16 +68,27 @@ class AuthenticationRegressionTests(unittest.TestCase):
         response = self.client.get("/api/me")
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
 
-    def test_database_configured_still_rejects_regular_users(self):
+    def test_approved_user_id_reaches_database_authentication(self):
         with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
              patch.object(rover_app, "ensure_db", return_value=None):
             response = self.client.post("/api/login", json={
-                "username": "DHANUSH",
-                "password": "test-only-old-password",
+                "username": "DHANUSH", "password": "test-only-password",
             })
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
+        self.assertEqual(response.get_json().get("field"), "password")
+
+    def test_retired_anirudh_id_is_rejected_before_password_lookup(self):
+        with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
+             patch.object(rover_app, "db_available", return_value=False), \
+             patch.object(rover_app, "ensure_db", return_value=None):
+            response = self.client.post("/api/login", json={
+                "username": "ANIRUDH", "password": "test-only-password",
+            })
+        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
+        self.assertEqual(response.get_json().get("field"), "username")
 
     def test_worker_checks_database_auth_before_legacy_auth_and_allows_only_approved_ids(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
