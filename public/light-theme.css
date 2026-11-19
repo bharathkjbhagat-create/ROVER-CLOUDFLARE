@@ -210,3 +210,126 @@ body.light .lastKnownRecent>div:nth-child(2)>span{color:#394e57!important}
 body.light .lastKnownRecent>div:nth-child(2)>small,
 body.light .lastKnownActions time{color:#71858e!important}
 @media(prefers-reduced-motion:reduce){body.light *{animation:none!important;transition:none!important}}
+
+
+/* FINAL LIGHT-THEME COMFORT PASS — subdued contrast and consistent controls.
+   Scoped to body.light so the dark theme and functional/status colors remain intact. */
+body.light {
+  --bg:#f5f6f4; --card:#ffffff; --line:#e3e7e3; --text:#26343a; --muted:#748087;
+  --accent:#718f86;
+  background:#f5f6f4!important; color:#26343a!important;
+}
+body.light, body.light .appShell, body.light .dashboard, body.light main {
+  background:#f5f6f4!important; color:#26343a!important;
+}
+body.light .topbar, body.light .sidebar, body.light .card, body.light .modalbox,
+body.light .quickCard, body.light .foldCard, body.light .missionBar,
+body.light .sidePromo, body.light .safetyStrip {
+  background:#fff!important; color:#26343a!important;
+  border-color:#e3e7e3!important;
+  box-shadow:0 2px 10px rgba(35,48,48,.045)!important;
+}
+body.light .card:hover { box-shadow:0 3px 12px rgba(35,48,48,.06)!important; }
+body.light .cardHeader, body.light .cardhead, body.light .modalhead,
+body.light .adminTabs, body.light .alertbar {
+  background:#f8f9f7!important; color:#34434a!important; border-color:#e7ebe7!important;
+}
+body.light h1, body.light h2, body.light h3, body.light b,
+body.light .brandName, body.light .profileWords b,
+body.light .cardHeader b, body.light .missionBar h1 { color:#2c3a40; }
+body.light p, body.light small, body.light label, body.light .muted,
+body.light .eyebrow, body.light .sideTitle, body.light .brandSub,
+body.light .cardHeader span, body.light .cardhead span,
+body.light .missionBar small, body.light footer { color:#748087!important; }
+body.light .sidebar .navItem, body.light .navItem { color:#53636a!important; }
+body.light .sidebar .navItem:hover {
+  background:#f1f4f1!important; color:#415d55!important;
+}
+body.light .sidebar .navItem.active,
+body.light .sidebar .navItem.active span {
+  background:#e8efeb!important; color:#405d53!important;
+}
+body.light .sidebar .navItem.active { box-shadow:none!important; }
+body.light button, body.light .button, body.light select,
+body.light .mapTab, body.light .mapControl,
+body.light .mapToolRail button, body.light .camera360Controls button,
+body.light .quickGrid button, body.light .returnBaseActions button {
+  color:#425159!important; background:#f6f8f6!important;
+  border:1px solid #e0e6e1!important; box-shadow:none!important;
+  filter:none!important; text-shadow:none!important;
+}
+body.light button:hover:not(:disabled) {
+  color:#354f46!important; background:#eef3ef!important;
+  border-color:#cbd8cf!important; box-shadow:none!important;
+  filter:none!important; transform:none!important;
+}
+body.light button:focus-visible, body.light input:focus-visible,
+body.light select:focus-visible, body.light textarea:focus-visible {
+  outline:2px solid rgba(105,139,123,.28)!important;
+  outline-offset:2px!important; border-color:#9aafa2!important;
+}
+body.light .sidebar .navItem.active,
+body.light .mapTab.active, body.light .mapTab[aria-selected="true"],
+body.light .adminTabs button[aria-selected="true"],
+body.light .adminTabs button.active {
+  background:#e7efea!important; color:#3f5d50!important;
+  border-color:#cbd9cf!important; box-shadow:none!important;
+}
+body.light input, body.light select, body.light textarea,
+body.light .deviceNotes, body.light .modalbox input,
+body.light .modalbox select, body.light .modalbox textarea {
+  color:#33434a!important; background:#fff!important;
+  border:1px solid #e0e6e1!important; box-shadow:none!important;
+}
+body.light input::placeholder, body.light textarea::placeholder { color:#9aa4a3!important; }
+body.light .statusBlocks>div, body.light .coordsTiny>span,
+body.light .deviceChips span, body.light .permissionNotice,
+body.light .returnBaseControls, body.light .mapReadout,
+body.light .mapReadout>div, body.light .missiongrid>div,
+body.light .statusBlock, body.light .metric, body.light .deviceMetrics>div,
+body.light .recentItem, body.light .safetyStrip>div {
+  color:#4c5c62!important; background:#f8faf8!important;
+  border-color:#e5eae5!important; box-shadow:none!important;
+}
+body.light .statusBlocks b, body.light .coordsTiny b,
+body.light .targetData b, body.light .missiongrid strong,
+body.light .deviceMetrics b, body.light .deviceChips b,
+body.light .returnBaseStatus { color:#34464a!important; }
+body.light .statusBlocks small, body.light .coordsTiny small,
+body.light .deviceMetrics span, body.light .deviceChips span,
+body.light .storageBar>span, body.light .returnBaseControls small,
+body.light .recentItem span, body.light .recentItem time { color:#77858a!important; }
+body.light .tablewrap th, body.light .adminLogTable th {
+  color:#53636a!important; background:#f2f5f2!important; border-color:#e3e8e3!important;
+}
+body.light .tablewrap td, body.light .adminLogTable td {
+  color:#425159!important; background:#fff!important; border-color:#e9ede9!important;
+}
+body.light .tablewrap tr:nth-child(even) td,
+body.light .adminLogTable tr:nth-child(even) td { background:#fafbfa!important; }
+body.light .greenPill, body.light .onlineLabel, body.light .targetPill {
+  filter:saturate(.55)!important; box-shadow:none!important;
+}
+body.light .heroReadout b, body.light .heroText h1 { text-shadow:none!important; }
+body.light .roverHero {
+  background:linear-gradient(125deg,#f0f4f1 0%,#fafbfa 55%,#eef3f0 100%)!important;
+  border-color:#e0e8e1!important; box-shadow:0 3px 12px rgba(35,48,48,.05)!important;
+}
+body.light .heroReadout, body.light .heroMeta b, body.light .deviceTag {
+  background:rgba(255,255,255,.94)!important; border-color:#e0e7e1!important;
+  box-shadow:none!important;
+}
+body.light .modal { background:rgba(31,43,43,.24)!important; }
+body.light .mapfallback {
+  color:#78868a!important;
+  background:repeating-linear-gradient(0deg,#f5f7f5 0,#f5f7f5 29px,#edf1ed 30px),
+             repeating-linear-gradient(90deg,#f5f7f5 0,#f5f7f5 29px,#edf1ed 30px)!important;
+}
+/* Keep live camera/map imagery and clear danger/success meaning; remove decorative glow. */
+body.light .card, body.light button, body.light .statusBlocks>div,
+body.light .deviceMetrics>div { text-shadow:none!important; }
+@media(prefers-reduced-motion:reduce) {
+  body.light *, body.light *::before, body.light *::after {
+    animation:none!important; transition:none!important;
+  }
+}
