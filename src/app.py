@@ -1275,12 +1275,14 @@ def admin_database_check():
     connection_path = "database_url" if DATABASE_URL else (
         "hyperdrive" if _cf_hyperdrive() is not None else "not_configured"
     )
-    if connection_path == "not_configured" or not get_psycopg():
+    diagnostics = database_diagnostics()
+    if connection_path == "not_configured" or not diagnostics["driver_available"]:
         return jsonify({
             "ok": False,
             "database": "unavailable",
             "connection_path": connection_path,
             "error": "Database connection is not configured.",
+            "diagnostics": diagnostics,
         }), 503
     try:
         conn = get_db()
@@ -1290,6 +1292,7 @@ def admin_database_check():
                 "database": "unavailable",
                 "connection_path": connection_path,
                 "error": "Database connection is not available.",
+                "diagnostics": database_diagnostics(),
             }), 503
         with conn:
             with conn.cursor() as cur:
@@ -1302,14 +1305,17 @@ def admin_database_check():
             "database": "connected",
             "connection_path": connection_path,
             "test": "SELECT 1",
+            "diagnostics": database_diagnostics(),
         }), 200
-    except Exception:
+    except Exception as exc:
         mark_db_unavailable()
         return jsonify({
             "ok": False,
             "database": "connection_failed",
             "connection_path": connection_path,
             "error": "The database connection test failed. Check Hyperdrive and Neon connection settings.",
+            "error_class": type(exc).__name__,
+            "diagnostics": database_diagnostics(),
         }), 503
 
 
