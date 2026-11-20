@@ -753,14 +753,39 @@ def sync_worker_bindings(env):
     ADMIN_PASSWORD_HASH = str(_config("ADMIN_PASSWORD_HASH", "") or "")
 
 
+DB_INIT_ERROR_CLASS = None
+
+
+def database_diagnostics():
+    """Safe admin-only diagnostics; never expose credentials or connection strings."""
+    try:
+        store_configured = bool(DATABASE_URL or _cf_hyperdrive())
+    except Exception:
+        store_configured = False
+    try:
+        driver_available = bool(get_psycopg())
+    except Exception:
+        driver_available = False
+    return {
+        "store_configured": store_configured,
+        "admin_username_configured": bool(ADMIN_USERNAME),
+        "admin_credential_configured": bool(ADMIN_PASSWORD or ADMIN_PASSWORD_HASH),
+        "driver_available": driver_available,
+        "cooldown_active": time.monotonic() < _db_unavailable_until,
+        "initialization_error": DB_INIT_ERROR_CLASS,
+    }
+
+
 def db_available():
     try:
-        configured_store = bool(DATABASE_URL or _cf_hyperdrive())
-        if not configured_store or not ADMIN_USERNAME or not (ADMIN_PASSWORD or ADMIN_PASSWORD_HASH):
-            return False
-        if time.monotonic() < _db_unavailable_until:
-            return False
-        return bool(get_psycopg())
+        state = database_diagnostics()
+        return bool(
+            state["store_configured"]
+            and state["admin_username_configured"]
+            and state["admin_credential_configured"]
+            and state["driver_available"]
+            and not state["cooldown_active"]
+        )
     except Exception:
         return False
 
@@ -863,8 +888,11 @@ def ensure_db():
                             (str(uuid.uuid4()), "ROVER-01", "ROVER-01", "Default demonstration rover"),
                         )
                 _db_initialized = True
-        except Exception:
+        except Exception as exc:
             # Never hold the page hostage when the database is unavailable.
+            global DB_INIT_ERROR_CLASS
+            DB_INIT_ERROR_CLASS = type(exc).__name__
+            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}")
             mark_db_unavailable()
 
 def client_ip():
@@ -1697,6 +1725,7 @@ def users():
                 "created_at": None, "last_login_at": None
             })
         return jsonify({"ok": True, "users": rows, "db_connected": False,
+                        "db_diagnostics": database_diagnostics(),
                         "warning": "PostgreSQL is unavailable. Approved account IDs are shown as placeholders; password resets and changes are disabled until the database reconnects."})
     with get_db() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
