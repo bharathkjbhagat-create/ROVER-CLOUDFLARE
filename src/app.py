@@ -260,7 +260,7 @@ ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().
 LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "0")).strip().lower() not in {"0", "false", "no", "off"}
 LEGACY_AUTH_URL = str(_config("LEGACY_AUTH_URL", "https://rover-ten-weld.vercel.app/api/login")).strip()
 
-KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "MAMALESHWAR")
+KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR")
 
 FRIEND_ACCOUNTS = [
     {
@@ -274,6 +274,12 @@ FRIEND_ACCOUNTS = [
         "password": _config("FRIEND_DHANUSH_PASSWORD"),
         "password_hash": _config("FRIEND_DHANUSH_PASSWORD_HASH"),
         "display_name": "DHANUSH",
+    },
+    {
+        "username": "ANIRUDH",
+        "password": _config("FRIEND_ANIRUDH_PASSWORD"),
+        "password_hash": _config("FRIEND_ANIRUDH_PASSWORD_HASH"),
+        "display_name": "ANIRUDH",
     },
     {
         "username": "MAMALESHWAR",
@@ -795,9 +801,8 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Retain approved regular users across deployments. Remove only
-                    # the explicitly retired account and duplicate admin rows.
-                    cur.execute("DELETE FROM users WHERE UPPER(username)='ANIRUDH'")
+                    # Retain every approved regular user across deployments and
+                    # remove only duplicate admin rows. Existing passwords are preserved.
                     cur.execute(
                         """DELETE FROM users
                            WHERE UPPER(username)=UPPER(%s)
@@ -821,7 +826,7 @@ def ensure_db():
                             VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
                             (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator", generate_password_hash(ADMIN_PASSWORD)),
                         )
-                    # Ensure the three approved user accounts exist in PostgreSQL so
+                    # Ensure all four approved user accounts exist in PostgreSQL so
                     # the admin User Management page always lists them after DB init.
                     # A random, undisclosed initial password hash prevents login until
                     # the administrator explicitly sets a password via Reset Password.
@@ -1409,7 +1414,7 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Only the configured administrator and the three explicitly approved
+    # Only the configured administrator and the four explicitly approved
     # rover users may authenticate. No other regular-user ID is accepted.
     approved_friend = next((name for name in KNOWN_FRIEND_USERNAMES if normalize_login_id(name) == login_key), None)
     is_admin_login = login_key in admin_login_ids
@@ -1649,12 +1654,24 @@ def profile():
 @app.get("/api/users")
 @require_manage
 def users():
-    # Initialize the schema; non-admin accounts are permanently purged by ensure_db().
+    # Initialize the schema and preserve every existing regular-user account.
     ensure_db()
     if not db_available():
         rows = []
         for username, user in runtime_users.items():
             rows.append(dict(user))
+        # Keep the approved account IDs visible to the administrator during a
+        # database outage. These are clearly marked as placeholders and cannot be
+        # edited/reset until PostgreSQL is restored.
+        known_names = {str(row.get("username", "")).upper() for row in rows}
+        for username in KNOWN_FRIEND_USERNAMES:
+            if username not in known_names:
+                rows.append({
+                    "id": "pending-db-" + username.lower(),
+                    "username": username, "display_name": username, "role": "user",
+                    "enabled": True, "can_control": True, "can_manage_users": False,
+                    "created_at": None, "last_login_at": None, "database_pending": True,
+                })
         if ADMIN_USERNAME:
             rows.insert(0, {
                 "id": "env-admin", "username": ADMIN_USERNAME, "display_name": "ROVER Administrator",
@@ -1662,13 +1679,25 @@ def users():
                 "created_at": None, "last_login_at": None
             })
         return jsonify({"ok": True, "users": rows, "db_connected": False,
-                        "warning": "User changes are active for the current application instance without PostgreSQL."})
+                        "warning": "PostgreSQL is unavailable. Approved account IDs are shown as placeholders; password resets and changes are disabled until the database reconnects."})
     with get_db() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute("SELECT UPPER(username) AS username FROM users")
+            present = {str(row["username"]).upper() for row in cur.fetchall()}
+            for username in KNOWN_FRIEND_USERNAMES:
+                if username not in present:
+                    cur.execute(
+                        """INSERT INTO users
+                           (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
+                           VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE)
+                           ON CONFLICT (username) DO NOTHING""",
+                        (str(uuid.uuid4()), username, username,
+                         generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex)),
+                    )
             cur.execute("""SELECT id,username,display_name,role,enabled,can_control,can_manage_users,created_at,last_login_at
                            FROM users ORDER BY created_at DESC""")
             rows = cur.fetchall()
-    return jsonify({"ok": True, "users": [dict(x, id=str(x["id"])) for x in rows]})
+    return jsonify({"ok": True, "users": [dict(x, id=str(x["id"])) for x in rows], "db_connected": True})
 
 @app.post("/api/users")
 @require_manage

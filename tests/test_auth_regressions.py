@@ -37,12 +37,12 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertTrue(response.get_json()["ok"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
-    def test_only_three_approved_regular_user_ids_are_whitelisted(self):
-        self.assertEqual(rover_app.KNOWN_FRIEND_USERNAMES, ("MAHANTESH", "DHANUSH", "MAMALESHWAR"))
-        self.assertNotIn("ANIRUDH", rover_app.KNOWN_FRIEND_USERNAMES)
+    def test_all_four_approved_regular_user_ids_are_whitelisted_and_preserved(self):
+        self.assertEqual(rover_app.KNOWN_FRIEND_USERNAMES, ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"))
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn("DELETE FROM users WHERE UPPER(username)='ANIRUDH'", source)
-        self.assertNotIn("DELETE FROM users\\n                           WHERE id NOT IN", source)
+        self.assertNotIn("DELETE FROM users WHERE UPPER(username)='ANIRUDH'", source)
+        self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
+        self.assertIn("ON CONFLICT (username) DO NOTHING", source)
 
     def test_old_regular_user_fallback_session_is_rejected_without_user_cache(self):
         with self.client.session_transaction() as session:
@@ -50,20 +50,6 @@ class AuthenticationRegressionTests(unittest.TestCase):
                 "id": "old-user-session", "username": "UNAPPROVED",
                 "display_name": "Unknown User", "role": "user", "enabled": True,
                 "can_control": True, "can_manage_users": False,
-            }
-        response = self.client.get("/api/me")
-        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
-
-    def test_old_regular_user_fallback_session_is_rejected_without_user_cache(self):
-        with self.client.session_transaction() as session:
-            session["fallback_user"] = {
-                "id": "old-user-session",
-                "username": "DHANUSH",
-                "display_name": "Legacy Friend",
-                "role": "user",
-                "enabled": True,
-                "can_control": True,
-                "can_manage_users": False,
             }
         response = self.client.get("/api/me")
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
@@ -79,7 +65,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
         self.assertEqual(response.get_json().get("field"), "password")
 
-    def test_retired_anirudh_id_is_rejected_before_password_lookup(self):
+    def test_anirudh_is_an_approved_id_and_reaches_password_validation(self):
         with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
              patch.object(rover_app, "db_available", return_value=False), \
@@ -88,7 +74,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
                 "username": "ANIRUDH", "password": "test-only-password",
             })
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
-        self.assertEqual(response.get_json().get("field"), "username")
+        self.assertEqual(response.get_json().get("field"), "password")
 
     def test_worker_checks_database_auth_before_legacy_auth_and_allows_only_approved_ids(self):
         source = (ROOT / "src" / "worker.py").read_text(encoding="utf-8")
@@ -96,7 +82,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
         end = source.index("async def fetch(self, request)", start)
         handler = source[start:end]
         self.assertLess(handler.index("fallback_response = await wsgi.fetch"), handler.index("legacy_user = await self._legacy_authenticate"))
-        self.assertIn('approved_users = {"MAHANTESH", "DHANUSH", "MAMALESHWAR"}', handler)
+        self.assertIn('approved_users = {"MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"}', handler)
         self.assertNotIn("if self._normalize_login(username) not in admin_aliases:", handler)
 
     def test_worker_injects_live_bindings_into_flask_before_wsgi(self):
@@ -122,11 +108,11 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("self._needs_revocation_check(url.path)", source)
         self.assertIn("if await self.is_session_revoked(session_hash):", source)
 
-    def test_database_cleanup_preserves_approved_users_and_removes_anirudh_only(self):
+    def test_database_initialization_preserves_and_bootstraps_all_approved_users(self):
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
-        self.assertIn("DELETE FROM users WHERE UPPER(username)='ANIRUDH'", source)
+        self.assertNotIn("DELETE FROM users WHERE UPPER(username)='ANIRUDH'", source)
         self.assertIn("role='admin',enabled=TRUE", source)
-        self.assertIn('KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "MAMALESHWAR")', source)
+        self.assertIn('KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR")', source)
         self.assertIn("runtime_users = {}", source)
         self.assertIn("runtime_password_hashes = {}", source)
         self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
