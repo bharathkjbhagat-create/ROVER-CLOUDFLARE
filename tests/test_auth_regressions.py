@@ -17,6 +17,22 @@ os.environ.setdefault("ADMIN_PASSWORD", "test-only-admin-password")
 import app as rover_app  # noqa: E402
 
 
+class CloudflarePbkdf2CompatibilityTests(unittest.TestCase):
+    def test_password_hashing_works_without_hashlib_pbkdf2_hmac(self):
+        # Cloudflare's Pyodide build omits hashlib.pbkdf2_hmac. Simulate that
+        # exact runtime limitation while exercising the production helpers.
+        with patch.object(rover_app.hashlib, "pbkdf2_hmac",
+                          side_effect=AttributeError("not available"), create=True):
+            encoded = rover_app.generate_password_hash("correct horse battery staple")
+            self.assertTrue(encoded.startswith("pbkdf2:sha256:600000$"))
+            self.assertTrue(rover_app.safe_check_password_hash(
+                encoded, "correct horse battery staple"
+            ))
+            self.assertFalse(rover_app.safe_check_password_hash(
+                encoded, "incorrect password"
+            ))
+
+
 class AuthenticationRegressionTests(unittest.TestCase):
     def setUp(self):
         self.client = rover_app.app.test_client()
@@ -149,7 +165,8 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("runtime_password_hashes = {}", source)
         self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
         self.assertIn("ON CONFLICT (username) DO NOTHING", source)
-        self.assertIn("generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex)", source)
+        self.assertIn('"disabled$" + uuid.uuid4().hex', source)
+        self.assertIn('if method == "disabled":', source)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):

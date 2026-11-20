@@ -2,11 +2,48 @@ from flask import Flask, Response, jsonify, request, send_from_directory, sessio
 from functools import wraps
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
-from werkzeug.security import generate_password_hash as _werkzeug_generate_hash, check_password_hash
+from werkzeug.security import check_password_hash as _werkzeug_check_password_hash
+
+# Cloudflare's Pyodide runtime does not expose hashlib.pbkdf2_hmac.
+# Implement PBKDF2-HMAC-SHA256 using supported HMAC/SHA256 operations.
+_PBKDF2_ITERATIONS = 600_000
+
+
+def _pbkdf2_sha256(password, salt, iterations):
+    password_bytes = str(password).encode("utf-8")
+    salt_bytes = str(salt).encode("utf-8")
+    block = hmac.new(password_bytes, salt_bytes + b"\x00\x00\x00\x01", hashlib.sha256).digest()
+    result = bytearray(block)
+    for _ in range(1, int(iterations)):
+        block = hmac.new(password_bytes, block, hashlib.sha256).digest()
+        for index, value in enumerate(block):
+            result[index] ^= value
+    return bytes(result).hex()
+
 
 def generate_password_hash(password):
-    # PBKDF2 works in the Cloudflare Python runtime; scrypt may not.
-    return _werkzeug_generate_hash(password, method="pbkdf2:sha256")
+    salt = os.urandom(16).hex()
+    digest = _pbkdf2_sha256(password, salt, _PBKDF2_ITERATIONS)
+    return f"pbkdf2:sha256:{_PBKDF2_ITERATIONS}$" + salt + "$" + digest
+
+
+def check_password_hash(pwhash, password):
+    try:
+        method, salt, expected = str(pwhash).split("$", 2)
+        if method == "disabled":
+            return False
+        if method.startswith("pbkdf2:sha256:"):
+            iterations = int(method.rsplit(":", 1)[1])
+            if iterations < 1 or iterations > 2_000_000:
+                return False
+            actual = _pbkdf2_sha256(password, salt, iterations)
+            return hmac.compare_digest(actual, expected)
+    except (TypeError, ValueError, AttributeError):
+        return False
+    try:
+        return bool(_werkzeug_check_password_hash(str(pwhash), str(password)))
+    except Exception:
+        return False
 
 def _safe_equal(a, b):
     # compare_digest can raise TypeError for incompatible string input.
@@ -879,7 +916,7 @@ def ensure_db():
                                 str(uuid.uuid4()),
                                 username,
                                 username,
-                                generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex),
+                                "disabled$" + uuid.uuid4().hex,
                             ),
                         )
                     cur.execute("SELECT id FROM devices WHERE device_code=%s", ("ROVER-01",))
@@ -1489,7 +1526,7 @@ def login():
     admin_password_valid = bool(ADMIN_PASSWORD and _safe_equal(password, ADMIN_PASSWORD))
     if not admin_password_valid and ADMIN_PASSWORD_HASH:
         try:
-            admin_password_valid = check_password_hash(ADMIN_PASSWORD_HASH, password)
+            admin_password_valid = safe_check_password_hash(ADMIN_PASSWORD_HASH, password)
         except Exception:
             admin_password_valid = False
     if is_admin_login and not database_configured and ADMIN_USERNAME and admin_password_valid:
