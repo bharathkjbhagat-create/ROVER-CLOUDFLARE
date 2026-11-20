@@ -165,7 +165,8 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("runtime_password_hashes = {}", source)
         self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
         self.assertIn("ON CONFLICT (username) DO NOTHING", source)
-        self.assertIn("generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex)", source)
+        self.assertIn('"disabled$" + uuid.uuid4().hex', source)
+        self.assertIn('if method == "disabled":', source)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):
