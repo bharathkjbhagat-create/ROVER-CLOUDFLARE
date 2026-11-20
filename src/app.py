@@ -260,7 +260,7 @@ ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().
 LEGACY_AUTH_ENABLED = str(_config("LEGACY_AUTH_ENABLED", "0")).strip().lower() not in {"0", "false", "no", "off"}
 LEGACY_AUTH_URL = str(_config("LEGACY_AUTH_URL", "https://rover-ten-weld.vercel.app/api/login")).strip()
 
-KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "MAMALESHWAR")
+KNOWN_FRIEND_USERNAMES = ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR")
 
 FRIEND_ACCOUNTS = [
     {
@@ -274,6 +274,12 @@ FRIEND_ACCOUNTS = [
         "password": _config("FRIEND_DHANUSH_PASSWORD"),
         "password_hash": _config("FRIEND_DHANUSH_PASSWORD_HASH"),
         "display_name": "DHANUSH",
+    },
+    {
+        "username": "ANIRUDH",
+        "password": _config("FRIEND_ANIRUDH_PASSWORD"),
+        "password_hash": _config("FRIEND_ANIRUDH_PASSWORD_HASH"),
+        "display_name": "ANIRUDH",
     },
     {
         "username": "MAMALESHWAR",
@@ -795,9 +801,8 @@ def ensure_db():
                         cur.execute(statement)
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
-                    # Retain approved regular users across deployments. Remove only
-                    # the explicitly retired account and duplicate admin rows.
-                    cur.execute("DELETE FROM users WHERE UPPER(username)='ANIRUDH'")
+                    # Retain every approved regular user across deployments and
+                    # remove only duplicate admin rows. Existing passwords are preserved.
                     cur.execute(
                         """DELETE FROM users
                            WHERE UPPER(username)=UPPER(%s)
@@ -821,7 +826,7 @@ def ensure_db():
                             VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
                             (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator", generate_password_hash(ADMIN_PASSWORD)),
                         )
-                    # Ensure the three approved user accounts exist in PostgreSQL so
+                    # Ensure all four approved user accounts exist in PostgreSQL so
                     # the admin User Management page always lists them after DB init.
                     # A random, undisclosed initial password hash prevents login until
                     # the administrator explicitly sets a password via Reset Password.
@@ -1409,7 +1414,7 @@ def login():
         if x
     }
     fast_user = _signed_worker_legacy_user()
-    # Only the configured administrator and the three explicitly approved
+    # Only the configured administrator and the four explicitly approved
     # rover users may authenticate. No other regular-user ID is accepted.
     approved_friend = next((name for name in KNOWN_FRIEND_USERNAMES if normalize_login_id(name) == login_key), None)
     is_admin_login = login_key in admin_login_ids
