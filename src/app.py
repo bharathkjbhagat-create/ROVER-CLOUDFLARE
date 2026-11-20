@@ -1682,10 +1682,22 @@ def users():
                         "warning": "PostgreSQL is unavailable. Approved account IDs are shown as placeholders; password resets and changes are disabled until the database reconnects."})
     with get_db() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
+            cur.execute("SELECT UPPER(username) AS username FROM users")
+            present = {str(row["username"]).upper() for row in cur.fetchall()}
+            for username in KNOWN_FRIEND_USERNAMES:
+                if username not in present:
+                    cur.execute(
+                        """INSERT INTO users
+                           (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
+                           VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE)
+                           ON CONFLICT (username) DO NOTHING""",
+                        (str(uuid.uuid4()), username, username,
+                         generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex)),
+                    )
             cur.execute("""SELECT id,username,display_name,role,enabled,can_control,can_manage_users,created_at,last_login_at
                            FROM users ORDER BY created_at DESC""")
             rows = cur.fetchall()
-    return jsonify({"ok": True, "users": [dict(x, id=str(x["id"])) for x in rows]})
+    return jsonify({"ok": True, "users": [dict(x, id=str(x["id"])) for x in rows], "db_connected": True})
 
 @app.post("/api/users")
 @require_manage
