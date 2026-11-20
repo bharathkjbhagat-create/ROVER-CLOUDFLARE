@@ -12,7 +12,7 @@ _PBKDF2_ITERATIONS = 600_000
 def _pbkdf2_sha256(password, salt, iterations):
     password_bytes = str(password).encode("utf-8")
     salt_bytes = str(salt).encode("utf-8")
-    block = hmac.new(password_bytes, salt_bytes + b"\\x00\\x00\\x00\\x01", hashlib.sha256).digest()
+    block = hmac.new(password_bytes, salt_bytes + b"\x00\x00\x00\x01", hashlib.sha256).digest()
     result = bytearray(block)
     for _ in range(1, int(iterations)):
         block = hmac.new(password_bytes, block, hashlib.sha256).digest()
