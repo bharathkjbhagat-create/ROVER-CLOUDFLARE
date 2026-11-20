@@ -254,6 +254,7 @@ app.config.update(
 DATABASE_URL = _config("DATABASE_URL")
 ADMIN_USERNAME = str(_config("ADMIN_USERNAME", "ADMIN") or "ADMIN").strip().upper()
 ADMIN_PASSWORD = _config("ADMIN_PASSWORD")
+ADMIN_PASSWORD_HASH = _config("ADMIN_PASSWORD_HASH")
 ROVER_DEVICE_TOKEN = _config("ROVER_DEVICE_TOKEN", "").strip()
 ROVER_CAMERA_STREAM_URL = _config("ROVER_CAMERA_STREAM_URL", "").strip()
 ROVER_CAMERA_STREAM_TYPE = _config("ROVER_CAMERA_STREAM_TYPE", "mjpeg").strip().lower()
@@ -742,10 +743,20 @@ CREATE TABLE IF NOT EXISTS device_loss_events (
 );
 """
 
+def sync_worker_bindings(env):
+    """Refresh module-level config after Cloudflare Worker bindings are attached."""
+    global CF_ENV, DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_PASSWORD_HASH
+    CF_ENV = env
+    DATABASE_URL = str(_config("DATABASE_URL", "") or "").strip()
+    ADMIN_USERNAME = str(_config("ADMIN_USERNAME", "ADMIN") or "ADMIN").strip().upper()
+    ADMIN_PASSWORD = str(_config("ADMIN_PASSWORD", "") or "")
+    ADMIN_PASSWORD_HASH = str(_config("ADMIN_PASSWORD_HASH", "") or "")
+
+
 def db_available():
     try:
         configured_store = bool(DATABASE_URL or _cf_hyperdrive())
-        if not configured_store or not ADMIN_USERNAME or not ADMIN_PASSWORD:
+        if not configured_store or not ADMIN_USERNAME or not (ADMIN_PASSWORD or ADMIN_PASSWORD_HASH):
             return False
         if time.monotonic() < _db_unavailable_until:
             return False
@@ -824,7 +835,8 @@ def ensure_db():
                             """INSERT INTO users
                             (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
                             VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
-                            (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator", generate_password_hash(ADMIN_PASSWORD)),
+                            (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator",
+                             ADMIN_PASSWORD_HASH or generate_password_hash(ADMIN_PASSWORD)),
                         )
                     # Ensure all four approved user accounts exist in PostgreSQL so
                     # the admin User Management page always lists them after DB init.
@@ -1218,11 +1230,11 @@ def health():
         "runtime": "cloudflare-worker",
         "session_configured": bool(SESSION_SECRET),
         "session_secret_dedicated": SESSION_SECRET_DEDICATED,
-        "admin_configured": bool(ADMIN_USERNAME and ADMIN_PASSWORD),
+        "admin_configured": bool(ADMIN_USERNAME and (ADMIN_PASSWORD or ADMIN_PASSWORD_HASH)),
         "legacy_bridge_configured": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL and CF_ENV is not None),
         "legacy_auth_enabled": bool(LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL),
         "auth_path_configured": bool(
-            (ADMIN_USERNAME and ADMIN_PASSWORD)
+            (ADMIN_USERNAME and (ADMIN_PASSWORD or ADMIN_PASSWORD_HASH))
             or (LEGACY_AUTH_ENABLED and LEGACY_AUTH_URL)
         ),
         "realtime_bound": bool(_realtime_stub()),
@@ -1437,7 +1449,13 @@ def login():
         fast_user = None
     # Fast authentication path: configured Admin credentials are checked locally
     # before touching PostgreSQL, so a slow database cannot hold sign-in hostage.
-    if is_admin_login and not database_configured and ADMIN_USERNAME and ADMIN_PASSWORD and _safe_equal(password, ADMIN_PASSWORD):
+    admin_password_valid = bool(ADMIN_PASSWORD and _safe_equal(password, ADMIN_PASSWORD))
+    if not admin_password_valid and ADMIN_PASSWORD_HASH:
+        try:
+            admin_password_valid = check_password_hash(ADMIN_PASSWORD_HASH, password)
+        except Exception:
+            admin_password_valid = False
+    if is_admin_login and not database_configured and ADMIN_USERNAME and admin_password_valid:
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
