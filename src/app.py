@@ -1660,6 +1660,18 @@ def users():
         rows = []
         for username, user in runtime_users.items():
             rows.append(dict(user))
+        # Keep the approved account IDs visible to the administrator during a
+        # database outage. These are clearly marked as placeholders and cannot be
+        # edited/reset until PostgreSQL is restored.
+        known_names = {str(row.get("username", "")).upper() for row in rows}
+        for username in KNOWN_FRIEND_USERNAMES:
+            if username not in known_names:
+                rows.append({
+                    "id": "pending-db-" + username.lower(),
+                    "username": username, "display_name": username, "role": "user",
+                    "enabled": True, "can_control": True, "can_manage_users": False,
+                    "created_at": None, "last_login_at": None, "database_pending": True,
+                })
         if ADMIN_USERNAME:
             rows.insert(0, {
                 "id": "env-admin", "username": ADMIN_USERNAME, "display_name": "ROVER Administrator",
@@ -1667,7 +1679,7 @@ def users():
                 "created_at": None, "last_login_at": None
             })
         return jsonify({"ok": True, "users": rows, "db_connected": False,
-                        "warning": "User changes are active for the current application instance without PostgreSQL."})
+                        "warning": "PostgreSQL is unavailable. Approved account IDs are shown as placeholders; password resets and changes are disabled until the database reconnects."})
     with get_db() as conn:
         with conn.cursor(row_factory=psycopg.rows.dict_row) as cur:
             cur.execute("""SELECT id,username,display_name,role,enabled,can_control,can_manage_users,created_at,last_login_at
