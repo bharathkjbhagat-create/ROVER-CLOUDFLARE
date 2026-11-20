@@ -53,7 +53,7 @@ def _pbkdf2_sha256(password, salt, iterations):
         except AttributeError:
             # Compatibility fallback for stripped-down non-Pyodide runtimes.
             block = hmac.new(
-                password_bytes, salt_bytes + b"\\x00\\x00\\x00\\x01",
+                password_bytes, salt_bytes + b"\x00\x00\x00\x01",
                 hashlib.sha256,
             ).digest()
             result = bytearray(block)
