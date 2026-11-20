@@ -1568,7 +1568,9 @@ def login():
             admin_password_valid = safe_check_password_hash(ADMIN_PASSWORD_HASH, password)
         except Exception:
             admin_password_valid = False
-    if is_admin_login and not database_configured and ADMIN_USERNAME and admin_password_valid:
+    if is_admin_login and ADMIN_USERNAME and admin_password_valid:
+        # Environment-backed admin credentials remain a valid recovery path
+        # even when a configured Neon/Hyperdrive connection is temporarily down.
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
