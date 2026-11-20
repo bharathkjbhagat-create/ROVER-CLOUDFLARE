@@ -30,6 +30,8 @@ def generate_password_hash(password):
 def check_password_hash(pwhash, password):
     try:
         method, salt, expected = str(pwhash).split("$", 2)
+        if method == "disabled":
+            return False
         if method.startswith("pbkdf2:sha256:"):
             iterations = int(method.rsplit(":", 1)[1])
             if iterations < 1 or iterations > 2_000_000:
@@ -914,7 +916,7 @@ def ensure_db():
                                 str(uuid.uuid4()),
                                 username,
                                 username,
-                                generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex),
+                                "disabled$" + uuid.uuid4().hex,
                             ),
                         )
                     cur.execute("SELECT id FROM devices WHERE device_code=%s", ("ROVER-01",))
