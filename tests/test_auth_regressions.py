@@ -68,6 +68,25 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertFalse(response.get_json()["db_connected"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
+    def test_get_db_prefers_cloudflare_hyperdrive_over_stale_database_url(self):
+        driver = rover_app.get_psycopg()
+        connection = object()
+        hyperdrive = SimpleNamespace(
+            host="neon.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", database="neondb",
+        )
+        with patch.object(rover_app, "DATABASE_URL", "postgresql://stale.example/old"), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=hyperdrive), \
+             patch.object(rover_app, "db_available", return_value=True), \
+             patch.object(driver, "connect", return_value=connection) as connect:
+            result = rover_app.get_db()
+        self.assertIs(result, connection)
+        connect.assert_called_once_with(
+            host="neon.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", dbname="neondb", sslmode="disable",
+            autocommit=True, connect_timeout=2,
+        )
+
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
         previous = {
             "CF_ENV": rover_app.CF_ENV,
