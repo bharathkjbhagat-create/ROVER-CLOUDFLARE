@@ -821,6 +821,23 @@ def ensure_db():
                             VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
                             (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator", generate_password_hash(ADMIN_PASSWORD)),
                         )
+                    # Ensure the three approved user accounts exist in PostgreSQL so
+                    # the admin User Management page always lists them after DB init.
+                    # A random, undisclosed initial password hash prevents login until
+                    # the administrator explicitly sets a password via Reset Password.
+                    for username in KNOWN_FRIEND_USERNAMES:
+                        cur.execute(
+                            """INSERT INTO users
+                               (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
+                               VALUES (%s,%s,%s,%s,'user',TRUE,TRUE,FALSE)
+                               ON CONFLICT (username) DO NOTHING""",
+                            (
+                                str(uuid.uuid4()),
+                                username,
+                                username,
+                                generate_password_hash(uuid.uuid4().hex + uuid.uuid4().hex),
+                            ),
+                        )
                     cur.execute("SELECT id FROM devices WHERE device_code=%s", ("ROVER-01",))
                     if not cur.fetchone():
                         cur.execute(
