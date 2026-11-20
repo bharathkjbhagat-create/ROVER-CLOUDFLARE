@@ -1308,6 +1308,45 @@ def health():
         "realtime_bound": bool(_realtime_stub()),
     })
 
+@app.get("/api/health/database")
+def database_health():
+    """Public, non-sensitive operational status for the configured database."""
+    ensure_db()
+    diagnostics = database_diagnostics()
+    if not db_available():
+        return jsonify({
+            "ok": False,
+            "database": "unavailable",
+            "store_configured": diagnostics["store_configured"],
+            "driver_available": diagnostics["driver_available"],
+            "error_class": DB_INIT_ERROR_CLASS,
+        }), 503
+    try:
+        conn = get_db()
+        if conn is None:
+            raise RuntimeError("Database connection unavailable")
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                result = cur.fetchone()
+        if not result or result[0] != 1:
+            raise RuntimeError("Database health query failed")
+        return jsonify({
+            "ok": True,
+            "database": "connected",
+            "store_configured": True,
+            "driver_available": True,
+        }), 200
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "database": "connection_failed",
+            "store_configured": diagnostics["store_configured"],
+            "driver_available": diagnostics["driver_available"],
+            "error_class": type(exc).__name__,
+        }), 503
+
+
 @app.get("/api/admin/database-check")
 @require_admin
 def admin_database_check():
