@@ -1156,7 +1156,7 @@ class Default(WorkerEntrypoint):
             # every Python Worker runtime context; without this assignment,
             # Flask cannot see HYPERDRIVE and reports the database as unconfigured.
             import app as rover_app
-            rover_app.CF_ENV = self.env
+            rover_app.sync_worker_bindings(self.env)
             self._configure_app_secret()
 
             # Signed Flask cookies are stateless; revoke them in Durable Object

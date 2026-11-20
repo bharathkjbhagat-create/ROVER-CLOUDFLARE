@@ -429,10 +429,13 @@ jobs:
           with open("/tmp/defenx-admin-users.json", encoding="utf-8") as handle:
               data = json.load(handle)
           assert data.get("ok") is True, data
+          assert data.get("db_connected") is True, f"Admin user list is not backed by Neon: {data}"
           names = {str(row.get("username", "")).strip().upper() for row in data.get("users", [])}
           missing = sorted(expected - names)
           assert not missing, f"Admin user list is missing approved accounts: {missing}; returned: {sorted(names)}"
-          print("Admin user list contains all four approved accounts: PASS")
+          pending = sorted(str(row.get("username", "")) for row in data.get("users", []) if row.get("database_pending"))
+          assert not pending, f"Approved accounts are placeholders, not persisted in Neon: {pending}"
+          print("Admin user list contains all four approved accounts persisted in Neon: PASS")
           PY
           db_code="$(curl -A 'Mozilla/5.0 (DEFENX read-only PostgreSQL check)' -sS -o /tmp/defenx-database-check.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/admin/database-check")"
           echo "/api/admin/database-check -> HTTP $db_code"
