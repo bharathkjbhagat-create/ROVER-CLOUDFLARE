@@ -12,13 +12,56 @@ _PBKDF2_ITERATIONS = 600_000
 def _pbkdf2_sha256(password, salt, iterations):
     password_bytes = str(password).encode("utf-8")
     salt_bytes = str(salt).encode("utf-8")
-    block = hmac.new(password_bytes, salt_bytes + b"\x00\x00\x00\x01", hashlib.sha256).digest()
-    result = bytearray(block)
-    for _ in range(1, int(iterations)):
-        block = hmac.new(password_bytes, block, hashlib.sha256).digest()
-        for index, value in enumerate(block):
-            result[index] ^= value
-    return bytes(result).hex()
+
+    # In Cloudflare's Pyodide runtime, use platform Web Crypto PBKDF2.
+    # This avoids 600,000 interpreted Python HMAC rounds and stays within
+    # the Workers CPU budget.
+    try:
+        from pyodide.ffi import run_sync, to_js
+        import js
+
+        def _u8(data):
+            array = js.Uint8Array.new(len(data))
+            for index, value in enumerate(data):
+                array[index] = value
+            return array
+
+        def _js_object(value):
+            return to_js(value, dict_converter=js.Object.fromEntries)
+
+        async def _derive():
+            key = await js.crypto.subtle.importKey(
+                "raw", _u8(password_bytes), _js_object({"name": "PBKDF2"}),
+                False, to_js(["deriveBits"]),
+            )
+            algorithm = _js_object({
+                "name": "PBKDF2",
+                "salt": _u8(salt_bytes),
+                "iterations": int(iterations),
+                "hash": "SHA-256",
+            })
+            bits = await js.crypto.subtle.deriveBits(algorithm, key, 256)
+            return bytes(js.Uint8Array.new(bits).to_py())
+
+        return run_sync(_derive()).hex()
+    except ImportError:
+        # Local Python has an optimized OpenSSL-backed implementation.
+        try:
+            return hashlib.pbkdf2_hmac(
+                "sha256", password_bytes, salt_bytes, int(iterations)
+            ).hex()
+        except AttributeError:
+            # Compatibility fallback for stripped-down non-Pyodide runtimes.
+            block = hmac.new(
+                password_bytes, salt_bytes + b"\x00\x00\x00\x01",
+                hashlib.sha256,
+            ).digest()
+            result = bytearray(block)
+            for _ in range(1, int(iterations)):
+                block = hmac.new(password_bytes, block, hashlib.sha256).digest()
+                for index, value in enumerate(block):
+                    result[index] ^= value
+            return bytes(result).hex()
 
 
 def generate_password_hash(password):
@@ -846,7 +889,10 @@ def get_db():
         return None
     try:
         hd = _cf_hyperdrive()
-        if hd is not None and not DATABASE_URL:
+        # On Workers, always use the bound Hyperdrive connection pool when it
+        # exists. A leftover DATABASE_URL secret must not bypass the live
+        # Hyperdrive binding or silently point the app at a different database.
+        if hd is not None:
             return psycopg.connect(
                 host=str(hd.host),
                 port=int(hd.port),
@@ -857,6 +903,8 @@ def get_db():
                 autocommit=True,
                 connect_timeout=2,
             )
+        if not DATABASE_URL:
+            return None
         return psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=2)
     except Exception:
         mark_db_unavailable()
@@ -1308,12 +1356,53 @@ def health():
         "realtime_bound": bool(_realtime_stub()),
     })
 
+@app.get("/api/health/database")
+def database_health():
+    """Public, non-sensitive operational status for the configured database."""
+    ensure_db()
+    diagnostics = database_diagnostics()
+    if not db_available():
+        return jsonify({
+            "ok": False,
+            "database": "unavailable",
+            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else ("database_url" if DATABASE_URL else "not_configured"),
+            "store_configured": diagnostics["store_configured"],
+            "driver_available": diagnostics["driver_available"],
+            "error_class": DB_INIT_ERROR_CLASS,
+        }), 503
+    try:
+        conn = get_db()
+        if conn is None:
+            raise RuntimeError("Database connection unavailable")
+        with conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT 1")
+                result = cur.fetchone()
+        if not result or result[0] != 1:
+            raise RuntimeError("Database health query failed")
+        return jsonify({
+            "ok": True,
+            "database": "connected",
+            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else "database_url",
+            "store_configured": True,
+            "driver_available": True,
+        }), 200
+    except Exception as exc:
+        return jsonify({
+            "ok": False,
+            "database": "connection_failed",
+            "store_configured": diagnostics["store_configured"],
+            "driver_available": diagnostics["driver_available"],
+            "error_class": type(exc).__name__,
+        }), 503
+
+
 @app.get("/api/admin/database-check")
 @require_admin
 def admin_database_check():
     """Admin-only, read-only PostgreSQL connectivity check via the configured store."""
-    connection_path = "database_url" if DATABASE_URL else (
-        "hyperdrive" if _cf_hyperdrive() is not None else "not_configured"
+    connection_path = "hyperdrive" if _cf_hyperdrive() is not None else (
+        "database_url" if DATABASE_URL else "not_configured"
     )
     diagnostics = database_diagnostics()
     if connection_path == "not_configured" or not diagnostics["driver_available"]:
@@ -1529,7 +1618,9 @@ def login():
             admin_password_valid = safe_check_password_hash(ADMIN_PASSWORD_HASH, password)
         except Exception:
             admin_password_valid = False
-    if is_admin_login and not database_configured and ADMIN_USERNAME and admin_password_valid:
+    if is_admin_login and ADMIN_USERNAME and admin_password_valid:
+        # Environment-backed admin credentials remain a valid recovery path
+        # even when a configured Neon/Hyperdrive connection is temporarily down.
         fast_user = {"id": "env-admin", "username": ADMIN_USERNAME or "ADMIN", "display_name": "ROVER Administrator",
                      "role": "admin", "enabled": True, "can_control": True, "can_manage_users": True,
                      "created_at": None, "last_login_at": None}
@@ -1555,7 +1646,9 @@ def login():
         except Exception as exc:
             print(f"DEFENX login audit skipped: {type(exc).__name__}")
         try:
-            db_status = bool(db_available())
+            # A configured binding is not proof that PostgreSQL is reachable.
+            # Report connected only after this isolate completed initialization.
+            db_status = bool(_db_initialized and db_available())
         except Exception:
             db_status = False
         response = jsonify({"ok": True, "user": fast_user, "db_connected": db_status})

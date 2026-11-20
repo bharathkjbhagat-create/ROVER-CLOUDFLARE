@@ -54,6 +54,57 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertTrue(response.get_json()["ok"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
+    def test_configured_admin_can_login_when_hyperdrive_is_temporarily_unavailable(self):
+        with patch.object(rover_app, "DATABASE_URL", None), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=object()), \
+             patch.object(rover_app, "db_available", return_value=False), \
+             patch.object(rover_app, "ensure_db", return_value=None):
+            response = self.client.post("/api/login", json={
+                "username": rover_app.ADMIN_USERNAME,
+                "password": rover_app.ADMIN_PASSWORD,
+            })
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertTrue(response.get_json()["ok"])
+        self.assertFalse(response.get_json()["db_connected"])
+        self.assertEqual(self.client.get("/api/me").status_code, 200)
+
+    def test_admin_user_panel_lists_all_approved_ids_during_database_outage(self):
+        with patch.object(rover_app, "DATABASE_URL", None), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=object()), \
+             patch.object(rover_app, "db_available", return_value=False), \
+             patch.object(rover_app, "ensure_db", return_value=None):
+            login = self.client.post("/api/login", json={
+                "username": rover_app.ADMIN_USERNAME,
+                "password": rover_app.ADMIN_PASSWORD,
+            })
+            self.assertEqual(login.status_code, 200, login.get_data(as_text=True))
+            response = self.client.get("/api/users")
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        data = response.get_json()
+        self.assertFalse(data["db_connected"])
+        names = {row["username"] for row in data["users"]}
+        self.assertTrue({"MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"}.issubset(names))
+
+
+    def test_get_db_prefers_cloudflare_hyperdrive_over_stale_database_url(self):
+        driver = rover_app.get_psycopg()
+        connection = object()
+        hyperdrive = SimpleNamespace(
+            host="neon.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", database="neondb",
+        )
+        with patch.object(rover_app, "DATABASE_URL", "postgresql://stale.example/old"), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=hyperdrive), \
+             patch.object(rover_app, "db_available", return_value=True), \
+             patch.object(driver, "connect", return_value=connection) as connect:
+            result = rover_app.get_db()
+        self.assertIs(result, connection)
+        connect.assert_called_once_with(
+            host="neon.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", dbname="neondb", sslmode="disable",
+            autocommit=True, connect_timeout=2,
+        )
+
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
         previous = {
             "CF_ENV": rover_app.CF_ENV,
