@@ -138,6 +138,7 @@ jobs:
               "DATABASE_URL", "DEVICE_OFFLINE_AFTER_SECONDS", "FACE_DATA_KEY",
               "FRIEND_MAHANTESH_PASSWORD", "FRIEND_MAHANTESH_PASSWORD_HASH",
               "FRIEND_DHANUSH_PASSWORD", "FRIEND_DHANUSH_PASSWORD_HASH",
+              "FRIEND_ANIRUDH_PASSWORD", "FRIEND_ANIRUDH_PASSWORD_HASH",
               "FRIEND_MAMALESHWAR_PASSWORD", "FRIEND_MAMALESHWAR_PASSWORD_HASH",
               "FRIEND4_PASSWORD", "FRIEND4_PASSWORD_HASH",
               "LEGACY_AUTH_ENABLED", "LEGACY_AUTH_URL", "LIVE_SYNC_SECRET",
@@ -145,16 +146,10 @@ jobs:
               "ROVER_DEVICE_TOKEN", "SESSION_SECRET",
           ]
           payload = {name: os.environ[name] for name in names if os.environ.get(name, "")}
-          # Retire only ANIRUDH. Preserve credentials for the three approved users.
-          # Wrangler secret bulk treats JSON null values as deletions.
-          retired_user_secrets = [
-              "FRIEND_ANIRUDH_PASSWORD", "FRIEND_ANIRUDH_PASSWORD_HASH",
-          ]
-          for name in retired_user_secrets:
-              payload[name] = None
+          # Preserve credentials for all four approved user accounts.
           with open("/tmp/defenx-secrets.json", "w", encoding="utf-8") as handle:
               json.dump(payload, handle)
-          print(f"Prepared {len(names)} supported secrets and {len(retired_user_secrets)} retired-account secret deletions.")
+          print(f"Prepared {len(names)} supported application secrets; existing account secrets are preserved.")
           PY
           if [ -s /tmp/defenx-secrets.json ] && [ "$(cat /tmp/defenx-secrets.json)" != "{}" ]; then
             uv run pywrangler secret bulk /tmp/defenx-secrets.json
@@ -465,7 +460,7 @@ jobs:
           print("Encrypted registry read and safe legacy migration check: PASS")
           PY
 
-      - name: Verify approved rover login IDs and retired account policy
+      - name: Verify all approved rover login IDs reject invalid passwords
         env:
           WORKER_URL: https://defenx.bindukjagadish.workers.dev
         run: |
@@ -476,10 +471,9 @@ jobs:
           import subprocess
           import tempfile
 
-          approved_accounts = ["MAHANTESH", "DHANUSH", "MAMALESHWAR"]
-          retired_accounts = ["ANIRUDH"]
+          approved_accounts = ["MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"]
           base = os.environ["WORKER_URL"]
-          for username in approved_accounts + retired_accounts:
+          for username in approved_accounts:
               with tempfile.TemporaryDirectory() as tmp:
                   login_path = os.path.join(tmp, "login.json")
                   cookie_path = os.path.join(tmp, "cookies.txt")
@@ -513,6 +507,6 @@ jobs:
                       body = json.load(handle)
                   if body.get("ok") is True:
                       raise SystemExit(f"{username}: server unexpectedly accepted a regular-user login")
-                  print(f"{username}: PASS (regular-user login rejected)")
-          print("Admin-only login policy checks: PASS")
+                  print(f"{username}: PASS (invalid password rejected for approved account ID)")
+          print("Approved account ID checks: PASS")
           PY
