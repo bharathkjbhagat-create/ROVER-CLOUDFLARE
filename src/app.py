@@ -1654,7 +1654,7 @@ def profile():
 @app.get("/api/users")
 @require_manage
 def users():
-    # Initialize the schema; non-admin accounts are permanently purged by ensure_db().
+    # Initialize the schema and preserve every existing regular-user account.
     ensure_db()
     if not db_available():
         rows = []
