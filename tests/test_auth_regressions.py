@@ -54,6 +54,20 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertTrue(response.get_json()["ok"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
+    def test_configured_admin_can_login_when_hyperdrive_is_temporarily_unavailable(self):
+        with patch.object(rover_app, "DATABASE_URL", None), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=object()), \
+             patch.object(rover_app, "db_available", return_value=False), \
+             patch.object(rover_app, "ensure_db", return_value=None):
+            response = self.client.post("/api/login", json={
+                "username": rover_app.ADMIN_USERNAME,
+                "password": rover_app.ADMIN_PASSWORD,
+            })
+        self.assertEqual(response.status_code, 200, response.get_data(as_text=True))
+        self.assertTrue(response.get_json()["ok"])
+        self.assertFalse(response.get_json()["db_connected"])
+        self.assertEqual(self.client.get("/api/me").status_code, 200)
+
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
         previous = {
             "CF_ENV": rover_app.CF_ENV,
