@@ -754,6 +754,7 @@ def sync_worker_bindings(env):
 
 
 DB_INIT_ERROR_CLASS = None
+DB_INIT_ERROR_DETAIL = None
 
 
 def database_diagnostics():
@@ -773,6 +774,7 @@ def database_diagnostics():
         "driver_available": driver_available,
         "cooldown_active": time.monotonic() < _db_unavailable_until,
         "initialization_error": DB_INIT_ERROR_CLASS,
+        "initialization_detail": DB_INIT_ERROR_DETAIL,
     }
 
 
@@ -890,9 +892,10 @@ def ensure_db():
                 _db_initialized = True
         except Exception as exc:
             # Never hold the page hostage when the database is unavailable.
-            global DB_INIT_ERROR_CLASS
+            global DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL
             DB_INIT_ERROR_CLASS = type(exc).__name__
-            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}")
+            DB_INIT_ERROR_DETAIL = str(exc)[:240]
+            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}: {DB_INIT_ERROR_DETAIL}")
             mark_db_unavailable()
 
 def client_ip():
@@ -1275,12 +1278,14 @@ def admin_database_check():
     connection_path = "database_url" if DATABASE_URL else (
         "hyperdrive" if _cf_hyperdrive() is not None else "not_configured"
     )
-    if connection_path == "not_configured" or not get_psycopg():
+    diagnostics = database_diagnostics()
+    if connection_path == "not_configured" or not diagnostics["driver_available"]:
         return jsonify({
             "ok": False,
             "database": "unavailable",
             "connection_path": connection_path,
             "error": "Database connection is not configured.",
+            "diagnostics": diagnostics,
         }), 503
     try:
         conn = get_db()
@@ -1290,6 +1295,7 @@ def admin_database_check():
                 "database": "unavailable",
                 "connection_path": connection_path,
                 "error": "Database connection is not available.",
+                "diagnostics": database_diagnostics(),
             }), 503
         with conn:
             with conn.cursor() as cur:
@@ -1302,14 +1308,17 @@ def admin_database_check():
             "database": "connected",
             "connection_path": connection_path,
             "test": "SELECT 1",
+            "diagnostics": database_diagnostics(),
         }), 200
-    except Exception:
+    except Exception as exc:
         mark_db_unavailable()
         return jsonify({
             "ok": False,
             "database": "connection_failed",
             "connection_path": connection_path,
             "error": "The database connection test failed. Check Hyperdrive and Neon connection settings.",
+            "error_class": type(exc).__name__,
+            "diagnostics": database_diagnostics(),
         }), 503
 
 

@@ -420,6 +420,10 @@ jobs:
           assert data.get("ok") is True, data
           PY
           echo "Valid-login/session checks: PASS"
+          db_code="$(curl -A 'Mozilla/5.0 (DEFENX read-only PostgreSQL check)' -sS -o /tmp/defenx-database-check.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/admin/database-check")"
+          echo "/api/admin/database-check -> HTTP $db_code"
+          cat /tmp/defenx-database-check.json
+          test "$db_code" = "200"
           users_code="$(curl -A 'Mozilla/5.0 (DEFENX admin user-list check)' -sS -o /tmp/defenx-admin-users.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/users")"
           echo "/api/users with admin session -> HTTP $users_code"
           test "$users_code" = "200"
