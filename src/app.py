@@ -889,7 +889,10 @@ def get_db():
         return None
     try:
         hd = _cf_hyperdrive()
-        if hd is not None and not DATABASE_URL:
+        # On Workers, always use the bound Hyperdrive connection pool when it
+        # exists. A leftover DATABASE_URL secret must not bypass the live
+        # Hyperdrive binding or silently point the app at a different database.
+        if hd is not None:
             return psycopg.connect(
                 host=str(hd.host),
                 port=int(hd.port),
@@ -900,6 +903,8 @@ def get_db():
                 autocommit=True,
                 connect_timeout=2,
             )
+        if not DATABASE_URL:
+            return None
         return psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=2)
     except Exception:
         mark_db_unavailable()
@@ -1360,6 +1365,7 @@ def database_health():
         return jsonify({
             "ok": False,
             "database": "unavailable",
+            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else ("database_url" if DATABASE_URL else "not_configured"),
             "store_configured": diagnostics["store_configured"],
             "driver_available": diagnostics["driver_available"],
             "error_class": DB_INIT_ERROR_CLASS,
@@ -1377,6 +1383,7 @@ def database_health():
         return jsonify({
             "ok": True,
             "database": "connected",
+            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else "database_url",
             "store_configured": True,
             "driver_available": True,
         }), 200
@@ -1394,8 +1401,8 @@ def database_health():
 @require_admin
 def admin_database_check():
     """Admin-only, read-only PostgreSQL connectivity check via the configured store."""
-    connection_path = "database_url" if DATABASE_URL else (
-        "hyperdrive" if _cf_hyperdrive() is not None else "not_configured"
+    connection_path = "hyperdrive" if _cf_hyperdrive() is not None else (
+        "database_url" if DATABASE_URL else "not_configured"
     )
     diagnostics = database_diagnostics()
     if connection_path == "not_configured" or not diagnostics["driver_available"]:
