@@ -12,13 +12,56 @@ _PBKDF2_ITERATIONS = 600_000
 def _pbkdf2_sha256(password, salt, iterations):
     password_bytes = str(password).encode("utf-8")
     salt_bytes = str(salt).encode("utf-8")
-    block = hmac.new(password_bytes, salt_bytes + b"\x00\x00\x00\x01", hashlib.sha256).digest()
-    result = bytearray(block)
-    for _ in range(1, int(iterations)):
-        block = hmac.new(password_bytes, block, hashlib.sha256).digest()
-        for index, value in enumerate(block):
-            result[index] ^= value
-    return bytes(result).hex()
+
+    # In Cloudflare's Pyodide runtime, use platform Web Crypto PBKDF2.
+    # This avoids 600,000 interpreted Python HMAC rounds and stays within
+    # the Workers CPU budget.
+    try:
+        from pyodide.ffi import run_sync, to_js
+        import js
+
+        def _u8(data):
+            array = js.Uint8Array.new(len(data))
+            for index, value in enumerate(data):
+                array[index] = value
+            return array
+
+        def _js_object(value):
+            return to_js(value, dict_converter=js.Object.fromEntries)
+
+        async def _derive():
+            key = await js.crypto.subtle.importKey(
+                "raw", _u8(password_bytes), _js_object({"name": "PBKDF2"}),
+                False, to_js(["deriveBits"]),
+            )
+            algorithm = _js_object({
+                "name": "PBKDF2",
+                "salt": _u8(salt_bytes),
+                "iterations": int(iterations),
+                "hash": "SHA-256",
+            })
+            bits = await js.crypto.subtle.deriveBits(algorithm, key, 256)
+            return bytes(js.Uint8Array.new(bits).to_py())
+
+        return run_sync(_derive()).hex()
+    except ImportError:
+        # Local Python has an optimized OpenSSL-backed implementation.
+        try:
+            return hashlib.pbkdf2_hmac(
+                "sha256", password_bytes, salt_bytes, int(iterations)
+            ).hex()
+        except AttributeError:
+            # Compatibility fallback for stripped-down non-Pyodide runtimes.
+            block = hmac.new(
+                password_bytes, salt_bytes + b"\\x00\\x00\\x00\\x01",
+                hashlib.sha256,
+            ).digest()
+            result = bytearray(block)
+            for _ in range(1, int(iterations)):
+                block = hmac.new(password_bytes, block, hashlib.sha256).digest()
+                for index, value in enumerate(block):
+                    result[index] ^= value
+            return bytes(result).hex()
 
 
 def generate_password_hash(password):
