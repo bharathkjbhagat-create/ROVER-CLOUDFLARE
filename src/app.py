@@ -1639,7 +1639,9 @@ def login():
         except Exception as exc:
             print(f"DEFENX login audit skipped: {type(exc).__name__}")
         try:
-            db_status = bool(db_available())
+            # A configured binding is not proof that PostgreSQL is reachable.
+            # Report connected only after this isolate completed initialization.
+            db_status = bool(_db_initialized and db_available())
         except Exception:
             db_status = False
         response = jsonify({"ok": True, "user": fast_user, "db_connected": db_status})
