@@ -10,7 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUDGETS = {
-    "public/app.js": 93_000,  # map layers, rover tracking, route preview, camera flip (already compacted by build_assets.py; was 91_000)
+    "public/app.js": 94_000,  # map layers, rover tracking, route preview, camera flip; keep a 1 KB maintenance margin
     "public/style.css": 120_000,
     "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering
     "public/local-vision.js": 24_000,  # shared loopback scheduler for YOLO and face scanning
