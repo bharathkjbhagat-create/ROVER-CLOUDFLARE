@@ -754,6 +754,7 @@ def sync_worker_bindings(env):
 
 
 DB_INIT_ERROR_CLASS = None
+DB_INIT_ERROR_DETAIL = None
 
 
 def database_diagnostics():
@@ -773,6 +774,7 @@ def database_diagnostics():
         "driver_available": driver_available,
         "cooldown_active": time.monotonic() < _db_unavailable_until,
         "initialization_error": DB_INIT_ERROR_CLASS,
+        "initialization_detail": DB_INIT_ERROR_DETAIL,
     }
 
 
@@ -890,9 +892,10 @@ def ensure_db():
                 _db_initialized = True
         except Exception as exc:
             # Never hold the page hostage when the database is unavailable.
-            global DB_INIT_ERROR_CLASS
+            global DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL
             DB_INIT_ERROR_CLASS = type(exc).__name__
-            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}")
+            DB_INIT_ERROR_DETAIL = str(exc)[:240]
+            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}: {DB_INIT_ERROR_DETAIL}")
             mark_db_unavailable()
 
 def client_ip():
