@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -37,12 +38,43 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertTrue(response.get_json()["ok"])
         self.assertEqual(self.client.get("/api/me").status_code, 200)
 
+    def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
+        previous = {
+            "CF_ENV": rover_app.CF_ENV,
+            "DATABASE_URL": rover_app.DATABASE_URL,
+            "ADMIN_USERNAME": rover_app.ADMIN_USERNAME,
+            "ADMIN_PASSWORD": rover_app.ADMIN_PASSWORD,
+            "ADMIN_PASSWORD_HASH": rover_app.ADMIN_PASSWORD_HASH,
+        }
+        env = SimpleNamespace(
+            ADMIN_USERNAME="ADMIN",
+            ADMIN_PASSWORD="",
+            ADMIN_PASSWORD_HASH="pbkdf2:sha256:600000$test$salt-and-hash",
+            DATABASE_URL="",
+            HYPERDRIVE=object(),
+        )
+        try:
+            with patch.dict(os.environ, {
+                "ADMIN_USERNAME": "", "ADMIN_PASSWORD": "",
+                "ADMIN_PASSWORD_HASH": "", "DATABASE_URL": "",
+            }), patch.object(rover_app, "get_psycopg", return_value=object()), \
+                 patch.object(rover_app, "_db_unavailable_until", 0):
+                rover_app.sync_worker_bindings(env)
+                self.assertEqual(rover_app.ADMIN_USERNAME, "ADMIN")
+                self.assertEqual(rover_app.ADMIN_PASSWORD, "")
+                self.assertTrue(rover_app.ADMIN_PASSWORD_HASH)
+                self.assertTrue(rover_app.db_available())
+        finally:
+            for name, value in previous.items():
+                setattr(rover_app, name, value)
+
     def test_all_four_approved_regular_user_ids_are_whitelisted_and_preserved(self):
         self.assertEqual(rover_app.KNOWN_FRIEND_USERNAMES, ("MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"))
         source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
         self.assertNotIn("DELETE FROM users WHERE UPPER(username)='ANIRUDH'", source)
         self.assertIn("for username in KNOWN_FRIEND_USERNAMES:", source)
         self.assertIn("ON CONFLICT (username) DO NOTHING", source)
+        self.assertIn("def sync_worker_bindings(env):", source)
 
     def test_old_regular_user_fallback_session_is_rejected_without_user_cache(self):
         with self.client.session_transaction() as session:
