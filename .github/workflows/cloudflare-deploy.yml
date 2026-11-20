@@ -420,6 +420,20 @@ jobs:
           assert data.get("ok") is True, data
           PY
           echo "Valid-login/session checks: PASS"
+          users_code="$(curl -A 'Mozilla/5.0 (DEFENX admin user-list check)' -sS -o /tmp/defenx-admin-users.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/users")"
+          echo "/api/users with admin session -> HTTP $users_code"
+          test "$users_code" = "200"
+          python - <<'PY'
+          import json
+          expected = {"MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"}
+          with open("/tmp/defenx-admin-users.json", encoding="utf-8") as handle:
+              data = json.load(handle)
+          assert data.get("ok") is True, data
+          names = {str(row.get("username", "")).strip().upper() for row in data.get("users", [])}
+          missing = sorted(expected - names)
+          assert not missing, f"Admin user list is missing approved accounts: {missing}; returned: {sorted(names)}"
+          print("Admin user list contains all four approved accounts: PASS")
+          PY
           db_code="$(curl -A 'Mozilla/5.0 (DEFENX read-only PostgreSQL check)' -sS -o /tmp/defenx-database-check.json -w '%{http_code}' -b /tmp/defenx-cookies.txt "$base/api/admin/database-check")"
           echo "/api/admin/database-check -> HTTP $db_code"
           if [ "$db_code" != "200" ]; then
