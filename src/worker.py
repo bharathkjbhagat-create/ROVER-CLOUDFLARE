@@ -1052,7 +1052,7 @@ class Default(WorkerEntrypoint):
                 "DEFENXADMIN", "DEFENXADMINISTRATOR", "ROVERADMIN", "ROVERADMINISTRATOR",
                 "ADMINUSER", "ADMINUSERID",
             }
-            approved_users = {"MAHANTESH", "DHANUSH", "MAMALESHWAR"}
+            approved_users = {"MAHANTESH", "DHANUSH", "ANIRUDH", "MAMALESHWAR"}
             normalized_username = self._normalize_login(username)
             approved_user_ids = {self._normalize_login(name) for name in approved_users}
             if normalized_username not in admin_aliases and normalized_username not in approved_user_ids:
