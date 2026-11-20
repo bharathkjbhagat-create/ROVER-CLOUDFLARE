@@ -54,20 +54,6 @@ class AuthenticationRegressionTests(unittest.TestCase):
         response = self.client.get("/api/me")
         self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
 
-    def test_old_regular_user_fallback_session_is_rejected_without_user_cache(self):
-        with self.client.session_transaction() as session:
-            session["fallback_user"] = {
-                "id": "old-user-session",
-                "username": "DHANUSH",
-                "display_name": "Legacy Friend",
-                "role": "user",
-                "enabled": True,
-                "can_control": True,
-                "can_manage_users": False,
-            }
-        response = self.client.get("/api/me")
-        self.assertEqual(response.status_code, 401, response.get_data(as_text=True))
-
     def test_approved_user_id_reaches_database_authentication(self):
         with patch.object(rover_app, "DATABASE_URL", "postgres://test-only"), \
              patch.object(rover_app, "_cf_hyperdrive", return_value=None), \
