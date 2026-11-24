@@ -901,11 +901,11 @@ def get_db():
                 dbname=str(hd.database),
                 sslmode="disable",
                 autocommit=True,
-                connect_timeout=2,
+                connect_timeout=15,
             )
         if not DATABASE_URL:
             return None
-        return psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=2)
+        return psycopg.connect(DATABASE_URL, autocommit=True, connect_timeout=15)
     except Exception:
         mark_db_unavailable()
         raise

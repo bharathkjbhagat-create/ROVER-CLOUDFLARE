@@ -259,16 +259,19 @@ jobs:
           }
           fetch_until_marker "Camera WebRTC JavaScript" "/camera-webrtc.js?ci=$GITHUB_RUN_ID" "RTCPeerConnection" "/tmp/defenx-camera-sync.js"
           fetch_until_marker "Dashboard HTML camera loader" "/index.html?demo=1&ci=$GITHUB_RUN_ID" "camera-webrtc.js?v=20261114-online-01" "/tmp/defenx-camera-sync-index.html"
-          db_health_code="$(curl -A 'Mozilla/5.0 (DEFENX database health check)' -sS -o /tmp/defenx-db-health.json -w '%{http_code}' "$base/api/health/database")"
-          echo "/api/health/database -> HTTP $db_health_code"
-          cat /tmp/defenx-db-health.json
-          test "$db_health_code" = "200"
-          python - <<'PY'
-          import json
-          with open("/tmp/defenx-db-health.json", encoding="utf-8") as handle:
-              data = json.load(handle)
-          assert data.get("database") == "connected", data
-          PY
+          db_health_ok=false
+          for attempt in 1 2 3 4 5 6 7 8; do
+            db_health_code="$(curl --connect-timeout 10 --max-time 22 -A 'Mozilla/5.0 (DEFENX database health check)' -sS -o /tmp/defenx-db-health.json -w '%{http_code}' "$base/api/health/database" || true)"
+            echo "/api/health/database -> HTTP $db_health_code (attempt $attempt/8)"
+            if [ "$db_health_code" = "200" ] && python -c 'import json,sys; d=json.load(open("/tmp/defenx-db-health.json", encoding="utf-8")); sys.exit(0 if d.get("ok") is True and d.get("database") == "connected" else 1)'; then
+              echo "Neon PostgreSQL connectivity and schema initialization: PASS"
+              db_health_ok=true
+              break
+            fi
+            python -c 'import json; d=json.load(open("/tmp/defenx-db-health.json", encoding="utf-8")); print("Database status:", d.get("database", "unknown")); print("Database error class:", d.get("error_class", "not reported"))' 2>/dev/null || true
+            if [ "$attempt" -lt 8 ]; then sleep 5; fi
+          done
+          test "$db_health_ok" = true
           echo "Deployed WebRTC camera signaling client and dashboard loader: PASS"
           # Explicitly verify the live Worker response never republishes the removed dashboard copy.
           copy_audit_file="/tmp/defenx-removed-copy-audit.html"
