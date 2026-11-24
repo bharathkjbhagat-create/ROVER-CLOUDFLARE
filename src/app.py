@@ -888,10 +888,12 @@ def _cf_hyperdrive():
 
 def database_connection_path():
     """Return the selected PostgreSQL route, without exposing credentials."""
-    if NEON_DIRECT_DATABASE_URL:
-        return "neon_direct_url"
+    # Cloudflare Workers must prefer the configured Hyperdrive binding. A
+    # stale direct Neon URL secret must never shadow the active binding.
     if _cf_hyperdrive() is not None:
         return "hyperdrive"
+    if NEON_DIRECT_DATABASE_URL:
+        return "neon_direct_url"
     if DATABASE_URL:
         return "database_url"
     return "not_configured"
@@ -900,16 +902,9 @@ def get_db():
     if not db_available():
         return None
     try:
-        # Explicit opt-in connection for Neon diagnosis/recovery. It is a
-        # separate secret so a stale legacy DATABASE_URL cannot bypass Hyperdrive.
-        if NEON_DIRECT_DATABASE_URL:
-            return psycopg.connect(
-                NEON_DIRECT_DATABASE_URL, autocommit=True, connect_timeout=15
-            )
+        # In Cloudflare Workers, Hyperdrive is the authoritative pooled route.
+        # Direct URLs are fallback options for environments without the binding.
         hd = _cf_hyperdrive()
-        # On Workers, always use the bound Hyperdrive connection pool when it
-        # exists. A leftover DATABASE_URL secret must not bypass the live
-        # Hyperdrive binding or silently point the app at a different database.
         if hd is not None:
             return psycopg.connect(
                 host=str(hd.host),
@@ -920,6 +915,10 @@ def get_db():
                 sslmode="disable",
                 autocommit=True,
                 connect_timeout=15,
+            )
+        if NEON_DIRECT_DATABASE_URL:
+            return psycopg.connect(
+                NEON_DIRECT_DATABASE_URL, autocommit=True, connect_timeout=15
             )
         if not DATABASE_URL:
             return None
