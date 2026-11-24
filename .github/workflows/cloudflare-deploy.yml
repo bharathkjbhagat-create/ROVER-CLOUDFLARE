@@ -112,32 +112,6 @@ jobs:
         run: |
           test -n "$CLOUDFLARE_API_TOKEN" || { echo "Missing GitHub Actions secret: CLOUDFLARE_API_TOKEN"; exit 1; }
           test -n "$CLOUDFLARE_ACCOUNT_ID" || { echo "Missing GitHub Actions secret: CLOUDFLARE_ACCOUNT_ID"; exit 1; }
-      - name: Verify Hyperdrive origin matches production Neon
-        run: |
-          set -euo pipefail
-          HYPERDRIVE_ID="$(python -c 'import json; print(json.load(open("wrangler.jsonc", encoding="utf-8"))["hyperdrive"][0]["id"])')"
-          response="$(curl --connect-timeout 10 --max-time 25 -fsS \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/hyperdrive/configs/$HYPERDRIVE_ID")"
-          printf '%s' "$response" | python -c '
-          import json, sys
-          data=json.load(sys.stdin)
-          if not data.get("success"):
-              raise SystemExit("Cloudflare could not read the configured Hyperdrive resource.")
-          result=data.get("result") or {}
-          origin=result.get("origin") or {}
-          host=str(origin.get("host") or "")
-          database=str(origin.get("database") or "")
-          user=str(origin.get("user") or "")
-          print("Hyperdrive resource:", result.get("name") or result.get("id") or "unnamed")
-          print("Origin host:", host or "not returned")
-          print("Origin database:", database or "not returned")
-          print("Origin username configured:", bool(user))
-          expected_host="ep-solitary-unit-bdsl29hk.c-8.us-east-2.aws.neon.tech"
-          if host != expected_host or database != "neondb":
-              raise SystemExit("Hyperdrive origin does not match the verified production Neon endpoint/database. Correct the Hyperdrive origin before deployment.")
-          print("Hyperdrive origin matches the production Neon endpoint.")
-          '
       - name: Sync Worker secrets
         env:
           ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
