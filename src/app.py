@@ -332,6 +332,7 @@ app.config.update(
 )
 
 DATABASE_URL = _config("DATABASE_URL")
+NEON_DIRECT_DATABASE_URL = _config("NEON_DIRECT_DATABASE_URL")
 ADMIN_USERNAME = str(_config("ADMIN_USERNAME", "ADMIN") or "ADMIN").strip().upper()
 ADMIN_PASSWORD = _config("ADMIN_PASSWORD")
 ADMIN_PASSWORD_HASH = _config("ADMIN_PASSWORD_HASH")
@@ -825,9 +826,10 @@ CREATE TABLE IF NOT EXISTS device_loss_events (
 
 def sync_worker_bindings(env):
     """Refresh module-level config after Cloudflare Worker bindings are attached."""
-    global CF_ENV, DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_PASSWORD_HASH
+    global CF_ENV, DATABASE_URL, NEON_DIRECT_DATABASE_URL, ADMIN_USERNAME, ADMIN_PASSWORD, ADMIN_PASSWORD_HASH
     CF_ENV = env
     DATABASE_URL = str(_config("DATABASE_URL", "") or "").strip()
+    NEON_DIRECT_DATABASE_URL = str(_config("NEON_DIRECT_DATABASE_URL", "") or "").strip()
     ADMIN_USERNAME = str(_config("ADMIN_USERNAME", "ADMIN") or "ADMIN").strip().upper()
     ADMIN_PASSWORD = str(_config("ADMIN_PASSWORD", "") or "")
     ADMIN_PASSWORD_HASH = str(_config("ADMIN_PASSWORD_HASH", "") or "")
@@ -840,7 +842,7 @@ DB_INIT_ERROR_DETAIL = None
 def database_diagnostics():
     """Safe admin-only diagnostics; never expose credentials or connection strings."""
     try:
-        store_configured = bool(DATABASE_URL or _cf_hyperdrive())
+        store_configured = bool(NEON_DIRECT_DATABASE_URL or DATABASE_URL or _cf_hyperdrive())
     except Exception:
         store_configured = False
     try:
@@ -884,10 +886,26 @@ def _cf_hyperdrive():
     except Exception:
         return None
 
+def database_connection_path():
+    """Return the selected PostgreSQL route, without exposing credentials."""
+    if NEON_DIRECT_DATABASE_URL:
+        return "neon_direct_url"
+    if _cf_hyperdrive() is not None:
+        return "hyperdrive"
+    if DATABASE_URL:
+        return "database_url"
+    return "not_configured"
+
 def get_db():
     if not db_available():
         return None
     try:
+        # Explicit opt-in connection for Neon diagnosis/recovery. It is a
+        # separate secret so a stale legacy DATABASE_URL cannot bypass Hyperdrive.
+        if NEON_DIRECT_DATABASE_URL:
+            return psycopg.connect(
+                NEON_DIRECT_DATABASE_URL, autocommit=True, connect_timeout=15
+            )
         hd = _cf_hyperdrive()
         # On Workers, always use the bound Hyperdrive connection pool when it
         # exists. A leftover DATABASE_URL secret must not bypass the live
@@ -1365,7 +1383,7 @@ def database_health():
         return jsonify({
             "ok": False,
             "database": "unavailable",
-            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else ("database_url" if DATABASE_URL else "not_configured"),
+            "connection_path": database_connection_path(),
             "store_configured": diagnostics["store_configured"],
             "driver_available": diagnostics["driver_available"],
             "error_class": DB_INIT_ERROR_CLASS,
@@ -1383,7 +1401,7 @@ def database_health():
         return jsonify({
             "ok": True,
             "database": "connected",
-            "connection_path": "hyperdrive" if _cf_hyperdrive() is not None else "database_url",
+            "connection_path": database_connection_path(),
             "store_configured": True,
             "driver_available": True,
         }), 200
@@ -1401,9 +1419,7 @@ def database_health():
 @require_admin
 def admin_database_check():
     """Admin-only, read-only PostgreSQL connectivity check via the configured store."""
-    connection_path = "hyperdrive" if _cf_hyperdrive() is not None else (
-        "database_url" if DATABASE_URL else "not_configured"
-    )
+    connection_path = database_connection_path()
     diagnostics = database_diagnostics()
     if connection_path == "not_configured" or not diagnostics["driver_available"]:
         return jsonify({

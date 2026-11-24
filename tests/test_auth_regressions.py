@@ -105,10 +105,27 @@ class AuthenticationRegressionTests(unittest.TestCase):
             autocommit=True, connect_timeout=15,
         )
 
+    def test_get_db_uses_explicit_neon_direct_url_before_hyperdrive(self):
+        driver = rover_app.get_psycopg()
+        connection = object()
+        direct_url = "postgresql://test-only:secret@neon.example/neondb?sslmode=require"
+        hyperdrive = SimpleNamespace(
+            host="hyperdrive.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", database="neondb",
+        )
+        with patch.object(rover_app, "NEON_DIRECT_DATABASE_URL", direct_url), \
+             patch.object(rover_app, "_cf_hyperdrive", return_value=hyperdrive), \
+             patch.object(rover_app, "db_available", return_value=True), \
+             patch.object(driver, "connect", return_value=connection) as connect:
+            result = rover_app.get_db()
+        self.assertIs(result, connection)
+        connect.assert_called_once_with(direct_url, autocommit=True, connect_timeout=15)
+
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
         previous = {
             "CF_ENV": rover_app.CF_ENV,
             "DATABASE_URL": rover_app.DATABASE_URL,
+            "NEON_DIRECT_DATABASE_URL": rover_app.NEON_DIRECT_DATABASE_URL,
             "ADMIN_USERNAME": rover_app.ADMIN_USERNAME,
             "ADMIN_PASSWORD": rover_app.ADMIN_PASSWORD,
             "ADMIN_PASSWORD_HASH": rover_app.ADMIN_PASSWORD_HASH,
@@ -118,12 +135,14 @@ class AuthenticationRegressionTests(unittest.TestCase):
             ADMIN_PASSWORD="",
             ADMIN_PASSWORD_HASH="pbkdf2:sha256:600000$test$salt-and-hash",
             DATABASE_URL="",
+            NEON_DIRECT_DATABASE_URL="",
             HYPERDRIVE=object(),
         )
         try:
             with patch.dict(os.environ, {
                 "ADMIN_USERNAME": "", "ADMIN_PASSWORD": "",
                 "ADMIN_PASSWORD_HASH": "", "DATABASE_URL": "",
+                "NEON_DIRECT_DATABASE_URL": "",
             }), patch.object(rover_app, "get_psycopg", return_value=object()), \
                  patch.object(rover_app, "_db_unavailable_until", 0):
                 rover_app.sync_worker_bindings(env)
