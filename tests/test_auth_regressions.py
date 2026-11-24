@@ -102,7 +102,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
         connect.assert_called_once_with(
             host="neon.example", port=5432, user="hyperdrive-user",
             password="test-only-secret", dbname="neondb", sslmode="disable",
-            autocommit=True, connect_timeout=2,
+            autocommit=True, connect_timeout=15,
         )
 
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
