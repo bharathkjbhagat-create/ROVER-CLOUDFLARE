@@ -105,7 +105,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
             autocommit=True, connect_timeout=15,
         )
 
-    def test_get_db_uses_explicit_neon_direct_url_before_hyperdrive(self):
+    def test_get_db_prefers_hyperdrive_over_explicit_neon_direct_url(self):
         driver = rover_app.get_psycopg()
         connection = object()
         direct_url = "postgresql://test-only:secret@neon.example/neondb?sslmode=require"
@@ -119,7 +119,11 @@ class AuthenticationRegressionTests(unittest.TestCase):
              patch.object(driver, "connect", return_value=connection) as connect:
             result = rover_app.get_db()
         self.assertIs(result, connection)
-        connect.assert_called_once_with(direct_url, autocommit=True, connect_timeout=15)
+        connect.assert_called_once_with(
+            host="hyperdrive.example", port=5432, user="hyperdrive-user",
+            password="test-only-secret", dbname="neondb", sslmode="disable",
+            autocommit=True, connect_timeout=15,
+        )
 
     def test_worker_bindings_refresh_flask_admin_credentials_before_database_init(self):
         previous = {
