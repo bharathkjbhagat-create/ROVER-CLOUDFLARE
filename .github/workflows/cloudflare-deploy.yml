@@ -76,7 +76,7 @@ jobs:
         run: node --check public/monitor.js
       - name: Run backend smoke tests
         run: uv run --group dev python tests/smoke.py
-      - name: Run authentication, security, and local vision regression tests
+      - name: Audit every registered API and website route (read-only)\n        run: uv run --group dev python tests/route_registry_audit.py\n      - name: Run authentication, security, and local vision regression tests
         run: uv run --group dev --with fastapi --with httpx --with python-multipart --with opencv-contrib-python-headless --with numpy python -m unittest discover -s tests -p "test_*.py" -v
       - name: Validate local AI service Python source
         run: python -m py_compile tools/local_ai_server/ai_server.py tests/test_local_vision_api.py
