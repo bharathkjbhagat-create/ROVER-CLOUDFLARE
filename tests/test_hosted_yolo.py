@@ -170,7 +170,9 @@ class StaticWiringTests(unittest.TestCase):
         worker = self.read("src/worker.py")
         self.assertIn('url.path == "/api/yolo/detect"', worker)
         self.assertIn("if not valid_session_cookie", worker)
+        self.assertIn("def _json_response(", worker)
         block = worker[worker.index("async def _handle_yolo_detect"):worker.index("async def fetch(self, request)")]
+        self.assertIn("self._json_response(", block)
         self.assertNotIn("print(f\"DEFENX hosted YOLO upstream fetch failed: {exc", block)
         self.assertNotIn("print(url", block)
 

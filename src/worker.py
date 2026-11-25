@@ -1145,6 +1145,17 @@ class Default(WorkerEntrypoint):
                 },
             )
 
+    @staticmethod
+    def _json_response(payload, status=200, extra_headers=None):
+        """Build a no-store JSON response for Worker-owned API routes."""
+        headers = {
+            "Content-Type": "application/json; charset=utf-8",
+            "Cache-Control": "no-store",
+        }
+        if isinstance(extra_headers, dict):
+            headers.update(extra_headers)
+        return Response(json.dumps(payload, separators=(",", ":")), status=status, headers=headers)
+
     async def _handle_yolo_detect(self, request):
         """Hosted YOLO proxy: browser frame in, normalized detections out.
 
