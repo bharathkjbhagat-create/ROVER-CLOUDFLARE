@@ -33,7 +33,7 @@
   const slow = (navigator.hardwareConcurrency || 4) <= 4 || window.matchMedia("(max-width: 700px)").matches;
   const OBJECT_DELAY = slow ? 1400 : 900, FACE_DELAY = slow ? 220 : 150;
 
-  let source = null, model = null, modelPromise = null, paused = false, hostedSuppressed = false, running = false, timer = 0;
+  let source=null,model=null,modelPromise=null,paused=false,hostedSuppressed=false,running=false,timer=0;
   const browserSync = () => window.DEFENX_BROWSER_VISION_SYNC;
   let sourceGeneration = 0, corsCheckedFor = null, failures = 0, lastToken = null, lastWorkAt = 0;
   let objTracker = new core.Tracker(), screens = [], nextObj = 0, nextFace = 0, busy = false;
@@ -343,7 +343,8 @@
   async function startDetection() {
     failures = 0;
     if (running) return;
-    if (!source || !sourceReady(source) || paused || hostedSuppressed) { setState("waiting", hostedSuppressed ? "HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED" : "WAITING FOR LIVE CAMERA FRAMES"); return; }
+    if (hostedSuppressed) return;
+    if (!source || !sourceReady(source) || paused) { setState("waiting", "WAITING FOR LIVE CAMERA FRAMES"); return; }
     if (!claimVisionOwner()) { running = false; if (timer) clearTimeout(timer); setState("waiting", "CHECKING FOR ANOTHER ACTIVE SCANNER"); return; }
     try {
       checkReadable(source);
@@ -362,7 +363,7 @@
         objectModelFailed = true; // face analysis keeps running if COCO-SSD is unavailable
         if (!f) throw error;
       }
-      if (paused || hostedSuppressed || !sourceReady(source)) { running = false; if (timer) clearTimeout(timer); return; }
+      if (paused || !sourceReady(source)) { running = false; if (timer) clearTimeout(timer); return; }
     } catch (error) {
       running = false;
       if (timer) clearTimeout(timer);
@@ -401,14 +402,12 @@
   });
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) { releaseVisionOwner(); running = false; if (timer) clearTimeout(timer); }
-    else if (!paused && !hostedSuppressed && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
+    else if (!paused && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
   });
-  window.addEventListener("defenx-hosted-yolo-state", event => {
-    hostedSuppressed = !!event.detail?.active;
-    if (hostedSuppressed) {
-      running = false; clearTimeout(timer); releaseVisionOwner(); clearAll();
-      setState("paused", "HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED");
-    } else if (!paused && !document.hidden && sourceReady(source)) startDetection();
+  window.addEventListener("defenx-hosted-yolo-state",e=>{
+    hostedSuppressed=!!e.detail?.active;
+    if(hostedSuppressed){running=false;clearTimeout(timer);releaseVisionOwner();clearAll();setState("waiting","YOLO ACTIVE");}
+    else if(!paused&&!document.hidden&&sourceReady(source))startDetection();
   });
   window.addEventListener("defenx-browser-vision-owner", event => {
     const detail = event.detail || {};
@@ -418,7 +417,7 @@
   });
   window.addEventListener("resize", () => { if (running && source) render(performance.now()); });
   window.addEventListener("pagehide", () => { running = false; if (timer) clearTimeout(timer); releaseVisionOwner(); });
-  window.addEventListener("pageshow", () => { if (!paused && !hostedSuppressed && sourceReady(source) && !running) startDetection(); });
+  window.addEventListener("pageshow", () => { if (!paused && sourceReady(source) && !running) startDetection(); });
 
   if (demoMode) {
     setState("demo", "DEMO MODE • REAL AI DETECTION DISABLED");
