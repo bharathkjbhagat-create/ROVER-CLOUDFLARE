@@ -995,10 +995,12 @@ def ensure_db():
                         table_name = words[5] if len(words) > 5 and words[:5] == ["CREATE", "TABLE", "IF", "NOT", "EXISTS"] else "unknown"
                         stage = "create_" + table_name.lower()
                         cur.execute(statement)
-                    stage = "alter_users_auth_version"
-                    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
-                    stage = "alter_audit_log_session_id"
-                    cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
+                    # The production runtime role is intentionally not the owner of
+                    # existing tables. Required columns are part of SCHEMA for new
+                    # databases, and verified present in production. Runtime ALTER
+                    # TABLE calls fail with SQLSTATE 42501 for the least-privilege
+                    # Hyperdrive role even when the columns already exist.
+
                     # Retain every approved regular user across deployments and
                     # remove only duplicate admin rows. Existing passwords are preserved.
                     stage = "remove_duplicate_admin_rows"
