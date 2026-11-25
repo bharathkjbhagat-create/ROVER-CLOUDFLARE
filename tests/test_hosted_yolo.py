@@ -183,7 +183,7 @@ class StaticWiringTests(unittest.TestCase):
         ai = self.read("public/ai-vision.js")
         hosted = self.read("public/hosted-yolo.js")
         self.assertIn("defenx-hosted-yolo-state", ai)
-        self.assertIn("HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED", ai)
+        self.assertIn('setState("waiting", "YOLO ACTIVE")', ai)
         self.assertIn('notifyOnDeviceAI(true)', hosted)
         self.assertIn('notifyOnDeviceAI(false)', hosted)
         js = hosted
