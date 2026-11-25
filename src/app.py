@@ -837,6 +837,14 @@ def sync_worker_bindings(env):
 
 DB_INIT_ERROR_CLASS = None
 DB_INIT_ERROR_DETAIL = None
+DB_INIT_ERROR_CODE = None
+
+def _database_error_code(exc):
+    code = getattr(exc, "sqlstate", None) or getattr(exc, "sql_state", None)
+    if not code and getattr(exc, "args", None) and isinstance(exc.args[0], dict):
+        code = exc.args[0].get("C") or exc.args[0].get("sqlstate")
+    code = str(code or "").strip()
+    return code if len(code) == 5 and code.isalnum() else None
 
 
 def database_diagnostics():
@@ -856,7 +864,7 @@ def database_diagnostics():
         "driver_available": driver_available,
         "cooldown_active": time.monotonic() < _db_unavailable_until,
         "initialization_error": DB_INIT_ERROR_CLASS,
-        "initialization_detail": DB_INIT_ERROR_DETAIL,
+        "initialization_error_code": DB_INIT_ERROR_CODE,
     }
 
 
@@ -994,10 +1002,11 @@ def ensure_db():
                 _db_initialized = True
         except Exception as exc:
             # Never hold the page hostage when the database is unavailable.
-            global DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL
+            global DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL, DB_INIT_ERROR_CODE
             DB_INIT_ERROR_CLASS = type(exc).__name__
-            DB_INIT_ERROR_DETAIL = str(exc)[:240]
-            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}: {DB_INIT_ERROR_DETAIL}")
+            DB_INIT_ERROR_CODE = _database_error_code(exc)
+            DB_INIT_ERROR_DETAIL = None
+            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}; SQLSTATE={DB_INIT_ERROR_CODE or 'unavailable'}")
             mark_db_unavailable()
 
 def client_ip():
@@ -1386,6 +1395,7 @@ def database_health():
             "store_configured": diagnostics["store_configured"],
             "driver_available": diagnostics["driver_available"],
             "error_class": DB_INIT_ERROR_CLASS,
+            "error_code": DB_INIT_ERROR_CODE,
         }), 503
     try:
         conn = get_db()
