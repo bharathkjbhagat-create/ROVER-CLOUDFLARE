@@ -251,7 +251,8 @@ class AuthenticationRegressionTests(unittest.TestCase):
         # merely to run a no-op ALTER TABLE against an existing table.
         self.assertIn("auth_version INTEGER NOT NULL DEFAULT 0", schema)
         self.assertIn("session_id TEXT", schema)
-        self.assertNotRegex(source, r"cur\\.execute\\(\\s*[\"']ALTER TABLE")
+        self.assertNotIn('cur.execute("ALTER TABLE', source)
+        self.assertNotIn("cur.execute('ALTER TABLE", source)
 
 
 class LoginErrorUniformityTests(unittest.TestCase):
