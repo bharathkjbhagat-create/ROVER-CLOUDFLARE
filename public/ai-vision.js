@@ -371,10 +371,7 @@
         ? "CAMERA CORS BLOCKS AI • ENABLE CAMERA CORS" : "AI MODEL COULD NOT LOAD • CHECK INTERNET");
     }
   }
-  function onSourceReady() {
-    if (hostedSuppressed) { setState("paused", "HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED"); return; }
-    if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); }
-  }
+  function onSourceReady() { if (!paused) { setState("loading", "LIVE CAMERA FOUND • STARTING AI"); startDetection(); } }
   function onSourceError() {
     running = false; if (timer) clearTimeout(timer);
     releaseVisionOwner(); clearAll(); setState("error", "CAMERA STREAM ERROR • AI PAUSED");
@@ -407,17 +404,11 @@
     else if (!paused && !hostedSuppressed && sourceReady(source) && !running && (model || (face() && face().active()))) startDetection();
   });
   window.addEventListener("defenx-hosted-yolo-state", event => {
-    hostedSuppressed = !!(event.detail && event.detail.active);
+    hostedSuppressed = !!event.detail?.active;
     if (hostedSuppressed) {
-      running = false;
-      if (timer) clearTimeout(timer);
-      releaseVisionOwner();
-      clearAll();
+      running = false; clearTimeout(timer); releaseVisionOwner(); clearAll();
       setState("paused", "HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED");
-    } else if (!paused && !document.hidden && sourceReady(source) && !running) {
-      setState("loading", "RESUMING ON-DEVICE AI");
-      startDetection();
-    }
+    } else if (!paused && !document.hidden && sourceReady(source)) startDetection();
   });
   window.addEventListener("defenx-browser-vision-owner", event => {
     const detail = event.detail || {};
