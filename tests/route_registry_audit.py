@@ -54,11 +54,16 @@ for rule in rules:
         continue
     seen.add(key)
 
-    # This handler requires Cloudflare Hyperdrive, which is intentionally not
-    # available in Flask's local test client. The deployed smoke test checks it.
+    # These handlers depend on Cloudflare-only routing/bindings and cannot be
+    # meaningfully validated by Flask's local test client. Their deployed
+    # equivalents are covered by the Worker smoke tests and asset checks.
     if rule.endpoint == "database_health":
         skipped += 1
         print("SKIP GET     /api/health/database (Cloudflare Hyperdrive integration; checked by deployed smoke test)")
+        continue
+    if rule.endpoint == "fleet_static":
+        skipped += 1
+        print("SKIP GET     catch-all static route (Cloudflare asset routing; explicit assets checked separately)")
         continue
 
     path = sample_path(rule)
