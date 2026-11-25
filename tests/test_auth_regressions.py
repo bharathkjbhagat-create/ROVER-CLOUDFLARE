@@ -243,6 +243,17 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn('if method == "disabled":', source)
 
 
+    def test_runtime_bootstrap_does_not_alter_existing_tables(self):
+        source = (ROOT / "src" / "app.py").read_text(encoding="utf-8")
+        schema = source.split('SCHEMA = """', 1)[1].split('"""', 1)[0]
+        # These columns are created on a new database and already exist in
+        # production. Runtime app credentials must not need table ownership
+        # merely to run a no-op ALTER TABLE against an existing table.
+        self.assertIn("auth_version INTEGER NOT NULL DEFAULT 0", schema)
+        self.assertIn("session_id TEXT", schema)
+        self.assertNotRegex(source, r"cur\\.execute\\(\\s*[\"']ALTER TABLE")
+
+
 class LoginErrorUniformityTests(unittest.TestCase):
     """User-visible login errors must not reveal whether a login ID exists."""
 
