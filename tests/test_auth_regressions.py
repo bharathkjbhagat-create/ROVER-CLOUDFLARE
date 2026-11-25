@@ -253,7 +253,7 @@ class AuthenticationRegressionTests(unittest.TestCase):
         self.assertIn("session_id TEXT", schema)
         self.assertNotIn('cur.execute("ALTER TABLE', source)
         self.assertNotIn("cur.execute('ALTER TABLE", source)
-        bootstrap = source.split("def ensure_db():", 1)[1].split("\\ndef client_ip():", 1)[0]
+        bootstrap = source.split("def ensure_db():", 1)[1].split(chr(10) + "def client_ip():", 1)[0]
         self.assertNotIn("generate_password_hash(ADMIN_PASSWORD)", bootstrap)
         self.assertNotIn('stage = "insert_admin_account"', bootstrap)
 
