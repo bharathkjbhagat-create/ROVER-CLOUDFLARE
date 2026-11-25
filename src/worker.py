@@ -1145,6 +1145,48 @@ class Default(WorkerEntrypoint):
                 },
             )
 
+    async def _handle_yolo_detect(self, request):
+        """Hosted YOLO proxy: browser frame in, normalized detections out.
+
+        Secrets (YOLO_API_KEY / YOLO_API_URL) come only from Worker bindings and
+        are never logged or returned. Detection only: no identification.
+        """
+        import yolo_proxy
+        try:
+            declared = int(str(request.headers.get("Content-Length") or "0") or 0)
+            if declared > yolo_proxy.MAX_IMAGE_BYTES:
+                raise yolo_proxy.YoloError("Image is too large (limit 1.5 MB).", 413, "image_too_large")
+            buffer = await request.arrayBuffer()
+            raw = bytes(buffer.to_py()) if hasattr(buffer, "to_py") else bytes(buffer)
+            image = yolo_proxy.decode_image(raw, request.headers.get("Content-Type"))
+            url, headers, body = yolo_proxy.build_upstream(
+                self._env_value(self.env, "YOLO_API_URL"),
+                self._env_value(self.env, "YOLO_API_KEY"),
+                image,
+            )
+            try:
+                upstream = js.Request.new(url, {"method": "POST", "headers": headers, "body": body.decode("ascii")})
+                upstream_response = await js.fetch(upstream)
+                status = int(upstream_response.status)
+                text = str(await upstream_response.text() or "")
+            except BaseException as exc:
+                # Log only the exception class: the message/URL could contain the key.
+                print(f"DEFENX hosted YOLO upstream fetch failed: {type(exc).__name__}")
+                raise yolo_proxy.YoloError("Hosted YOLO could not be reached.", 502, "upstream_unreachable")
+            if status < 200 or status >= 300:
+                print(f"DEFENX hosted YOLO upstream HTTP {status}")
+                raise yolo_proxy.map_upstream_status(status)
+            try:
+                payload = json.loads(text)
+            except ValueError:
+                raise yolo_proxy.YoloError("Hosted YOLO returned an unreadable response.", 502, "bad_upstream_response")
+            return self._json_response(yolo_proxy.normalize_response(payload))
+        except yolo_proxy.YoloError as err:
+            extra = {"Retry-After": "5"} if err.status == 429 else None
+            return self._json_response({"ok": False, "error": err.message, "code": err.code}, err.status, extra)
+
+    
+
     async def fetch(self, request):
         # Parse the route first, then guard Worker-level setup as well as the
         # handler. A failure before _handle_login starts must not leak through
@@ -1192,6 +1234,11 @@ class Default(WorkerEntrypoint):
                         status=401,
                         headers={"Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store"},
                     )
+
+            if url.path == "/api/yolo/detect" and str(request.method).upper() == "POST":
+                if not valid_session_cookie:
+                    return self._json_response({"ok": False, "error": "Authentication required"}, 401)
+                return await self._handle_yolo_detect(request)
 
             if url.path == "/api/rtc/ice-config":
                 if not valid_session_cookie:

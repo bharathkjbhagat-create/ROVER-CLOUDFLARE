@@ -2919,6 +2919,58 @@ def camera_config():
         "source": "ROVER_CAMERA" if ROVER_CAMERA_STREAM_URL else "SIMULATION",
     })
 
+def yolo_configured():
+    """True when both hosted-YOLO server-side secrets exist. Never exposes values."""
+    return bool(str(_config("YOLO_API_KEY", "") or "").strip()
+                and str(_config("YOLO_API_URL", "") or "").strip())
+
+
+@app.get("/api/yolo/status")
+@require_login
+def yolo_status():
+    return jsonify({
+        "ok": True,
+        "configured": yolo_configured(),
+        "mode": "detection-only",
+        "identification": False,
+    })
+
+
+@app.post("/api/yolo/detect")
+@require_login
+def yolo_detect():
+    """Local/dev implementation. The production Worker intercepts this route
+    (src/worker.py) and performs the same steps with Cloudflare's fetch."""
+    import urllib.request
+    import urllib.error
+    import yolo_proxy
+    try:
+        image = yolo_proxy.decode_image(request.get_data(cache=False), request.content_type)
+        url, headers, body = yolo_proxy.build_upstream(
+            str(_config("YOLO_API_URL", "") or ""), str(_config("YOLO_API_KEY", "") or ""), image)
+        upstream = urllib.request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with urllib.request.urlopen(upstream, timeout=yolo_proxy.UPSTREAM_TIMEOUT_SECONDS) as resp:
+                raw = resp.read(2_000_000)
+        except urllib.error.HTTPError as exc:
+            raise yolo_proxy.map_upstream_status(exc.code)
+        except (urllib.error.URLError, TimeoutError, OSError):
+            raise yolo_proxy.YoloError("Hosted YOLO could not be reached.", 502, "upstream_unreachable")
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except ValueError:
+            raise yolo_proxy.YoloError("Hosted YOLO returned an unreadable response.", 502, "bad_upstream_response")
+        result = yolo_proxy.normalize_response(payload)
+        response = jsonify(result)
+    except yolo_proxy.YoloError as err:
+        response = jsonify({"ok": False, "error": err.message, "code": err.code})
+        response.status_code = err.status
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+
+
 @app.post("/api/device/telemetry")
 @require_device_token
 def device_telemetry():

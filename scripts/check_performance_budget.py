@@ -10,6 +10,7 @@ import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 BUDGETS = {
+    "public/hosted-yolo.js": 9_000,
     "public/app.js": 94_000,  # map layers, rover tracking, route preview, camera flip; keep a 1 KB maintenance margin
     "public/style.css": 120_000,
     "public/ai-vision.js": 24_000,  # unified object + face scheduler, verdict rendering

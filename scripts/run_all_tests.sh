@@ -16,6 +16,7 @@ echo "== Browser dashboard test (needs playwright chromium) =="; "$PY" tests/bro
 echo "== Simulation Lab browser test (every control, offline test, RTB, map overlay) =="; "$PY" tests/browser_sim_lab.py | tail -2
 echo "== Camera view browser test (fake camera device) =="; "$PY" tests/browser_camera_check.py | tail -1
 echo "== Merged-controls browser test (desktop + mobile) =="; "$PY" tests/browser_button_merge.py | tail -1
+echo "== Hosted YOLO browser test (desktop + mobile, mock backend) =="; "$PY" tests/browser_hosted_yolo.py | tail -1
 echo "== Secret scan =="; ! grep -RInE "(FLEET_MASTER_SECRET|DEVICE_SECRET|SESSION_SECRET)\s*=\s*['\"][A-Za-z0-9_-]{20,}" --include='*.py' --include='*.js' --include='*.h' --include='*.ino' --include='*.jsonc' . | grep -v tests/
 echo ALL CHECKS PASSED
 

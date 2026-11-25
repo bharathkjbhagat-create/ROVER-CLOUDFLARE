@@ -9,6 +9,23 @@ This is the clean Cloudflare deployment repository for the ROVER / DEFENX contro
 - Cloudflare Workers Assets
 - Mobile-first dashboard and login UI
 
+## Hosted YOLO detection (no local Python required)
+
+The dashboard has a **HOSTED YOLO** bar under the camera view. When started, the browser sends a downscaled JPEG of the visible
+camera frame to the authenticated same-origin endpoint `POST /api/yolo/detect`. The Cloudflare Worker (`src/worker.py`, logic in
+`src/yolo_proxy.py`) forwards it to your hosted inference endpoint using server-side secrets and returns normalized boxes.
+
+* **Detection only.** Objects and "a face is here" boxes. There is no face identification, matching, enrollment or identity tracking in this path;
+  responses are built from a whitelist (`class_name`, `confidence`, `box`), so identity-like fields from a provider are dropped.
+* **Secrets stay server-side.** Set them once, never in Git or the frontend:
+
+      npx wrangler secret put YOLO_API_KEY
+      npx wrangler secret put YOLO_API_URL     # https://serverless.roboflow.com/<project>/<version>
+
+  For GitHub-driven deploys add the same two names as repository secrets; the deploy workflow syncs them to the Worker.
+* Request format is the Roboflow Serverless Cloud API format (base64 body, bearer API key in the `Authorization` header). For a deployed model, set `YOLO_API_URL` to `https://serverless.roboflow.com/<project>/<version>`. The endpoint must be `https` and not a private/loopback host.
+* `GET /api/yolo/status` reports only `configured: true|false`. Failures (not configured, upstream 401/429/5xx, network) are shown to the operator, never hidden.
+
 ## Production
 https://defenx.bindukjagadish.workers.dev
 

@@ -50,7 +50,7 @@ jobs:
         run: python scripts/check_performance_budget.py
 
       - name: Validate Python Worker source
-        run: python -m py_compile src/app.py src/worker.py src/biometric_crypto.py
+        run: python -m py_compile src/app.py src/worker.py src/biometric_crypto.py src/yolo_proxy.py
       - name: Validate frontend JavaScript
         run: node --check public/app.js
       - name: Validate camera and dashboard JavaScript
@@ -67,6 +67,8 @@ jobs:
         run: node --test tests/vision_core.test.js
       - name: Validate face recognition JavaScript
         run: node --check public/face-recognition.js
+      - name: Validate hosted YOLO client JavaScript
+        run: node --check public/hosted-yolo.js
       - name: Validate local AI dashboard JavaScript
         run: |
           node --check public/local-vision.js
@@ -93,6 +95,8 @@ jobs:
           test -f public/ai-vision.js
           test -f public/face-recognition.js
           test -f public/local-vision.js
+          test -f public/hosted-yolo.js
+          test -f src/yolo_proxy.py
           test -f tools/local_ai_server/ai_server.py
           test -f requirements-local-ai.txt
           test -f public/detection-events.js
@@ -131,6 +135,8 @@ jobs:
           ROVER_CAMERA_STREAM_TYPE: ${{ secrets.ROVER_CAMERA_STREAM_TYPE }}
           ROVER_DEVICE_TOKEN: ${{ secrets.ROVER_DEVICE_TOKEN }}
           SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+          YOLO_API_KEY: ${{ secrets.YOLO_API_KEY }}
+          YOLO_API_URL: ${{ secrets.YOLO_API_URL }}
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -148,6 +154,7 @@ jobs:
               "LEGACY_AUTH_ENABLED", "LEGACY_AUTH_URL", "LIVE_SYNC_SECRET",
               "ROVER_CAMERA_STREAM_URL", "ROVER_CAMERA_STREAM_TYPE",
               "ROVER_DEVICE_TOKEN", "SESSION_SECRET",
+              "YOLO_API_KEY", "YOLO_API_URL",
           ]
           payload = {name: os.environ[name] for name in names if os.environ.get(name, "")}
           # Preserve credentials for all four approved user accounts.
