@@ -1020,17 +1020,13 @@ def ensure_db():
                            WHERE UPPER(username)=UPPER(%s)""",
                         (ADMIN_USERNAME, ADMIN_USERNAME),
                     )
-                    stage = "find_admin_account"
-                    cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
-                    if not cur.fetchone():
-                        stage = "insert_admin_account"
-                        cur.execute(
-                            """INSERT INTO users
-                            (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
-                            VALUES (%s,%s,%s,%s,'admin',TRUE,TRUE,TRUE)""",
-                            (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator",
-                             ADMIN_PASSWORD_HASH or generate_password_hash(ADMIN_PASSWORD)),
-                        )
+                    # The production administrator authenticates against the
+                    # Worker ADMIN_PASSWORD / ADMIN_PASSWORD_HASH bindings and
+                    # receives an environment-signed session in worker.py. A
+                    # PostgreSQL admin row is not required for that auth path.
+                    # Do not generate a second password hash inside Pyodide or
+                    # create a DB credential that the Worker never authenticates.
+                    stage = "admin_environment_auth"
                     # Ensure all four approved regular-user accounts exist without
                     # overwriting any passwords already stored in PostgreSQL.
                     for username in KNOWN_FRIEND_USERNAMES:
