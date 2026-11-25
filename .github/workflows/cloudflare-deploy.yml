@@ -269,7 +269,7 @@ jobs:
               db_health_ok=true
               break
             fi
-            python -c 'import json; d=json.load(open("/tmp/defenx-db-health.json", encoding="utf-8")); print("Database status:", d.get("database", "unknown")); print("Database error class:", d.get("error_class", "not reported"))' 2>/dev/null || true
+            python -c 'import json; d=json.load(open("/tmp/defenx-db-health.json", encoding="utf-8")); print("Database status:", d.get("database", "unknown")); print("Connection path:", d.get("connection_path", "unknown")); print("Database error class:", d.get("error_class", "not reported")); print("PostgreSQL SQLSTATE:", d.get("error_code", "not reported")); print("Initialization stage:", d.get("initialization_stage", "not reported")); print("Diagnostic hint:", d.get("error_hint", "not reported"))' 2>/dev/null || true
             if [ "$attempt" -lt 8 ]; then sleep 5; fi
           done
           test "$db_health_ok" = true
