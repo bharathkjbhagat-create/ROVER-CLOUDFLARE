@@ -81,6 +81,10 @@
     return configured;
   }
 
+  function notifyOnDeviceAI(active) {
+    window.dispatchEvent(new CustomEvent("defenx-hosted-yolo-state", { detail: { active: !!active } }));
+  }
+
   function schedule(delay) {
     clearTimeout(timer);
     if (running) timer = setTimeout(tick, delay);
@@ -105,7 +109,7 @@
       let data = null;
       try { data = await res.json(); } catch (_) { /* non-JSON error page */ }
       if (!running) return;
-      if (res.status === 401) { running = false; clearOverlay(); setState("error", "SESSION EXPIRED • SIGN IN AGAIN"); return; }
+      if (res.status === 401) { running = false; notifyOnDeviceAI(false); clearOverlay(); setState("error", "SESSION EXPIRED • SIGN IN AGAIN"); return; }
       if (!res.ok || !data || data.ok !== true) {
         const err = new Error((data && data.error) || ("HTTP " + res.status));
         err.retryAfter = res.status === 429 ? 5000 : 0;
@@ -135,11 +139,12 @@
     toggle.disabled = false;
     if (ok === false) { running = false; setState("error", "NOT CONFIGURED • ADMIN MUST SET YOLO_API_KEY AND YOLO_API_URL"); return; }
     running = true; failures = 0;
+    notifyOnDeviceAI(true);
     setState("loading", "STARTING");
     tick();
   }
 
-  function stop() { running = false; clearTimeout(timer); clearOverlay(); setState("off", "OFF"); }
+  function stop() { running = false; notifyOnDeviceAI(false); clearTimeout(timer); clearOverlay(); setState("off", "OFF"); }
   toggle.addEventListener("click", () => (running ? stop() : start()));
   document.addEventListener("visibilitychange", () => { if (document.hidden && running) stop(); });
   window.DEFENX_HOSTED_YOLO = { start, stop, isRunning: () => running, lastOk: () => lastOk };

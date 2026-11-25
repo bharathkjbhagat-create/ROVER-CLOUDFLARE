@@ -180,7 +180,13 @@ class StaticWiringTests(unittest.TestCase):
 
     def test_frontend_loaded_and_has_no_secrets_or_identity_api(self):
         self.assertIn("/hosted-yolo.js", self.read("public/index.html"))
-        js = self.read("public/hosted-yolo.js")
+        ai = self.read("public/ai-vision.js")
+        hosted = self.read("public/hosted-yolo.js")
+        self.assertIn("defenx-hosted-yolo-state", ai)
+        self.assertIn("HOSTED YOLO ACTIVE • ON-DEVICE AI PAUSED", ai)
+        self.assertIn('notifyOnDeviceAI(true)', hosted)
+        self.assertIn('notifyOnDeviceAI(false)', hosted)
+        js = hosted
         self.assertNotIn("YOLO_API_KEY", js.replace("ADMIN MUST SET YOLO_API_KEY AND YOLO_API_URL", ""))
         self.assertNotIn("api_key", js)
         for banned in ("descriptor", "enroll", "match_status", "identify"):
