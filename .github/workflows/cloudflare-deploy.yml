@@ -312,7 +312,7 @@ jobs:
           grep -Fq 'ONLINE BROWSER AI • OBJECT + FACE' /tmp/defenx-online-vision-index.html
           grep -Fq 'camera-webrtc.js?v=20261114-online-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'browser-vision-sync.js?v=20261115-fix-01' /tmp/defenx-online-vision-index.html
-          grep -Fq 'ai-vision.js?v=20261115-face-fast-01' /tmp/defenx-online-vision-index.html
+          grep -Fq 'ai-vision.js?v=20261125-hosted-priority-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'face-recognition.js?v=20261115-face-feedback-01' /tmp/defenx-online-vision-index.html
           grep -Fq 'Start frame analysis now' /tmp/defenx-ai-vision.js
           grep -Fq 'MATCHING FACE' /tmp/defenx-face-recognition.js
