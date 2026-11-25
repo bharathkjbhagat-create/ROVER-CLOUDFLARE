@@ -1,0 +1,59 @@
+name: Diagnose DEFENX Hyperdrive binding
+
+on:
+  push:
+    paths:
+      - ".github/workflows/hyperdrive-diagnostic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read Hyperdrive configuration without exposing credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          test -n "$CLOUDFLARE_API_TOKEN"
+          test -n "$CLOUDFLARE_ACCOUNT_ID"
+          curl --fail --silent --show-error \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/hyperdrive/configs/a8ee8cec855c484d9430b56023afbbde" \
+            -o /tmp/hyperdrive.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          payload = json.loads(Path("/tmp/hyperdrive.json").read_text())
+          if payload.get("success") is not True:
+              raise SystemExit("Cloudflare API did not confirm Hyperdrive configuration.")
+          config = payload.get("result") or {}
+          origin = config.get("origin") or {}
+          # Never print passwords, tokens, connection strings, or secret values.
+          safe = {
+              "id": config.get("id"),
+              "name": config.get("name"),
+              "origin_host": origin.get("host"),
+              "origin_port": origin.get("port"),
+              "origin_database": origin.get("database"),
+              "origin_user": origin.get("user"),
+          }
+          print(json.dumps(safe, indent=2))
+          expected = {
+              "origin_host": "ep-crimson-leaf-b9hb8srd.c-7.eu-central-1.aws.neon.tech",
+              "origin_port": 5432,
+              "origin_database": "neondb",
+              "origin_user": "neondb_owner",
+          }
+          mismatches = [key for key, value in expected.items() if safe.get(key) != value]
+          if mismatches:
+              print("HYPERDRIVE_ORIGIN_MISMATCH:", ", ".join(mismatches))
+              raise SystemExit(1)
+          print("HYPERDRIVE_ORIGIN_MATCH: PASS")
+          PY
