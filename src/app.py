@@ -992,7 +992,7 @@ def ensure_db():
                     statements = [s.strip() for s in SCHEMA.split(";") if s.strip()]
                     for statement in statements:
                         words = statement.split()
-                        table_name = words[4] if len(words) > 4 and words[:4] == ["CREATE", "TABLE", "IF", "NOT"] else "unknown"
+                        table_name = words[5] if len(words) > 5 and words[:5] == ["CREATE", "TABLE", "IF", "NOT", "EXISTS"] else "unknown"
                         stage = "create_" + table_name.lower()
                         cur.execute(statement)
                     stage = "alter_users_auth_version"
