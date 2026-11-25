@@ -838,13 +838,55 @@ def sync_worker_bindings(env):
 DB_INIT_ERROR_CLASS = None
 DB_INIT_ERROR_DETAIL = None
 DB_INIT_ERROR_CODE = None
+DB_INIT_STAGE = "not_started"
+
 
 def _database_error_code(exc):
-    code = getattr(exc, "sqlstate", None) or getattr(exc, "sql_state", None)
-    if not code and getattr(exc, "args", None) and isinstance(exc.args[0], dict):
-        code = exc.args[0].get("C") or exc.args[0].get("sqlstate")
-    code = str(code or "").strip()
-    return code if len(code) == 5 and code.isalnum() else None
+    """Extract PostgreSQL SQLSTATE without exposing server error text."""
+    pending = [exc]
+    seen = set()
+    while pending:
+        current = pending.pop(0)
+        if current is None or id(current) in seen:
+            continue
+        seen.add(id(current))
+        for attr in ("sqlstate", "sql_state", "pgcode"):
+            value = getattr(current, attr, None)
+            value = str(value or "").strip()
+            if len(value) == 5 and value.isalnum():
+                return value
+        args = getattr(current, "args", ())
+        for arg in args if isinstance(args, (tuple, list)) else ():
+            if isinstance(arg, dict):
+                for key in ("C", "sqlstate", "sql_state", "pgcode"):
+                    value = str(arg.get(key) or "").strip()
+                    if len(value) == 5 and value.isalnum():
+                        return value
+                pending.extend(value for value in arg.values() if isinstance(value, BaseException))
+            elif isinstance(arg, (tuple, list)):
+                if len(arg) == 2 and str(arg[0]).strip().lower() in {"c", "sqlstate", "sql_state", "pgcode"}:
+                    value = str(arg[1] or "").strip()
+                    if len(value) == 5 and value.isalnum():
+                        return value
+                pending.extend(value for value in arg if isinstance(value, BaseException))
+        pending.extend((getattr(current, "__cause__", None), getattr(current, "__context__", None)))
+    return None
+
+
+def _database_error_hint(code):
+    if not code:
+        return "Inspect the recorded initialization stage; no PostgreSQL SQLSTATE was supplied."
+    if code.startswith("08"):
+        return "PostgreSQL connection or transport failure."
+    if code.startswith("28"):
+        return "PostgreSQL rejected the configured database credentials."
+    if code == "42501":
+        return "The configured database role lacks a required permission."
+    if code.startswith("42"):
+        return "A PostgreSQL schema, table, column, or SQL statement is incompatible."
+    if code.startswith("23"):
+        return "A PostgreSQL constraint rejected an initialization write."
+    return "PostgreSQL returned an error; use the SQLSTATE to identify its class."
 
 
 def database_diagnostics():
@@ -865,6 +907,7 @@ def database_diagnostics():
         "cooldown_active": time.monotonic() < _db_unavailable_until,
         "initialization_error": DB_INIT_ERROR_CLASS,
         "initialization_error_code": DB_INIT_ERROR_CODE,
+        "initialization_stage": DB_INIT_STAGE,
     }
 
 
@@ -936,21 +979,29 @@ def get_db():
         raise
 
 def ensure_db():
-    global _db_initialized
+    global _db_initialized, DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL, DB_INIT_ERROR_CODE, DB_INIT_STAGE
     if not db_available() or _db_initialized:
         return
     with _db_lock:
         if _db_initialized or not db_available():
             return
+        stage = "connect"
         try:
             with get_db() as conn:
                 with conn.cursor() as cur:
-                    for statement in [s.strip() for s in SCHEMA.split(";") if s.strip()]:
+                    statements = [s.strip() for s in SCHEMA.split(";") if s.strip()]
+                    for statement in statements:
+                        words = statement.split()
+                        table_name = words[4] if len(words) > 4 and words[:4] == ["CREATE", "TABLE", "IF", "NOT"] else "unknown"
+                        stage = "create_" + table_name.lower()
                         cur.execute(statement)
+                    stage = "alter_users_auth_version"
                     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_version INTEGER NOT NULL DEFAULT 0")
+                    stage = "alter_audit_log_session_id"
                     cur.execute("ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS session_id TEXT")
                     # Retain every approved regular user across deployments and
                     # remove only duplicate admin rows. Existing passwords are preserved.
+                    stage = "remove_duplicate_admin_rows"
                     cur.execute(
                         """DELETE FROM users
                            WHERE UPPER(username)=UPPER(%s)
@@ -960,14 +1011,17 @@ def ensure_db():
                              )""",
                         (ADMIN_USERNAME, ADMIN_USERNAME, ADMIN_USERNAME),
                     )
+                    stage = "normalize_admin_account"
                     cur.execute(
                         """UPDATE users SET username=%s,role='admin',enabled=TRUE,
                            can_control=TRUE,can_manage_users=TRUE
                            WHERE UPPER(username)=UPPER(%s)""",
                         (ADMIN_USERNAME, ADMIN_USERNAME),
                     )
+                    stage = "find_admin_account"
                     cur.execute("SELECT id FROM users WHERE username=%s", (ADMIN_USERNAME,))
                     if not cur.fetchone():
+                        stage = "insert_admin_account"
                         cur.execute(
                             """INSERT INTO users
                             (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
@@ -975,11 +1029,10 @@ def ensure_db():
                             (str(uuid.uuid4()), ADMIN_USERNAME, "ROVER Administrator",
                              ADMIN_PASSWORD_HASH or generate_password_hash(ADMIN_PASSWORD)),
                         )
-                    # Ensure all four approved user accounts exist in PostgreSQL so
-                    # the admin User Management page always lists them after DB init.
-                    # A random, undisclosed initial password hash prevents login until
-                    # the administrator explicitly sets a password via Reset Password.
+                    # Ensure all four approved regular-user accounts exist without
+                    # overwriting any passwords already stored in PostgreSQL.
                     for username in KNOWN_FRIEND_USERNAMES:
+                        stage = "ensure_user_" + username.lower()
                         cur.execute(
                             """INSERT INTO users
                                (id,username,display_name,password_hash,role,enabled,can_control,can_manage_users)
@@ -992,21 +1045,30 @@ def ensure_db():
                                 "disabled$" + uuid.uuid4().hex,
                             ),
                         )
+                    stage = "find_default_device"
                     cur.execute("SELECT id FROM devices WHERE device_code=%s", ("ROVER-01",))
                     if not cur.fetchone():
+                        stage = "insert_default_device"
                         cur.execute(
                             """INSERT INTO devices (id,device_code,name,type,enabled,notes)
                                VALUES (%s,%s,%s,'ROVER',TRUE,%s)""",
                             (str(uuid.uuid4()), "ROVER-01", "ROVER-01", "Default demonstration rover"),
                         )
-                _db_initialized = True
+            _db_initialized = True
+            DB_INIT_ERROR_CLASS = None
+            DB_INIT_ERROR_DETAIL = None
+            DB_INIT_ERROR_CODE = None
+            DB_INIT_STAGE = "ready"
         except Exception as exc:
-            # Never hold the page hostage when the database is unavailable.
-            global DB_INIT_ERROR_CLASS, DB_INIT_ERROR_DETAIL, DB_INIT_ERROR_CODE
             DB_INIT_ERROR_CLASS = type(exc).__name__
             DB_INIT_ERROR_CODE = _database_error_code(exc)
             DB_INIT_ERROR_DETAIL = None
-            print(f"DEFENX PostgreSQL initialization failed: {DB_INIT_ERROR_CLASS}; SQLSTATE={DB_INIT_ERROR_CODE or 'unavailable'}")
+            DB_INIT_STAGE = stage
+            print(
+                "DEFENX PostgreSQL initialization failed: "
+                f"class={DB_INIT_ERROR_CLASS}; stage={DB_INIT_STAGE}; "
+                f"sqlstate={DB_INIT_ERROR_CODE or 'unavailable'}"
+            )
             mark_db_unavailable()
 
 def client_ip():
@@ -1396,6 +1458,8 @@ def database_health():
             "driver_available": diagnostics["driver_available"],
             "error_class": DB_INIT_ERROR_CLASS,
             "error_code": DB_INIT_ERROR_CODE,
+            "initialization_stage": DB_INIT_STAGE,
+            "error_hint": _database_error_hint(DB_INIT_ERROR_CODE),
         }), 503
     try:
         conn = get_db()
@@ -1421,6 +1485,9 @@ def database_health():
             "store_configured": diagnostics["store_configured"],
             "driver_available": diagnostics["driver_available"],
             "error_class": type(exc).__name__,
+            "error_code": _database_error_code(exc),
+            "initialization_stage": "health_query",
+            "error_hint": _database_error_hint(_database_error_code(exc)),
         }), 503
 
 
